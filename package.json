@@ -1,0 +1,26 @@
+{
+  "name": "petspond",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Pet services platform - User App, Vet CRM (web + mobile), API",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "dev:api": "pnpm --filter @petspond/api dev",
+    "dev:web": "pnpm --filter @petspond/vet-crm-web dev",
+    "dev:user-app": "pnpm --filter @petspond/user-app start",
+    "dev:vet-mobile": "pnpm --filter @petspond/vet-crm-mobile start",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "turbo": "^2.3.0",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@9.14.2"
+}

@@ -1,0 +1,15 @@
+/**
+ * CSS custom properties for theme. Used by Tailwind and global styles.
+ * Override these (e.g. in a future dark mode or rebrand) without touching components.
+ */
+:root {
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-background: #ffffff;
+  --color-foreground: #0f172a;
+  --color-muted: #64748b;
+  --color-border: #e2e8f0;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+}

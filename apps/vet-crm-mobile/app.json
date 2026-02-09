@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Petspond Vet CRM",
+    "slug": "petspond-vet-crm-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "petspond-vet",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#2563eb"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.petspond.vetcrm"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#2563eb"
+      },
+      "package": "com.petspond.vetcrm"
+    },
+    "plugins": ["expo-router"],
+    "platforms": ["ios", "android"]
+  }
+}

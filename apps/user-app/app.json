@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Petspond",
+    "slug": "petspond-user-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "petspond",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.petspond.userapp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.petspond.userapp"
+    },
+    "plugins": ["expo-router"],
+    "platforms": ["ios", "android"]
+  }
+}
