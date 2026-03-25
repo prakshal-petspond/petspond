@@ -20,7 +20,13 @@
       },
       "package": "com.petspond.userapp"
     },
-    "plugins": ["expo-router"],
-    "platforms": ["ios", "android"]
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "platforms": [
+      "ios",
+      "android"
+    ]
   }
 }

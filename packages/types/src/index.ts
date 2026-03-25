@@ -34,16 +34,54 @@ export interface UpdateUserDto {
   onboardingCompleted?: boolean;
 }
 
+// Complete onboarding request (name required when completing)
+export interface CompleteOnboardingDto {
+  name: string;
+  email?: string;
+  city?: string;
+  pincode?: string;
+}
+
 // ----- Vet -----
+export type VetApprovalStatus = 'pending' | 'approved';
+
+export const VET_QUALIFICATIONS = [
+  'BVSc',
+  'MVSc',
+  'PhD',
+  'DVSc',
+  'B.V.Sc. & A.H.',
+  'M.V.Sc.',
+  'Other',
+] as const;
+export type VetQualification = (typeof VET_QUALIFICATIONS)[number];
+
+export const VET_SPECIALIZATIONS = [
+  'Small animals',
+  'Surgery',
+  'Dermatology',
+  'Nutrition',
+  'Exotic pets',
+  'Large animals',
+  'Internal medicine',
+  'Preventive care',
+  'Other',
+] as const;
+export type VetSpecialization = (typeof VET_SPECIALIZATIONS)[number];
+
 export interface Vet {
   id: string;
   fullName: string;
   mobile: string;
-  email: string;
+  email?: string;
   veterinaryRegistrationNumber: string;
   yearOfRegistration: number;
   qualifications: string[];
   specializations: string[];
+  clinicId?: string;
+  isClinicAdmin: boolean;
+  approvalStatus: VetApprovalStatus;
+  onboardingCompleted: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -51,11 +89,62 @@ export interface Vet {
 export interface CreateVetDto {
   fullName: string;
   mobile: string;
-  email: string;
+  email?: string;
   veterinaryRegistrationNumber: string;
   yearOfRegistration: number;
   qualifications: string[];
   specializations: string[];
+}
+
+export interface VetCompleteOnboardingDto {
+  fullName: string;
+  email?: string;
+  veterinaryRegistrationNumber: string;
+  yearOfRegistration: number;
+  qualifications: string[];
+  specializations: string[];
+  /** Existing clinic to join (doctor will need approval from admin) */
+  clinicId?: string;
+  /** Or create new clinic (doctor becomes admin) */
+  newClinic?: CreateClinicDto;
+}
+
+// ----- Clinic -----
+export interface Clinic {
+  id: string;
+  name: string;
+  totalDoctors: number;
+  address: string;
+  pincode: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
+  adminVetId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateClinicDto {
+  name: string;
+  totalDoctors: number;
+  address: string;
+  pincode: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
+}
+
+export interface VetVerifyOtpResponse {
+  verified: boolean;
+  token?: string;
+  vet?: Vet;
+  message?: string;
 }
 
 // ----- Pet -----
@@ -106,6 +195,30 @@ export interface Appointment {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ----- Auth / OTP -----
+export interface SendOtpDto {
+  mobile: string;
+  /** Optional country code (e.g. "91" for India). Server uses default if omitted. */
+  countryCode?: string;
+}
+
+export interface SendOtpResponse {
+  success: boolean;
+  message?: string;
+}
+
+export interface VerifyOtpDto {
+  mobile: string;
+  otp: string;
+}
+
+export interface VerifyOtpResponse {
+  verified: boolean;
+  token?: string;
+  user?: User;
+  message?: string;
 }
 
 // ----- Common -----

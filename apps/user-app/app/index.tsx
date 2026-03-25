@@ -1,29 +1,62 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '@/contexts';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { Redirect } from 'expo-router';
+import { useTheme, useApi } from '@/contexts';
+import type { User } from '@petspond/types';
+import { authApi } from '@/services/auth.service';
+import { LandingPage } from '@/features/home/LandingPage';
 
 export default function HomeScreen() {
   const t = useTheme();
+  const { client, token, setToken } = useApi();
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    authApi
+      .me(client)
+      .then((u) => {
+        if (!cancelled) setUser(u);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setToken(null);
+          setUser(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, client, setToken]);
+
+  if (!token) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  if (user === undefined) {
+    return (
+      <View style={[styles.centered, { backgroundColor: t.colors.background }]}>
+        <ActivityIndicator size="large" color={t.colors.primary} />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return <Redirect href="/onboarding" />;
+  }
+
+  if (!user.onboardingCompleted) {
+    return <Redirect href="/onboarding" />;
+  }
+
   return (
-    <View style={[styles.container, { backgroundColor: t.colors.background }]}>
-      <Text style={[styles.title, { color: t.colors.primary }]}>Petspond</Text>
-      <Text style={[styles.subtitle, { color: t.colors.muted }]}>User App – onboarding & pets</Text>
+    <View style={styles.centered}>
+      <LandingPage />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-  },
+  centered: { flex: 1 },
 });

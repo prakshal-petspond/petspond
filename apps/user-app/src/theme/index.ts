@@ -5,12 +5,16 @@ export const theme = {
   colors: {
     primary: '#2563eb',
     primaryHover: '#1d4ed8',
+    /** Accent for location, pet pill, promo badges, section labels */
+    accent: '#ea580c',
+    accentLight: '#fed7aa',
     background: '#ffffff',
     foreground: '#0f172a',
     muted: '#64748b',
     border: '#e2e8f0',
     error: '#dc2626',
     success: '#16a34a',
+    cardBg: '#f5f0e8',
   },
   spacing: {
     xs: 4,

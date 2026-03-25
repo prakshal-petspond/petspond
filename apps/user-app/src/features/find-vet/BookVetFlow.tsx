@@ -1,0 +1,719 @@
+import React, { useMemo, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useTheme, useApi } from '@/contexts';
+import { Ionicons } from '@expo/vector-icons';
+import { getVetDetail } from './vetData';
+import { startVetBookingCheckout } from '@/services/vetBookingPayment';
+
+const H_PAD = 16;
+const CONSULTATION_INR = 300;
+const PLATFORM_FEE_INR = 30;
+
+const MOCK_PETS = [
+  { id: 'p1', name: 'Luna', detail: 'Golden Retriever · 3 years', weight: '20 kg' },
+  { id: 'p2', name: 'Max', detail: 'Indie · 2 years', weight: '14 kg' },
+  { id: 'p3', name: 'Bella', detail: 'Persian · 5 years', weight: '4 kg' },
+  { id: 'p4', name: 'Charlie', detail: 'Beagle · 1 year', weight: '11 kg' },
+];
+
+const REASONS: { id: string; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+  { id: 'checkup', label: 'General Check-up', icon: 'medical-outline' },
+  { id: 'vax', label: 'Vaccination', icon: 'bandage-outline' },
+  { id: 'illness', label: 'Illness/Symptoms', icon: 'pulse-outline' },
+  { id: 'injury', label: 'Injury/Emergency', icon: 'warning-outline' },
+  { id: 'followup', label: 'Follow-up Visit', icon: 'heart-outline' },
+  { id: 'behavior', label: 'Behavioral Issues', icon: 'paw-outline' },
+];
+
+function formatFullDate(d: Date) {
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function buildDateStrip(): Date[] {
+  const out: Date[] = [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 14; i++) {
+    const x = new Date(start);
+    x.setDate(start.getDate() + i);
+    out.push(x);
+  }
+  return out;
+}
+
+const TIME_SLOTS = (() => {
+  const slots: string[] = [];
+  for (let h = 9; h <= 17; h++) {
+    for (const m of [0, 30]) {
+      if (h === 17 && m > 0) break;
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      slots.push(
+        d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true }),
+      );
+    }
+  }
+  return slots;
+})();
+
+type PaymentMethod = 'card' | 'upi' | 'clinic';
+
+function sameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+export function BookVetFlow() {
+  const { vetId } = useLocalSearchParams<{ vetId: string }>();
+  const t = useTheme();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { client } = useApi();
+  const accent = t.colors.accent ?? t.colors.primary;
+
+  const vet = vetId ? getVetDetail(String(vetId)) : undefined;
+  const assignedDoctor = vet?.doctors[0];
+
+  const [step, setStep] = useState(0);
+  const [petId, setPetId] = useState<string | null>(null);
+  const [reasons, setReasons] = useState<string[]>([]);
+  const [notes, setNotes] = useState('');
+  const dates = useMemo(() => buildDateStrip(), []);
+  const [selectedDate, setSelectedDate] = useState<Date>(dates[0]!);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [promoInput, setPromoInput] = useState('');
+  const [promoDiscount, setPromoDiscount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+  const [payLoading, setPayLoading] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [paidStripeSession, setPaidStripeSession] = useState<string | undefined>();
+
+  const pet = MOCK_PETS.find((p) => p.id === petId);
+  const subtotalInr = CONSULTATION_INR + PLATFORM_FEE_INR;
+  const totalInr = Math.max(0, subtotalInr - promoDiscount);
+
+  const toggleReason = useCallback((id: string) => {
+    setReasons((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+
+  const applyPromo = useCallback(() => {
+    const code = promoInput.trim().toUpperCase();
+    if (code === 'SAVE100') setPromoDiscount(100);
+    else if (code === 'WELCOME10') setPromoDiscount(Math.round(CONSULTATION_INR * 0.1));
+    else {
+      Alert.alert('Promo code', 'Invalid or expired code. Try SAVE100 or WELCOME10.');
+      return;
+    }
+    Alert.alert('Promo applied', `You saved ₹${code === 'SAVE100' ? 100 : Math.round(CONSULTATION_INR * 0.1)}.`);
+  }, [promoInput]);
+
+  const reasonLabels = reasons
+    .map((id) => REASONS.find((r) => r.id === id)?.label)
+    .filter(Boolean) as string[];
+
+  const goNext = () => {
+    if (step === 0 && !petId) return;
+    if (step === 1 && reasons.length === 0) return;
+    if (step === 2 && !selectedTime) return;
+    setStep((s) => s + 1);
+  };
+
+  const goBack = () => {
+    if (step === 0) router.back();
+    else if (bookingId) router.replace(`/find-vet/${vet?.id ?? vetId}`);
+    else setStep((s) => s - 1);
+  };
+
+  const confirmPayment = async () => {
+    if (!vet || !pet || !selectedTime || !assignedDoctor) return;
+
+    if (paymentMethod === 'clinic') {
+      setBookingId(`VET${Math.floor(100000 + Math.random() * 900000)}`);
+      setStep(5);
+      return;
+    }
+
+    setPayLoading(true);
+    try {
+      const amountPaise = Math.round(totalInr * 100);
+      const description = `${vet.clinic} — ${pet.name} — ${reasonLabels.join(', ') || 'Visit'}`;
+
+      const result = await startVetBookingCheckout(client, {
+        amountPaise,
+        vetId: vet.id,
+        description,
+      });
+
+      if (result.status === 'cancelled') {
+        Alert.alert('Payment', 'Checkout was cancelled.');
+        return;
+      }
+      if (result.status === 'error') {
+        Alert.alert('Payment', result.message);
+        return;
+      }
+
+      if (result.status === 'paid' || result.status === 'mock_ok') {
+        if (result.status === 'paid') setPaidStripeSession(result.stripeSessionId);
+        setBookingId(`VET${Math.floor(100000 + Math.random() * 900000)}`);
+        setStep(5);
+      }
+    } finally {
+      setPayLoading(false);
+    }
+  };
+
+  if (!vet || !assignedDoctor) {
+    return (
+      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
+        <Text style={{ padding: H_PAD, color: t.colors.muted }}>Unable to load clinic.</Text>
+        <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
+          <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const headerSubtitle = bookingId ? 'Confirmed' : `Step ${Math.min(step + 1, 5)} of 5`;
+
+  return (
+    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: t.colors.border }]}>
+        <TouchableOpacity style={styles.backRound} onPress={goBack} activeOpacity={0.85}>
+          <Ionicons name="arrow-back" size={22} color={t.colors.foreground} />
+        </TouchableOpacity>
+        <Text style={[styles.headerStep, { color: t.colors.muted }]}>{headerSubtitle}</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {step < 5 && (
+        <ScrollView
+          contentContainerStyle={[styles.scrollPad, { paddingBottom: insets.bottom + 100 }]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {step === 0 && (
+            <>
+              <Text style={[styles.title, { color: t.colors.foreground }]}>Select Your Pet</Text>
+              <Text style={[styles.subtitle, { color: t.colors.muted }]}>Which pet needs care?</Text>
+              <View style={{ marginTop: 20, gap: 12 }}>
+                {MOCK_PETS.map((p) => {
+                  const sel = petId === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[
+                        styles.petCard,
+                        {
+                          borderColor: sel ? accent : t.colors.border,
+                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                        },
+                      ]}
+                      onPress={() => setPetId(p.id)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[styles.petAvatar, { backgroundColor: t.colors.border }]}>
+                        <Ionicons name="paw" size={28} color={t.colors.muted} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.petName, { color: t.colors.foreground }]}>{p.name}</Text>
+                        <Text style={[styles.petDetail, { color: t.colors.muted }]}>{p.detail}</Text>
+                        <Text style={[styles.petWeight, { color: accent }]}>{p.weight}</Text>
+                      </View>
+                      {sel && <Ionicons name="checkmark-circle" size={26} color={accent} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {step === 1 && (
+            <>
+              <Text style={[styles.title, { color: t.colors.foreground }]}>Reason for Visit</Text>
+              <Text style={[styles.subtitle, { color: t.colors.muted }]}>
+                What&apos;s the reason for visit? Select all that apply.
+              </Text>
+              <View style={styles.reasonGrid}>
+                {REASONS.map((r) => {
+                  const sel = reasons.includes(r.id);
+                  return (
+                    <TouchableOpacity
+                      key={r.id}
+                      style={[
+                        styles.reasonCell,
+                        {
+                          borderColor: sel ? accent : t.colors.border,
+                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                        },
+                      ]}
+                      onPress={() => toggleReason(r.id)}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name={r.icon} size={26} color={sel ? accent : t.colors.muted} />
+                      <Text style={[styles.reasonLabel, { color: t.colors.foreground }]} numberOfLines={2}>
+                        {r.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={[styles.notesLabel, { color: t.colors.foreground }]}>Additional Notes (Optional)</Text>
+              <TextInput
+                style={[
+                  styles.notesInput,
+                  { color: t.colors.foreground, borderColor: t.colors.border, backgroundColor: t.colors.background },
+                ]}
+                placeholder="Describe symptoms, behaviors, or other specific concerns..."
+                placeholderTextColor={t.colors.muted}
+                multiline
+                value={notes}
+                onChangeText={setNotes}
+              />
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <Text style={[styles.title, { color: t.colors.foreground }]}>Select Date & Time</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
+                {dates.map((d, i) => {
+                  const sel = sameDay(d, selectedDate);
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      style={[
+                        styles.dateChip,
+                        {
+                          borderColor: sel ? accent : t.colors.border,
+                          backgroundColor: sel ? accent : t.colors.background,
+                        },
+                      ]}
+                      onPress={() => setSelectedDate(d)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.dateChipTop, { color: sel ? '#fff' : t.colors.muted }]}>
+                        {d.toLocaleDateString(undefined, { weekday: 'short' })}
+                      </Text>
+                      <Text style={[styles.dateChipDay, { color: sel ? '#fff' : t.colors.foreground }]}>
+                        {d.getDate()}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <View style={styles.timeGrid}>
+                {TIME_SLOTS.map((slot) => {
+                  const sel = selectedTime === slot;
+                  return (
+                    <TouchableOpacity
+                      key={slot}
+                      style={[
+                        styles.timeChip,
+                        {
+                          borderColor: sel ? accent : t.colors.border,
+                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                        },
+                      ]}
+                      onPress={() => setSelectedTime(slot)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>{slot}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <Text style={[styles.title, { color: t.colors.foreground }]}>Review Appointment</Text>
+              <Text style={[styles.summaryHead, { color: t.colors.muted }]}>Appointment Summary</Text>
+              <View style={[styles.summaryCard, { borderColor: t.colors.border }]}>
+                <Text style={[styles.summarySection, { color: t.colors.muted }]}>Pet</Text>
+                <View style={styles.summaryRow}>
+                  <Ionicons name="paw" size={22} color={accent} />
+                  <View>
+                    <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{pet?.name ?? '—'}</Text>
+                    <Text style={{ color: t.colors.muted, fontSize: 14 }}>{pet?.detail}</Text>
+                  </View>
+                </View>
+                <Text style={[styles.summarySection, { color: t.colors.muted, marginTop: 14 }]}>Veterinarian</Text>
+                <View style={styles.summaryRow}>
+                  <Ionicons name="person-circle-outline" size={40} color={accent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{assignedDoctor.name}</Text>
+                    <Text style={{ color: t.colors.muted, fontSize: 14 }}>
+                      {assignedDoctor.title} | {assignedDoctor.experience}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.summarySection, { color: t.colors.muted, marginTop: 14 }]}>Reason for Visit</Text>
+                <View style={styles.tagRow}>
+                  {reasonLabels.map((label) => (
+                    <View key={label} style={[styles.tag, { backgroundColor: t.colors.accentLight }]}>
+                      <Text style={[styles.tagText, { color: accent }]}>{label}</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={[styles.summarySection, { color: t.colors.muted, marginTop: 14 }]}>Schedule</Text>
+                <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>
+                  {formatFullDate(selectedDate)} @ {selectedTime ?? '—'}
+                </Text>
+              </View>
+            </>
+          )}
+
+          {step === 4 && (
+            <>
+              <Text style={[styles.title, { color: t.colors.foreground }]}>Review Appointment</Text>
+              <Text style={[styles.subtitle, { color: t.colors.muted }]}>Payment</Text>
+              <View style={[styles.promoRow, { borderColor: t.colors.border }]}>
+                <TextInput
+                  style={[styles.promoInput, { color: t.colors.foreground }]}
+                  placeholder="Promo code"
+                  placeholderTextColor={t.colors.muted}
+                  value={promoInput}
+                  onChangeText={setPromoInput}
+                />
+                <TouchableOpacity style={[styles.applyBtn, { backgroundColor: accent }]} onPress={applyPromo}>
+                  <Text style={styles.applyBtnText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.paySection, { color: t.colors.foreground }]}>Payment method</Text>
+              {(
+                [
+                  ['card', 'Credit/Debit Card', 'card-outline'] as const,
+                  ['upi', 'UPI Payment', 'phone-portrait-outline'] as const,
+                  ['clinic', 'Pay At Clinic', 'business-outline'] as const,
+                ] as const
+              ).map(([id, label, icon]) => {
+                const sel = paymentMethod === id;
+                return (
+                  <TouchableOpacity
+                    key={id}
+                    style={[styles.payRow, { borderColor: sel ? accent : t.colors.border }]}
+                    onPress={() => setPaymentMethod(id)}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name={icon} size={22} color={sel ? accent : t.colors.muted} />
+                    <Text style={[styles.payRowText, { color: t.colors.foreground, flex: 1 }]}>{label}</Text>
+                    <View style={[styles.radio, { borderColor: sel ? accent : t.colors.muted }]}>
+                      {sel && <View style={[styles.radioInner, { backgroundColor: accent }]} />}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+              {paymentMethod === 'upi' && (
+                <Text style={{ color: t.colors.muted, fontSize: 13, marginTop: 8 }}>
+                  UPI is processed securely via Stripe Checkout when your API has STRIPE_SECRET_KEY set.
+                </Text>
+              )}
+              <View style={[styles.priceBox, { borderColor: t.colors.border }]}>
+                <View style={styles.priceLine}>
+                  <Text style={{ color: t.colors.muted }}>Consultation Fee</Text>
+                  <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{CONSULTATION_INR}</Text>
+                </View>
+                <View style={styles.priceLine}>
+                  <Text style={{ color: t.colors.muted }}>Platform Fee</Text>
+                  <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{PLATFORM_FEE_INR}</Text>
+                </View>
+                {promoDiscount > 0 && (
+                  <View style={styles.priceLine}>
+                    <Text style={{ color: t.colors.success }}>Discount</Text>
+                    <Text style={{ color: t.colors.success, fontWeight: '600' }}>-₹{promoDiscount}</Text>
+                  </View>
+                )}
+                <View style={[styles.priceLine, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.colors.border }]}>
+                  <Text style={{ color: t.colors.foreground, fontWeight: '800' }}>Total</Text>
+                  <Text style={{ color: accent, fontWeight: '800', fontSize: 18 }}>₹{totalInr}</Text>
+                </View>
+              </View>
+            </>
+          )}
+        </ScrollView>
+      )}
+
+      {step === 5 && bookingId && (
+        <ScrollView contentContainerStyle={[styles.scrollPad, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
+          <View style={[styles.successBanner, { backgroundColor: t.colors.success }]}>
+            <View style={styles.successIconCircle}>
+              <Ionicons name="checkmark" size={40} color="#fff" />
+            </View>
+            <Text style={styles.successTitle}>Booking Confirmed!</Text>
+            <Text style={styles.successId}>Booking ID: {bookingId}</Text>
+          </View>
+          <View style={[styles.summaryCard, { borderColor: t.colors.border, marginTop: 16 }]}>
+            <View style={styles.summaryRow}>
+              <Ionicons name="person-circle-outline" size={44} color={accent} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{assignedDoctor.name}</Text>
+                <Text style={{ color: t.colors.muted, fontSize: 14 }}>
+                  {assignedDoctor.title} | {assignedDoctor.experience}
+                </Text>
+              </View>
+            </View>
+            <Text style={{ color: t.colors.muted, marginTop: 12, fontSize: 14 }}>
+              {pet?.name} · {reasonLabels.join(', ') || 'Consultation'}
+            </Text>
+            <Text style={[styles.summaryBold, { color: t.colors.foreground, marginTop: 8 }]}>
+              {selectedDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })} at{' '}
+              {selectedTime}
+            </Text>
+            <View style={[styles.locInline, { marginTop: 10 }]}>
+              <Ionicons name="location" size={18} color={accent} />
+              <Text style={{ color: t.colors.foreground, flex: 1, marginLeft: 8 }}>{vet.clinic}</Text>
+            </View>
+            <Text style={{ color: t.colors.muted, fontSize: 13, marginTop: 4 }}>{vet.address}</Text>
+          </View>
+          <View style={[styles.priceBox, { borderColor: t.colors.border, marginTop: 14 }]}>
+            <View style={styles.priceLine}>
+              <Text style={{ color: t.colors.muted }}>Consultation + platform</Text>
+              <Text style={{ color: t.colors.foreground }}>₹{subtotalInr}</Text>
+            </View>
+            {promoDiscount > 0 && (
+              <View style={styles.priceLine}>
+                <Text style={{ color: t.colors.success }}>Discount</Text>
+                <Text style={{ color: t.colors.success }}>-₹{promoDiscount}</Text>
+              </View>
+            )}
+            <View style={styles.priceLine}>
+              <Text style={{ color: t.colors.muted }}>Payment method</Text>
+              <Text style={{ color: t.colors.foreground }}>
+                {paymentMethod === 'clinic' ? 'Pay at clinic' : paymentMethod === 'upi' ? 'UPI (Stripe)' : 'Card (Stripe)'}
+              </Text>
+            </View>
+            {paidStripeSession && (
+              <Text style={{ fontSize: 11, color: t.colors.muted, marginTop: 6 }} numberOfLines={1}>
+                Stripe session: {paidStripeSession}
+              </Text>
+            )}
+            <View style={[styles.priceLine, { marginTop: 8 }]}>
+              <Text style={{ fontWeight: '800', color: t.colors.foreground }}>Total paid</Text>
+              <Text style={{ fontWeight: '800', color: accent, fontSize: 18 }}>
+                ₹{paymentMethod === 'clinic' ? 0 : totalInr}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.notesLabel, { color: t.colors.foreground, marginTop: 20 }]}>Important</Text>
+          <Text style={{ color: t.colors.muted, lineHeight: 22, fontSize: 14 }}>
+            • Arrive 10 minutes early with your pet&apos;s medical records{'\n'}• Cancel or reschedule up to 2 hours before
+            {'\n'}
+            {paymentMethod === 'clinic' ? '• Pay consultation fee at the clinic front desk\n' : ''}
+          </Text>
+          <TouchableOpacity
+            style={[styles.secondaryRow, { marginTop: 16 }]}
+            onPress={() => router.replace('/')}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="home-outline" size={20} color={accent} />
+            <Text style={{ color: accent, fontWeight: '700', marginLeft: 8 }}>Back to Home</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {step < 5 && (
+        <View
+          style={[
+            styles.footer,
+            {
+              paddingBottom: Math.max(insets.bottom, 14),
+              backgroundColor: t.colors.background,
+              borderTopColor: t.colors.border,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.continueBtn,
+              { backgroundColor: accent },
+              (step === 0 && !petId) || (step === 1 && reasons.length === 0) || (step === 2 && !selectedTime) || payLoading
+                ? { opacity: 0.45 }
+                : null,
+            ]}
+            disabled={
+              (step === 0 && !petId) ||
+              (step === 1 && reasons.length === 0) ||
+              (step === 2 && !selectedTime) ||
+              payLoading
+            }
+            onPress={step === 4 ? confirmPayment : goNext}
+            activeOpacity={0.9}
+          >
+            {payLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Text style={styles.continueText}>
+                  {step === 4 ? `Confirm Appointment — ₹${paymentMethod === 'clinic' ? 0 : totalInr}` : 'Continue'}
+                </Text>
+                {step < 4 && <Ionicons name="chevron-forward" size={22} color="#fff" />}
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: H_PAD,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  backRound: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerStep: { fontSize: 14, fontWeight: '600' },
+  scrollPad: { paddingHorizontal: H_PAD, paddingTop: 20 },
+  title: { fontSize: 24, fontWeight: '800' },
+  subtitle: { fontSize: 15, marginTop: 8, lineHeight: 22 },
+  petCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 2,
+  },
+  petAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  petName: { fontSize: 18, fontWeight: '700' },
+  petDetail: { fontSize: 14, marginTop: 2 },
+  petWeight: { fontSize: 14, fontWeight: '600', marginTop: 4 },
+  reasonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 20 },
+  reasonCell: {
+    width: '47%',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 100,
+    justifyContent: 'center',
+  },
+  reasonLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  notesLabel: { fontSize: 15, fontWeight: '700', marginTop: 24 },
+  notesInput: {
+    marginTop: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    fontSize: 15,
+  },
+  dateStrip: { gap: 10, paddingVertical: 20 },
+  dateChip: {
+    width: 64,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center',
+  },
+  dateChipTop: { fontSize: 12, fontWeight: '600' },
+  dateChipDay: { fontSize: 18, fontWeight: '800', marginTop: 4 },
+  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  timeChip: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1 },
+  timeChipText: { fontSize: 14, fontWeight: '600' },
+  summaryHead: { fontSize: 14, fontWeight: '600', marginTop: 8, letterSpacing: 0.3 },
+  summaryCard: { marginTop: 16, padding: 16, borderRadius: 14, borderWidth: 1 },
+  summarySection: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  summaryBold: { fontSize: 17, fontWeight: '700' },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9999 },
+  tagText: { fontSize: 13, fontWeight: '600' },
+  promoRow: {
+    flexDirection: 'row',
+    marginTop: 16,
+    borderWidth: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  promoInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 14, fontSize: 16 },
+  applyBtn: { paddingHorizontal: 20, justifyContent: 'center' },
+  applyBtnText: { color: '#fff', fontWeight: '700' },
+  paySection: { fontSize: 17, fontWeight: '700', marginTop: 24 },
+  payRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginTop: 10,
+  },
+  payRowText: { fontSize: 16, fontWeight: '600' },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioInner: { width: 12, height: 12, borderRadius: 6 },
+  priceBox: { marginTop: 20, padding: 16, borderRadius: 14, borderWidth: 1 },
+  priceLine: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: H_PAD,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  continueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 14,
+  },
+  continueText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  successBanner: { borderRadius: 16, padding: 28, alignItems: 'center' },
+  successIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  successTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  successId: { color: 'rgba(255,255,255,0.95)', fontSize: 15, marginTop: 8, fontWeight: '600' },
+  locInline: { flexDirection: 'row', alignItems: 'center' },
+  secondaryRow: { flexDirection: 'row', alignItems: 'center' },
+});

@@ -1,20 +1,25 @@
 /**
- * Vet CRM Web - Theme tokens.
- * Central place for colors, spacing, typography. Change here to update app-wide.
+ * Vet CRM Web - Theme tokens (single source of truth).
+ * Matches vaccination screen: warm off-white background, orange primary, status colors.
+ * Change here to update app-wide; no hardcoded colors in components.
  */
 export const theme = {
   colors: {
-    primary: '#2563eb',
-    primaryHover: '#1d4ed8',
-    primaryMuted: '#dbeafe',
-    background: '#ffffff',
-    backgroundMuted: '#f8fafc',
-    foreground: '#0f172a',
-    foregroundMuted: '#64748b',
-    border: '#e2e8f0',
-    error: '#dc2626',
-    success: '#16a34a',
-    warning: '#d97706',
+    primary: '#EA580C',
+    primaryHover: '#C2410C',
+    primaryMuted: '#FFEDD5',
+    background: '#FFFBEF',
+    backgroundMuted: '#FEF3C7',
+    foreground: '#333333',
+    foregroundMuted: '#6B7280',
+    border: '#E5E7EB',
+    card: '#FFFFFF',
+    success: '#059669',
+    successMuted: '#D1FAE5',
+    warning: '#DC2626',
+    warningMuted: '#FFF0E0',
+    tag: '#FEF3C7',
+    error: '#DC2626',
   },
   spacing: {
     xs: '0.25rem',
@@ -28,6 +33,7 @@ export const theme = {
     sm: '0.25rem',
     md: '0.5rem',
     lg: '0.75rem',
+    xl: '1rem',
     full: '9999px',
   },
   fontFamily: {

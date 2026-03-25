@@ -1,0 +1,9 @@
+export { SplashStep } from './SplashScreen';
+export { IntroStep } from './IntroScreen';
+export { MobileNumberStep } from './MobileNumberScreen';
+export { OtpStep } from './OtpScreen';
+export { NameStep } from './NameScreen';
+export { EmailStep } from './EmailScreen';
+export { LocationPermissionStep } from './LocationPermissionScreen';
+export { PincodeStep } from './PincodeScreen';
+export { RegistrationSuccessStep } from './RegistrationSuccessScreen';

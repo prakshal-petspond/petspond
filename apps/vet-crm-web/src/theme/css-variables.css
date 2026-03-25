@@ -1,15 +1,26 @@
 /**
  * CSS custom properties for theme. Used by Tailwind and global styles.
- * Override these (e.g. in a future dark mode or rebrand) without touching components.
+ * Single top-level theme; override here for rebrand or dark mode.
  */
 :root {
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-background: #ffffff;
-  --color-foreground: #0f172a;
-  --color-muted: #64748b;
-  --color-border: #e2e8f0;
+  --color-primary: #EA580C;
+  --color-primary-hover: #C2410C;
+  --color-primary-muted: #FFEDD5;
+  --color-background: #FFFBEF;
+  --color-background-muted: #FEF3C7;
+  --color-foreground: #333333;
+  --color-muted: #6B7280;
+  --color-border: #E5E7EB;
+  --color-card: #FFFFFF;
+  --color-success: #059669;
+  --color-success-muted: #D1FAE5;
+  --color-warning: #DC2626;
+  --color-warning-muted: #FFF0E0;
+  --color-tag: #FEF3C7;
+  --color-error: #DC2626;
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
 }

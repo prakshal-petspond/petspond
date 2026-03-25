@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
+import { VetAuthModule } from './vet-auth/vet-auth.module';
+import { ClinicsModule } from './clinics/clinics.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -10,7 +14,10 @@ import { HealthModule } from './health/health.module';
       retryWrites: true,
     }),
     HealthModule,
-    // Feature modules to add: AuthModule, UsersModule, VetsModule, PetsModule, AppointmentsModule, RecordsModule, BillingModule
+    AuthModule,
+    VetAuthModule,
+    ClinicsModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

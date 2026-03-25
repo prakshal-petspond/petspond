@@ -1,10 +1,20 @@
 import { type ReactNode } from 'react';
-import { ThemeProvider, ApiProvider } from '@/contexts';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ThemeProvider, ApiProvider, OnboardingProvider, LocationProvider } from '@/contexts';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <ThemeProvider>
-      <ApiProvider>{children}</ApiProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <ApiProvider>
+            <LocationProvider>
+              <OnboardingProvider>{children}</OnboardingProvider>
+            </LocationProvider>
+          </ApiProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
