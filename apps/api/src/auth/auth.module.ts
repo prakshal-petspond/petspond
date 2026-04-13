@@ -12,6 +12,7 @@ import { Msg91OtpSender } from './msg91-otp.sender';
 import type { OtpSender } from './otp-sender.interface';
 import { UsersModule } from '@/users/users.module';
 import { JwtStrategy } from './jwt.strategy';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { JwtStrategy } from './jwt.strategy';
   providers: [
     AuthService,
     JwtStrategy,
+    JwtAuthGuard,
     {
       provide: OTP_SENDER,
       inject: [ConfigService],
@@ -65,6 +67,6 @@ import { JwtStrategy } from './jwt.strategy';
       },
     },
   ],
-  exports: [AuthService, JwtStrategy],
+  exports: [AuthService, JwtStrategy, JwtAuthGuard],
 })
 export class AuthModule {}

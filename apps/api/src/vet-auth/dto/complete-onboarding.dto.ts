@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsNumber,
   IsArray,
+  IsBoolean,
   MinLength,
   MaxLength,
   Min,
@@ -57,6 +58,27 @@ export class CreateClinicDto {
   @IsOptional()
   @IsString()
   placeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  tagline?: string;
+
+  @IsOptional()
+  @IsString()
+  listingImage?: string;
+
+  @IsOptional()
+  @IsString()
+  heroImage?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  acceptsConsultations?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  acceptsVaccinations?: boolean;
 }
 
 export class VetCompleteOnboardingDto {
@@ -96,4 +118,14 @@ export class VetCompleteOnboardingDto {
   @ValidateNested()
   @Type(() => CreateClinicDto)
   newClinic?: CreateClinicDto;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  photoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  displayTitle?: string;
 }

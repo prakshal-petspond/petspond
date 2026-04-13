@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useApi } from '@/contexts';
@@ -63,7 +64,12 @@ export default function LoginPage() {
         setError(res.message ?? 'Invalid or expired code');
         return;
       }
-      if (res.token) setToken(res.token);
+      const jwt = res.token;
+      if (jwt) {
+        flushSync(() => {
+          setToken(jwt);
+        });
+      }
       if (res.vet?.onboardingCompleted) {
         router.replace('/dashboard');
       } else {

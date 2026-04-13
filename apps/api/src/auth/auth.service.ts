@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { getAndDeleteOtp, setOtp } from './otp.store';
+import { shouldAcceptOtpBypass } from './otp-bypass';
 import { canSendOtp, getCooldownSeconds, recordOtpSent } from './otp-rate-limit';
 import type { OtpSender } from './otp-sender.interface';
 import { OTP_SENDER } from './auth.tokens';
@@ -59,6 +60,14 @@ export class AuthService {
     otp: string,
   ): Promise<{ verified: boolean; token?: string; user?: User; message?: string }> {
     const normalized = normalizeMobile(mobile);
+    if (normalized.length < 10) {
+      return { verified: false, message: 'Invalid mobile number.' };
+    }
+    if (shouldAcceptOtpBypass(this.config, otp)) {
+      const user = await this.usersService.createOrFindByMobile(normalized);
+      const token = this.jwtService.sign({ sub: user.id });
+      return { verified: true, token, user };
+    }
     const stored = getAndDeleteOtp(normalized);
     if (!stored) {
       return { verified: false, message: 'OTP expired or not found. Please request a new one.' };

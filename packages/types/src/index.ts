@@ -69,6 +69,13 @@ export const VET_SPECIALIZATIONS = [
 ] as const;
 export type VetSpecialization = (typeof VET_SPECIALIZATIONS)[number];
 
+/** One recurring weekly window (JS weekday: 0=Sun … 6=Sat). Minutes from midnight, end exclusive. */
+export interface VetWeeklyAvailabilityBlock {
+  dayOfWeek: number;
+  startMinute: number;
+  endMinute: number;
+}
+
 export interface Vet {
   id: string;
   fullName: string;
@@ -82,6 +89,10 @@ export interface Vet {
   isClinicAdmin: boolean;
   approvalStatus: VetApprovalStatus;
   onboardingCompleted: boolean;
+  photoUrl?: string;
+  displayTitle?: string;
+  /** When empty, pet parent app uses default bookable slots for that clinic. */
+  weeklyAvailability: VetWeeklyAvailabilityBlock[];
   createdAt: string;
   updatedAt: string;
 }
@@ -107,9 +118,23 @@ export interface VetCompleteOnboardingDto {
   clinicId?: string;
   /** Or create new clinic (doctor becomes admin) */
   newClinic?: CreateClinicDto;
+  photoUrl?: string;
+  displayTitle?: string;
 }
 
 // ----- Clinic -----
+export interface ClinicServiceItem {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+export interface ClinicVaccineOffering {
+  id: string;
+  name: string;
+  pricePaise: number;
+}
+
 export interface Clinic {
   id: string;
   name: string;
@@ -123,6 +148,21 @@ export interface Clinic {
   longitude?: number;
   placeId?: string;
   adminVetId: string;
+  listingImage?: string;
+  heroImage?: string;
+  tagline?: string;
+  rating: number;
+  reviewCount: number;
+  is24_7: boolean;
+  closingTimeLabel?: string;
+  hours: { day: string; hours: string }[];
+  facilities: string[];
+  photoGallery: string[];
+  servicesOffered: ClinicServiceItem[];
+  vaccinesOffered: ClinicVaccineOffering[];
+  acceptsConsultations: boolean;
+  acceptsVaccinations: boolean;
+  establishedYear?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -138,6 +178,81 @@ export interface CreateClinicDto {
   latitude?: number;
   longitude?: number;
   placeId?: string;
+  tagline?: string;
+  listingImage?: string;
+  heroImage?: string;
+  acceptsConsultations?: boolean;
+  acceptsVaccinations?: boolean;
+}
+
+export interface UpdateClinicDto {
+  name?: string;
+  address?: string;
+  pincode?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
+  tagline?: string;
+  listingImage?: string;
+  heroImage?: string;
+  rating?: number;
+  reviewCount?: number;
+  is24_7?: boolean;
+  closingTimeLabel?: string;
+  hours?: { day: string; hours: string }[];
+  facilities?: string[];
+  photoGallery?: string[];
+  servicesOffered?: ClinicServiceItem[];
+  vaccinesOffered?: ClinicVaccineOffering[];
+  acceptsConsultations?: boolean;
+  acceptsVaccinations?: boolean;
+  establishedYear?: number;
+}
+
+export interface PublicClinicDoctorPreview {
+  id: string;
+  fullName: string;
+  specializations: string[];
+  photoUrl?: string;
+  displayTitle?: string;
+  weeklyAvailability?: VetWeeklyAvailabilityBlock[];
+}
+
+export interface PublicClinicListItem {
+  id: string;
+  name: string;
+  address: string;
+  pincode: string;
+  city?: string;
+  /** WGS84 — set from Vet CRM clinic profile for distance / maps */
+  latitude?: number;
+  longitude?: number;
+  primaryDoctor: PublicClinicDoctorPreview;
+  rating: number;
+  reviewCount: number;
+  distanceLabel?: string;
+  is24_7: boolean;
+  closingTimeLabel?: string;
+  vaccinesOffered: ClinicVaccineOffering[];
+  lowestVaccinationPricePaise?: number;
+  acceptsConsultations: boolean;
+  acceptsVaccinations: boolean;
+}
+
+export interface PublicClinicDetail extends PublicClinicListItem {
+  tagline?: string;
+  listingImage?: string;
+  heroImage?: string;
+  photoGallery: string[];
+  facilities: string[];
+  hours: { day: string; hours: string }[];
+  servicesOffered: ClinicServiceItem[];
+  totalDoctors: number;
+  establishedYear?: number;
+  doctors: PublicClinicDoctorPreview[];
 }
 
 export interface VetVerifyOtpResponse {
@@ -164,6 +279,8 @@ export interface Pet {
   weight?: number;
   neutered?: boolean;
   photoUrl?: string;
+  microchipId?: string;
+  medicalNotes?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -178,6 +295,8 @@ export interface CreatePetDto {
   weight?: number;
   neutered?: boolean;
   photoUrl?: string;
+  microchipId?: string;
+  medicalNotes?: string;
 }
 
 export interface UpdatePetDto extends Partial<CreatePetDto> {}
@@ -195,6 +314,116 @@ export interface Appointment {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type ConsultationBookingStatus =
+  | 'pending_payment'
+  | 'scheduled'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show';
+
+export type BookingPaymentStatus = 'pending' | 'paid' | 'failed';
+
+export interface ConsultationBooking {
+  id: string;
+  userId: string;
+  clinicId: string;
+  vetId: string;
+  petId: string;
+  petName: string;
+  petSpecies: string;
+  petBreed: string;
+  petWeightLabel?: string;
+  reasonIds: string[];
+  notes?: string;
+  scheduledAt: string;
+  status: ConsultationBookingStatus;
+  paymentStatus: BookingPaymentStatus;
+  consultationFeePaise: number;
+  platformFeePaise: number;
+  discountPaise: number;
+  totalPaise: number;
+  promoCode?: string;
+  paymentMethodLabel?: string;
+  stripeCheckoutSessionId?: string;
+  userName?: string;
+  userMobile?: string;
+  clinicName?: string;
+  vetName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateConsultationBookingDto {
+  clinicId: string;
+  vetId: string;
+  petId: string;
+  reasonIds: string[];
+  notes?: string;
+  scheduledAt: string;
+  promoCode?: string;
+  paymentMethodLabel?: string;
+  discountPaise?: number;
+}
+
+export type VaccinationBookingStatus =
+  | 'pending_payment'
+  | 'scheduled'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show';
+
+export interface VaccinationLineItem {
+  vaccineId: string;
+  name: string;
+  pricePaise: number;
+}
+
+export interface VaccinationBooking {
+  id: string;
+  userId: string;
+  clinicId: string;
+  petId: string;
+  petName: string;
+  petSpecies: string;
+  petBreed: string;
+  vaccines: VaccinationLineItem[];
+  notes?: string;
+  scheduledAt: string;
+  status: VaccinationBookingStatus;
+  paymentStatus: BookingPaymentStatus;
+  platformFeePaise: number;
+  discountPaise: number;
+  vaccinesSubtotalPaise: number;
+  totalPaise: number;
+  promoCode?: string;
+  paymentMethodLabel?: string;
+  stripeCheckoutSessionId?: string;
+  userName?: string;
+  userMobile?: string;
+  clinicName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateVaccinationBookingDto {
+  clinicId: string;
+  petId: string;
+  vaccineIds: string[];
+  notes?: string;
+  scheduledAt: string;
+  promoCode?: string;
+  paymentMethodLabel?: string;
+  discountPaise?: number;
+}
+
+export interface ClinicInviteDto {
+  id: string;
+  clinicId: string;
+  mobile: string;
+  createdAt: string;
+  createdByVetId: string;
 }
 
 // ----- Auth / OTP -----

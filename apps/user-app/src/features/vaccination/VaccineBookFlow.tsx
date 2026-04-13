@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,17 +13,15 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useApi } from '@/contexts';
+import { getNetworkErrorHelp } from '@/contexts/ApiContext';
 import { Ionicons } from '@expo/vector-icons';
-import { getVetDetail } from '@/features/find-vet/vetData';
+import type { Pet, PublicClinicDetail } from '@petspond/types';
 import { startVetBookingCheckout } from '@/services/vetBookingPayment';
-import {
-  VACCINE_CATALOG,
-  VACCINE_FLOW_PETS,
-  VACCINE_REMINDERS,
-  NOTES_PLACEHOLDER,
-  PLATFORM_FEE_INR,
-  type VaccineCatalogItem,
-} from './vaccineBookingData';
+import { fetchClinicDetail } from '@/services/catalog';
+import { createVaccinationBooking, confirmVaccinationPayment } from '@/services/userBookings';
+import { TIME_SLOT_DEFS, scheduledAtFromDateAndSlot } from '@/lib/bookingTime';
+import { slotsUnionForClinicDoctorsOnDate } from '@/lib/vetAvailability';
+import { VACCINE_REMINDERS, NOTES_PLACEHOLDER } from './vaccineBookingData';
 
 const H_PAD = 16;
 const STEPS = 6;
@@ -44,18 +42,7 @@ function buildDateStrip(): Date[] {
   return out;
 }
 
-const TIME_SLOTS = (() => {
-  const slots: string[] = [];
-  for (let h = 9; h <= 17; h++) {
-    for (const m of [0, 30]) {
-      if (h === 17 && m > 0) break;
-      const d = new Date();
-      d.setHours(h, m, 0, 0);
-      slots.push(d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true }));
-    }
-  }
-  return slots;
-})();
+type SlotDef = (typeof TIME_SLOT_DEFS)[number];
 
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -75,35 +62,94 @@ function StepProgress({ step, accent }: { step: number; accent: string }) {
 }
 
 export function VaccineBookFlow() {
-  const { vetId } = useLocalSearchParams<{ vetId: string }>();
+  const { clinicId } = useLocalSearchParams<{ clinicId: string }>();
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { client } = useApi();
+  const { client, token } = useApi();
   const accent = t.colors.accent ?? t.colors.primary;
 
-  const vet = vetId ? getVetDetail(String(vetId)) : undefined;
+  const [detail, setDetail] = useState<PublicClinicDetail | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [pets, setPets] = useState<Pet[]>([]);
 
   const [step, setStep] = useState(0);
   const [petId, setPetId] = useState<string | null>(null);
-  const [vaccineIds, setVaccineIds] = useState<string[]>(() => ['rabies']);
+  const [vaccineIds, setVaccineIds] = useState<string[]>([]);
   const dates = useMemo(() => buildDateStrip(), []);
   const [selectedDate, setSelectedDate] = useState<Date>(dates[0]!);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<SlotDef | null>(null);
   const [notes, setNotes] = useState('');
   const [promoInput, setPromoInput] = useState('');
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card'>('upi');
   const [payLoading, setPayLoading] = useState(false);
 
-  const pet = VACCINE_FLOW_PETS.find((p) => p.id === petId);
-  const selectedVaccines = VACCINE_CATALOG.filter((v) => vaccineIds.includes(v.id));
-  const vaccinesSubtotal = selectedVaccines.reduce((s, v) => s + v.priceInr, 0);
-  const totalInr = Math.max(0, vaccinesSubtotal + PLATFORM_FEE_INR - promoDiscount);
+  useEffect(() => {
+    if (!clinicId) return;
+    let c = false;
+    fetchClinicDetail(client, String(clinicId))
+      .then((d) => {
+        if (!c) {
+          setDetail(d);
+          const first = d.vaccinesOffered[0]?.id;
+          if (first) setVaccineIds([first]);
+        }
+      })
+      .catch(() => {
+        if (!c) setLoadErr(getNetworkErrorHelp());
+      });
+    return () => {
+      c = true;
+    };
+  }, [client, clinicId]);
 
-  const toggleVaccine = useCallback((v: VaccineCatalogItem) => {
-    if (v.mandatory) return;
-    setVaccineIds((prev) => (prev.includes(v.id) ? prev.filter((x) => x !== v.id) : [...prev, v.id]));
+  useEffect(() => {
+    if (!token) {
+      setPets([]);
+      return;
+    }
+    let c = false;
+    client
+      .get<Pet[]>('/user/pets')
+      .then((list) => {
+        if (!c) setPets(list);
+      })
+      .catch(() => {
+        if (!c) setPets([]);
+      });
+    return () => {
+      c = true;
+    };
+  }, [client, token]);
+
+  const availableVaxSlots = useMemo(
+    () =>
+      detail?.doctors?.length
+        ? slotsUnionForClinicDoctorsOnDate(selectedDate, detail.doctors, TIME_SLOT_DEFS)
+        : TIME_SLOT_DEFS,
+    [detail?.doctors, selectedDate],
+  );
+
+  useEffect(() => {
+    setSelectedSlot((prev) => {
+      if (!prev) return null;
+      const ok = availableVaxSlots.some(
+        (s) => s.hour === prev.hour && s.minute === prev.minute && s.label === prev.label,
+      );
+      return ok ? prev : null;
+    });
+  }, [availableVaxSlots]);
+
+  const pet = pets.find((p) => p.id === petId);
+  const offered = detail?.vaccinesOffered ?? [];
+  const selectedVaccines = offered.filter((v) => vaccineIds.includes(v.id));
+  const vaccinesSubtotal = selectedVaccines.reduce((s, v) => s + v.pricePaise / 100, 0);
+  const totalInr = Math.max(0, vaccinesSubtotal - promoDiscount);
+
+  const toggleVaccine = useCallback((id: string, mandatory: boolean) => {
+    if (mandatory) return;
+    setVaccineIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }, []);
 
   const applyPromo = useCallback(() => {
@@ -123,8 +169,8 @@ export function VaccineBookFlow() {
 
   const canContinue = () => {
     if (step === 0) return !!petId;
-    if (step === 1) return vaccineIds.includes('rabies') && vaccineIds.length > 0;
-    if (step === 2) return !!selectedTime;
+    if (step === 1) return vaccineIds.length > 0;
+    if (step === 2) return !!selectedSlot;
     if (step === 3) return true;
     if (step === 4) return true;
     return false;
@@ -136,14 +182,31 @@ export function VaccineBookFlow() {
   };
 
   const confirmPay = async () => {
-    if (!vet || !pet) return;
+    if (!detail || !pet || !selectedSlot || !clinicId) return;
+    if (!token) {
+      Alert.alert('Sign in required', 'Please complete onboarding to book.');
+      return;
+    }
     setPayLoading(true);
     try {
-      const amountPaise = Math.round(totalInr * 100);
-      const desc = `Vaccination — ${vet.clinic} — ${pet.name} — ${selectedVaccines.map((v) => v.name).join(', ')}`;
+      const scheduledAt = scheduledAtFromDateAndSlot(selectedDate, selectedSlot);
+      const discountPaise = Math.round(promoDiscount * 100);
+      const booking = await createVaccinationBooking(client, {
+        clinicId: String(clinicId),
+        petId: pet.id,
+        vaccineIds,
+        notes: notes || undefined,
+        scheduledAt,
+        promoCode: promoInput.trim() || undefined,
+        paymentMethodLabel: paymentMethod,
+        discountPaise: discountPaise > 0 ? discountPaise : undefined,
+      });
+
+      const amountPaise = booking.totalPaise;
+      const desc = `Vaccination — ${detail.name} — ${pet.name} (#${booking.id})`;
       const result = await startVetBookingCheckout(client, {
         amountPaise,
-        vetId: vet.id,
+        vetId: detail.primaryDoctor.id,
         description: desc,
       });
       if (result.status === 'cancelled') {
@@ -154,19 +217,25 @@ export function VaccineBookFlow() {
         Alert.alert('Payment', result.message);
         return;
       }
-      const bid = `VAC${Math.floor(100000 + Math.random() * 900000)}`;
-      Alert.alert('Booking confirmed', `Reference: ${bid}\nThank you — we will see you at the clinic.`, [
-        { text: 'OK', onPress: () => router.replace('/vaccination') },
-      ]);
+      if (result.status === 'paid' || result.status === 'mock_ok') {
+        const stripeSessionId = result.status === 'paid' ? result.stripeSessionId : undefined;
+        await confirmVaccinationPayment(client, booking.id, stripeSessionId);
+        Alert.alert('Booking confirmed', `Reference: ${booking.id}\nThank you — we will see you at the clinic.`, [
+          { text: 'OK', onPress: () => router.replace('/vaccination') },
+        ]);
+      }
+    } catch (e) {
+      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : 'Booking failed';
+      Alert.alert('Booking', msg);
     } finally {
       setPayLoading(false);
     }
   };
 
-  if (!vet) {
+  if (loadErr || !detail) {
     return (
       <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
-        <Text style={{ padding: H_PAD, color: t.colors.muted }}>Clinic not found.</Text>
+        <Text style={{ padding: H_PAD, color: t.colors.muted }}>{loadErr ?? 'Clinic not found.'}</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
           <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
         </TouchableOpacity>
@@ -199,33 +268,49 @@ export function VaccineBookFlow() {
           <>
             <Text style={[styles.title, { color: t.colors.foreground }]}>Select Your Pet</Text>
             <Text style={[styles.subtitle, { color: t.colors.muted }]}>Choose which pet needs vaccination</Text>
+            {!token && (
+              <Text style={[styles.subtitle, { color: t.colors.muted, marginTop: 10 }]}>
+                Sign in to load your pets from your account.
+              </Text>
+            )}
             <View style={{ marginTop: 20, gap: 12 }}>
-              {VACCINE_FLOW_PETS.map((p) => {
-                const sel = petId === p.id;
-                return (
-                  <TouchableOpacity
-                    key={p.id}
-                    style={[
-                      styles.petRow,
-                      {
-                        borderColor: sel ? accent : t.colors.border,
-                        backgroundColor: sel ? t.colors.accentLight : t.colors.background,
-                      },
-                    ]}
-                    onPress={() => setPetId(p.id)}
-                    activeOpacity={0.9}
-                  >
-                    <Image source={{ uri: p.image }} style={styles.petAvatar} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.petName, { color: t.colors.foreground }]}>{p.name}</Text>
-                      <Text style={[styles.petMeta, { color: t.colors.muted }]}>
-                        {p.breed} · {p.age} · {p.weight}
-                      </Text>
-                    </View>
-                    {sel && <Ionicons name="checkmark-circle" size={28} color={accent} />}
-                  </TouchableOpacity>
-                );
-              })}
+              {pets.length === 0 ? (
+                <Text style={{ color: t.colors.muted }}>{token ? 'Add pets via the API (POST /user/pets).' : '—'}</Text>
+              ) : (
+                pets.map((p) => {
+                  const sel = petId === p.id;
+                  return (
+                    <TouchableOpacity
+                      key={p.id}
+                      style={[
+                        styles.petRow,
+                        {
+                          borderColor: sel ? accent : t.colors.border,
+                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                        },
+                      ]}
+                      onPress={() => setPetId(p.id)}
+                      activeOpacity={0.9}
+                    >
+                      {p.photoUrl ? (
+                        <Image source={{ uri: p.photoUrl }} style={styles.petAvatar} />
+                      ) : (
+                        <View style={[styles.petAvatar, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
+                          <Ionicons name="paw" size={26} color={t.colors.muted} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.petName, { color: t.colors.foreground }]}>{p.name}</Text>
+                        <Text style={[styles.petMeta, { color: t.colors.muted }]}>
+                          {p.species} · {p.breed}
+                          {p.weight != null ? ` · ${p.weight} kg` : ''}
+                        </Text>
+                      </View>
+                      {sel && <Ionicons name="checkmark-circle" size={28} color={accent} />}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </View>
           </>
         )}
@@ -235,31 +320,34 @@ export function VaccineBookFlow() {
             <Text style={[styles.title, { color: t.colors.foreground }]}>Select Vaccines</Text>
             <Text style={[styles.subtitle, { color: t.colors.muted }]}>Choose one or more vaccines for your pet</Text>
             <View style={{ marginTop: 20, gap: 12 }}>
-              {VACCINE_CATALOG.map((v) => {
-                const checked = vaccineIds.includes(v.id);
-                return (
-                  <TouchableOpacity
-                    key={v.id}
-                    style={[styles.vaccineCard, { borderColor: checked ? accent : t.colors.border }]}
-                    onPress={v.mandatory ? undefined : () => toggleVaccine(v)}
-                    activeOpacity={v.mandatory ? 1 : 0.9}
-                  >
-                    <View style={[styles.checkbox, { borderColor: checked ? accent : t.colors.muted }]}>
-                      {checked && <Ionicons name="checkmark" size={16} color={accent} />}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.vaccineCardTitle, { color: t.colors.foreground }]}>
-                        {v.name}
-                        {v.subtitle ? <Text style={{ color: accent }}> ({v.subtitle})</Text> : null}
-                      </Text>
-                      <Text style={[styles.petMeta, { color: t.colors.muted }]}>
-                        {v.durationMins} mins · Valid {v.validityLabel}
-                      </Text>
-                    </View>
-                    <Text style={[styles.vaccineCardPrice, { color: accent }]}>₹{v.priceInr}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {offered.length === 0 ? (
+                <Text style={{ color: t.colors.muted }}>This clinic has not published vaccine prices yet.</Text>
+              ) : (
+                offered.map((v, idx) => {
+                  const checked = vaccineIds.includes(v.id);
+                  const mandatory = idx === 0;
+                  return (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={[styles.vaccineCard, { borderColor: checked ? accent : t.colors.border }]}
+                      onPress={mandatory ? undefined : () => toggleVaccine(v.id, mandatory)}
+                      activeOpacity={mandatory ? 1 : 0.9}
+                    >
+                      <View style={[styles.checkbox, { borderColor: checked ? accent : t.colors.muted }]}>
+                        {checked && <Ionicons name="checkmark" size={16} color={accent} />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.vaccineCardTitle, { color: t.colors.foreground }]}>
+                          {v.name}
+                          {mandatory ? <Text style={{ color: accent }}> (required)</Text> : null}
+                        </Text>
+                        <Text style={[styles.petMeta, { color: t.colors.muted }]}>Clinic price</Text>
+                      </View>
+                      <Text style={[styles.vaccineCardPrice, { color: accent }]}>₹{v.pricePaise / 100}</Text>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
             </View>
           </>
         )}
@@ -291,32 +379,43 @@ export function VaccineBookFlow() {
                 );
               })}
             </ScrollView>
-            <View style={styles.timeGrid}>
-              {TIME_SLOTS.map((slot) => {
-                const sel = selectedTime === slot;
-                return (
-                  <TouchableOpacity
-                    key={slot}
-                    style={[
-                      styles.timeChip,
-                      {
-                        borderColor: sel ? accent : t.colors.border,
-                        backgroundColor: sel ? t.colors.accentLight : t.colors.background,
-                      },
-                    ]}
-                    onPress={() => setSelectedTime(slot)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>{slot}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            {selectedTime && (
+            {availableVaxSlots.length === 0 ? (
+              <Text style={{ color: t.colors.muted, marginTop: 12 }}>
+                No shared times on this day when at least one vet is available. Try another date.
+              </Text>
+            ) : (
+              <View style={styles.timeGrid}>
+                {availableVaxSlots.map((slot) => {
+                  const sel =
+                    selectedSlot?.label === slot.label &&
+                    selectedSlot?.hour === slot.hour &&
+                    selectedSlot?.minute === slot.minute;
+                  return (
+                    <TouchableOpacity
+                      key={`${slot.hour}-${slot.minute}`}
+                      style={[
+                        styles.timeChip,
+                        {
+                          borderColor: sel ? accent : t.colors.border,
+                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                        },
+                      ]}
+                      onPress={() => setSelectedSlot(slot)}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>
+                        {slot.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+            {selectedSlot && (
               <View style={[styles.confirmBanner, { backgroundColor: '#dcfce7' }]}>
                 <Ionicons name="checkmark-circle" size={20} color="#166534" />
                 <Text style={[styles.confirmBannerText, { color: '#166534' }]}>
-                  Appointment on {formatFullDate(selectedDate)} at {selectedTime}
+                  Appointment on {formatFullDate(selectedDate)} at {selectedSlot.label}
                 </Text>
               </View>
             )}
@@ -365,12 +464,12 @@ export function VaccineBookFlow() {
               />
               <Row
                 label="Schedule"
-                value={selectedTime ? `${formatFullDate(selectedDate)} @ ${selectedTime}` : '—'}
+                value={selectedSlot ? `${formatFullDate(selectedDate)} @ ${selectedSlot.label}` : '—'}
                 muted={t.colors.muted}
                 foreground={t.colors.foreground}
               />
-              <Row label="Clinic" value={vet.clinic} muted={t.colors.muted} foreground={t.colors.foreground} />
-              <Text style={[styles.summaryAddr, { color: t.colors.muted }]}>{vet.address}</Text>
+              <Row label="Clinic" value={detail.name} muted={t.colors.muted} foreground={t.colors.foreground} />
+              <Text style={[styles.summaryAddr, { color: t.colors.muted }]}>{detail.address}</Text>
             </View>
           </>
         )}
@@ -381,8 +480,13 @@ export function VaccineBookFlow() {
             <View style={[styles.summaryCard, { borderColor: t.colors.border, marginBottom: 16 }]}>
               <Row label="Pet" value={pet?.name ?? '—'} muted={t.colors.muted} foreground={t.colors.foreground} />
               <Row label="Vaccines" value={selectedVaccines.map((v) => v.name).join(', ')} muted={t.colors.muted} foreground={t.colors.foreground} />
-              <Row label="Date & time" value={selectedTime ? `${formatFullDate(selectedDate)} · ${selectedTime}` : '—'} muted={t.colors.muted} foreground={t.colors.foreground} />
-              <Text style={[styles.summaryAddr, { color: t.colors.muted, marginTop: 8 }]}>{vet.address}</Text>
+              <Row
+                label="Date & time"
+                value={selectedSlot ? `${formatFullDate(selectedDate)} · ${selectedSlot.label}` : '—'}
+                muted={t.colors.muted}
+                foreground={t.colors.foreground}
+              />
+              <Text style={[styles.summaryAddr, { color: t.colors.muted, marginTop: 8 }]}>{detail.address}</Text>
             </View>
             <Text style={[styles.sectionSmall, { color: t.colors.foreground }]}>Payment method</Text>
             {(
@@ -426,10 +530,6 @@ export function VaccineBookFlow() {
                   Vaccination fee ({selectedVaccines.length} vaccine{selectedVaccines.length !== 1 ? 's' : ''})
                 </Text>
                 <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{vaccinesSubtotal}</Text>
-              </View>
-              <View style={styles.priceLine}>
-                <Text style={{ color: t.colors.muted }}>Platform fee</Text>
-                <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{PLATFORM_FEE_INR}</Text>
               </View>
               {promoDiscount > 0 && (
                 <View style={styles.priceLine}>

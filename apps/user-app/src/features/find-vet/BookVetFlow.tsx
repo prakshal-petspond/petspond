@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,20 +12,16 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme, useApi } from '@/contexts';
+import { getNetworkErrorHelp } from '@/contexts/ApiContext';
 import { Ionicons } from '@expo/vector-icons';
-import { getVetDetail } from './vetData';
+import type { Pet, PublicClinicDetail } from '@petspond/types';
 import { startVetBookingCheckout } from '@/services/vetBookingPayment';
+import { fetchClinicDetail } from '@/services/catalog';
+import { createConsultationBooking, confirmConsultationPayment } from '@/services/userBookings';
+import { TIME_SLOT_DEFS, scheduledAtFromDateAndSlot } from '@/lib/bookingTime';
+import { slotsForDoctorOnDate } from '@/lib/vetAvailability';
 
 const H_PAD = 16;
-const CONSULTATION_INR = 300;
-const PLATFORM_FEE_INR = 30;
-
-const MOCK_PETS = [
-  { id: 'p1', name: 'Luna', detail: 'Golden Retriever · 3 years', weight: '20 kg' },
-  { id: 'p2', name: 'Max', detail: 'Indie · 2 years', weight: '14 kg' },
-  { id: 'p3', name: 'Bella', detail: 'Persian · 5 years', weight: '4 kg' },
-  { id: 'p4', name: 'Charlie', detail: 'Beagle · 1 year', weight: '11 kg' },
-];
 
 const REASONS: { id: string; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
   { id: 'checkup', label: 'General Check-up', icon: 'medical-outline' },
@@ -52,37 +48,26 @@ function buildDateStrip(): Date[] {
   return out;
 }
 
-const TIME_SLOTS = (() => {
-  const slots: string[] = [];
-  for (let h = 9; h <= 17; h++) {
-    for (const m of [0, 30]) {
-      if (h === 17 && m > 0) break;
-      const d = new Date();
-      d.setHours(h, m, 0, 0);
-      slots.push(
-        d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true }),
-      );
-    }
-  }
-  return slots;
-})();
-
 type PaymentMethod = 'card' | 'upi' | 'clinic';
+
+type SlotDef = (typeof TIME_SLOT_DEFS)[number];
 
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 export function BookVetFlow() {
-  const { vetId } = useLocalSearchParams<{ vetId: string }>();
+  const { clinicId } = useLocalSearchParams<{ clinicId: string }>();
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { client } = useApi();
+  const { client, token } = useApi();
   const accent = t.colors.accent ?? t.colors.primary;
 
-  const vet = vetId ? getVetDetail(String(vetId)) : undefined;
-  const assignedDoctor = vet?.doctors[0];
+  const [detail, setDetail] = useState<PublicClinicDetail | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [selectedVetId, setSelectedVetId] = useState<string | null>(null);
 
   const [step, setStep] = useState(0);
   const [petId, setPetId] = useState<string | null>(null);
@@ -90,7 +75,7 @@ export function BookVetFlow() {
   const [notes, setNotes] = useState('');
   const dates = useMemo(() => buildDateStrip(), []);
   const [selectedDate, setSelectedDate] = useState<Date>(dates[0]!);
-  const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<SlotDef | null>(null);
   const [promoInput, setPromoInput] = useState('');
   const [promoDiscount, setPromoDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
@@ -98,8 +83,69 @@ export function BookVetFlow() {
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [paidStripeSession, setPaidStripeSession] = useState<string | undefined>();
 
-  const pet = MOCK_PETS.find((p) => p.id === petId);
-  const subtotalInr = CONSULTATION_INR + PLATFORM_FEE_INR;
+  useEffect(() => {
+    if (!clinicId) return;
+    let c = false;
+    fetchClinicDetail(client, String(clinicId))
+      .then((d) => {
+        if (!c) {
+          setDetail(d);
+          setSelectedVetId(d.doctors[0]?.id ?? null);
+        }
+      })
+      .catch(() => {
+        if (!c) setLoadErr(getNetworkErrorHelp());
+      });
+    return () => {
+      c = true;
+    };
+  }, [client, clinicId]);
+
+  useEffect(() => {
+    if (!token) {
+      setPets([]);
+      return;
+    }
+    let c = false;
+    client
+      .get<Pet[]>('/user/pets')
+      .then((list) => {
+        if (!c) setPets(list);
+      })
+      .catch(() => {
+        if (!c) setPets([]);
+      });
+    return () => {
+      c = true;
+    };
+  }, [client, token]);
+
+  const assignedDoctor = useMemo(() => {
+    if (!detail?.doctors?.length) return undefined;
+    return detail.doctors.find((d) => d.id === selectedVetId) ?? detail.doctors[0];
+  }, [detail, selectedVetId]);
+
+  const availableSlots = useMemo(
+    () => slotsForDoctorOnDate(selectedDate, assignedDoctor?.weeklyAvailability, TIME_SLOT_DEFS),
+    [selectedDate, assignedDoctor],
+  );
+
+  useEffect(() => {
+    setSelectedSlot((prev) => {
+      if (!prev) return null;
+      const ok = availableSlots.some(
+        (s) => s.hour === prev.hour && s.minute === prev.minute && s.label === prev.label,
+      );
+      return ok ? prev : null;
+    });
+  }, [availableSlots]);
+
+  const pet = pets.find((p) => p.id === petId);
+  const petDetailLine = pet
+    ? `${pet.species} · ${pet.breed}${pet.weight != null ? ` · ${pet.weight} kg` : ''}`
+    : '';
+
+  const subtotalInr = 0;
   const totalInr = Math.max(0, subtotalInr - promoDiscount);
 
   const toggleReason = useCallback((id: string) => {
@@ -109,12 +155,11 @@ export function BookVetFlow() {
   const applyPromo = useCallback(() => {
     const code = promoInput.trim().toUpperCase();
     if (code === 'SAVE100') setPromoDiscount(100);
-    else if (code === 'WELCOME10') setPromoDiscount(Math.round(CONSULTATION_INR * 0.1));
     else {
-      Alert.alert('Promo code', 'Invalid or expired code. Try SAVE100 or WELCOME10.');
+      Alert.alert('Promo code', 'Invalid or expired code. Try SAVE100.');
       return;
     }
-    Alert.alert('Promo applied', `You saved ₹${code === 'SAVE100' ? 100 : Math.round(CONSULTATION_INR * 0.1)}.`);
+    Alert.alert('Promo applied', '₹100 off applied.');
   }, [promoInput]);
 
   const reasonLabels = reasons
@@ -124,33 +169,53 @@ export function BookVetFlow() {
   const goNext = () => {
     if (step === 0 && !petId) return;
     if (step === 1 && reasons.length === 0) return;
-    if (step === 2 && !selectedTime) return;
+    if (step === 2 && !selectedSlot) return;
     setStep((s) => s + 1);
   };
 
   const goBack = () => {
     if (step === 0) router.back();
-    else if (bookingId) router.replace(`/find-vet/${vet?.id ?? vetId}`);
+    else if (bookingId) router.replace(`/find-vet/${clinicId ?? ''}`);
     else setStep((s) => s - 1);
   };
 
   const confirmPayment = async () => {
-    if (!vet || !pet || !selectedTime || !assignedDoctor) return;
-
-    if (paymentMethod === 'clinic') {
-      setBookingId(`VET${Math.floor(100000 + Math.random() * 900000)}`);
-      setStep(5);
+    if (!detail || !pet || !selectedSlot || !assignedDoctor || !clinicId) return;
+    if (!token) {
+      Alert.alert('Sign in required', 'Please complete onboarding and sign in to book.');
       return;
     }
 
+    const discountPaise = Math.round(promoDiscount * 100);
+    const scheduledAt = scheduledAtFromDateAndSlot(selectedDate, selectedSlot);
+
     setPayLoading(true);
     try {
-      const amountPaise = Math.round(totalInr * 100);
-      const description = `${vet.clinic} — ${pet.name} — ${reasonLabels.join(', ') || 'Visit'}`;
+      const booking = await createConsultationBooking(client, {
+        clinicId: String(clinicId),
+        vetId: assignedDoctor.id,
+        petId: pet.id,
+        reasonIds: reasons,
+        notes: notes || undefined,
+        scheduledAt,
+        promoCode: promoInput.trim() || undefined,
+        paymentMethodLabel: paymentMethod,
+        discountPaise: discountPaise > 0 ? discountPaise : undefined,
+      });
+
+      if (paymentMethod === 'clinic') {
+        await confirmConsultationPayment(client, booking.id);
+        setBookingId(booking.id);
+        setStep(5);
+        return;
+      }
+
+      const amountPaise = booking.totalPaise;
+      const description = `${detail.name} — ${pet.name} — ${reasonLabels.join(', ') || 'Visit'} (#${booking.id})`;
 
       const result = await startVetBookingCheckout(client, {
         amountPaise,
-        vetId: vet.id,
+        vetId: assignedDoctor.id,
         description,
       });
 
@@ -164,19 +229,24 @@ export function BookVetFlow() {
       }
 
       if (result.status === 'paid' || result.status === 'mock_ok') {
-        if (result.status === 'paid') setPaidStripeSession(result.stripeSessionId);
-        setBookingId(`VET${Math.floor(100000 + Math.random() * 900000)}`);
+        const stripeSessionId = result.status === 'paid' ? result.stripeSessionId : undefined;
+        if (stripeSessionId) setPaidStripeSession(stripeSessionId);
+        await confirmConsultationPayment(client, booking.id, stripeSessionId);
+        setBookingId(booking.id);
         setStep(5);
       }
+    } catch (e) {
+      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : 'Booking failed';
+      Alert.alert('Booking', msg);
     } finally {
       setPayLoading(false);
     }
   };
 
-  if (!vet || !assignedDoctor) {
+  if (loadErr || !detail || !assignedDoctor) {
     return (
       <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
-        <Text style={{ padding: H_PAD, color: t.colors.muted }}>Unable to load clinic.</Text>
+        <Text style={{ padding: H_PAD, color: t.colors.muted }}>{loadErr ?? 'Unable to load clinic.'}</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
           <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
         </TouchableOpacity>
@@ -206,34 +276,75 @@ export function BookVetFlow() {
             <>
               <Text style={[styles.title, { color: t.colors.foreground }]}>Select Your Pet</Text>
               <Text style={[styles.subtitle, { color: t.colors.muted }]}>Which pet needs care?</Text>
+              {!token && (
+                <Text style={[styles.subtitle, { color: t.colors.muted, marginTop: 12 }]}>
+                  Sign in (complete onboarding) to load your pets and book.
+                </Text>
+              )}
+              {detail.doctors.length > 1 && (
+                <>
+                  <Text style={[styles.notesLabel, { color: t.colors.foreground, marginTop: 20 }]}>Veterinarian</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                    {detail.doctors.map((d) => {
+                      const sel = selectedVetId === d.id;
+                      return (
+                        <TouchableOpacity
+                          key={d.id}
+                          style={[
+                            styles.timeChip,
+                            {
+                              borderColor: sel ? accent : t.colors.border,
+                              backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                            },
+                          ]}
+                          onPress={() => setSelectedVetId(d.id)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>
+                            {d.fullName}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
               <View style={{ marginTop: 20, gap: 12 }}>
-                {MOCK_PETS.map((p) => {
-                  const sel = petId === p.id;
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={[
-                        styles.petCard,
-                        {
-                          borderColor: sel ? accent : t.colors.border,
-                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
-                        },
-                      ]}
-                      onPress={() => setPetId(p.id)}
-                      activeOpacity={0.85}
-                    >
-                      <View style={[styles.petAvatar, { backgroundColor: t.colors.border }]}>
-                        <Ionicons name="paw" size={28} color={t.colors.muted} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.petName, { color: t.colors.foreground }]}>{p.name}</Text>
-                        <Text style={[styles.petDetail, { color: t.colors.muted }]}>{p.detail}</Text>
-                        <Text style={[styles.petWeight, { color: accent }]}>{p.weight}</Text>
-                      </View>
-                      {sel && <Ionicons name="checkmark-circle" size={26} color={accent} />}
-                    </TouchableOpacity>
-                  );
-                })}
+                {pets.length === 0 ? (
+                  <Text style={{ color: t.colors.muted }}>
+                    {token ? 'No pets yet. Add pets via your profile (API: POST /user/pets).' : '—'}
+                  </Text>
+                ) : (
+                  pets.map((p) => {
+                    const sel = petId === p.id;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[
+                          styles.petCard,
+                          {
+                            borderColor: sel ? accent : t.colors.border,
+                            backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                          },
+                        ]}
+                        onPress={() => setPetId(p.id)}
+                        activeOpacity={0.85}
+                      >
+                        <View style={[styles.petAvatar, { backgroundColor: t.colors.border }]}>
+                          <Ionicons name="paw" size={28} color={t.colors.muted} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.petName, { color: t.colors.foreground }]}>{p.name}</Text>
+                          <Text style={[styles.petDetail, { color: t.colors.muted }]}>
+                            {p.species} · {p.breed}
+                            {p.weight != null ? ` · ${p.weight} kg` : ''}
+                          </Text>
+                        </View>
+                        {sel && <Ionicons name="checkmark-circle" size={26} color={accent} />}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
               </View>
             </>
           )}
@@ -312,27 +423,39 @@ export function BookVetFlow() {
                   );
                 })}
               </ScrollView>
-              <View style={styles.timeGrid}>
-                {TIME_SLOTS.map((slot) => {
-                  const sel = selectedTime === slot;
-                  return (
-                    <TouchableOpacity
-                      key={slot}
-                      style={[
-                        styles.timeChip,
-                        {
-                          borderColor: sel ? accent : t.colors.border,
-                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
-                        },
-                      ]}
-                      onPress={() => setSelectedTime(slot)}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>{slot}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              {availableSlots.length === 0 ? (
+                <Text style={{ color: t.colors.muted, marginTop: 12 }}>
+                  No bookable times on this day for {assignedDoctor.fullName}. Pick another date or ask the clinic to
+                  widen hours in Vet CRM (Schedule).
+                </Text>
+              ) : (
+                <View style={styles.timeGrid}>
+                  {availableSlots.map((slot) => {
+                    const sel =
+                      selectedSlot?.label === slot.label &&
+                      selectedSlot?.hour === slot.hour &&
+                      selectedSlot?.minute === slot.minute;
+                    return (
+                      <TouchableOpacity
+                        key={`${slot.hour}-${slot.minute}`}
+                        style={[
+                          styles.timeChip,
+                          {
+                            borderColor: sel ? accent : t.colors.border,
+                            backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                          },
+                        ]}
+                        onPress={() => setSelectedSlot(slot)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>
+                          {slot.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
             </>
           )}
 
@@ -346,16 +469,16 @@ export function BookVetFlow() {
                   <Ionicons name="paw" size={22} color={accent} />
                   <View>
                     <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{pet?.name ?? '—'}</Text>
-                    <Text style={{ color: t.colors.muted, fontSize: 14 }}>{pet?.detail}</Text>
+                    <Text style={{ color: t.colors.muted, fontSize: 14 }}>{petDetailLine}</Text>
                   </View>
                 </View>
                 <Text style={[styles.summarySection, { color: t.colors.muted, marginTop: 14 }]}>Veterinarian</Text>
                 <View style={styles.summaryRow}>
                   <Ionicons name="person-circle-outline" size={40} color={accent} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{assignedDoctor.name}</Text>
+                    <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{assignedDoctor.fullName}</Text>
                     <Text style={{ color: t.colors.muted, fontSize: 14 }}>
-                      {assignedDoctor.title} | {assignedDoctor.experience}
+                      {assignedDoctor.displayTitle} · {assignedDoctor.specializations.join(', ') || 'Vet'}
                     </Text>
                   </View>
                 </View>
@@ -369,7 +492,7 @@ export function BookVetFlow() {
                 </View>
                 <Text style={[styles.summarySection, { color: t.colors.muted, marginTop: 14 }]}>Schedule</Text>
                 <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>
-                  {formatFullDate(selectedDate)} @ {selectedTime ?? '—'}
+                  {formatFullDate(selectedDate)} @ {selectedSlot?.label ?? '—'}
                 </Text>
               </View>
             </>
@@ -421,24 +544,19 @@ export function BookVetFlow() {
                 </Text>
               )}
               <View style={[styles.priceBox, { borderColor: t.colors.border }]}>
-                <View style={styles.priceLine}>
-                  <Text style={{ color: t.colors.muted }}>Consultation Fee</Text>
-                  <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{CONSULTATION_INR}</Text>
-                </View>
-                <View style={styles.priceLine}>
-                  <Text style={{ color: t.colors.muted }}>Platform Fee</Text>
-                  <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{PLATFORM_FEE_INR}</Text>
-                </View>
                 {promoDiscount > 0 && (
                   <View style={styles.priceLine}>
                     <Text style={{ color: t.colors.success }}>Discount</Text>
                     <Text style={{ color: t.colors.success, fontWeight: '600' }}>-₹{promoDiscount}</Text>
                   </View>
                 )}
-                <View style={[styles.priceLine, { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.colors.border }]}>
+                <View style={[styles.priceLine, { marginTop: promoDiscount > 0 ? 8 : 0, paddingTop: promoDiscount > 0 ? 8 : 0, borderTopWidth: promoDiscount > 0 ? 1 : 0, borderTopColor: t.colors.border }]}>
                   <Text style={{ color: t.colors.foreground, fontWeight: '800' }}>Total</Text>
                   <Text style={{ color: accent, fontWeight: '800', fontSize: 18 }}>₹{totalInr}</Text>
                 </View>
+                <Text style={{ color: t.colors.muted, fontSize: 12, marginTop: 8 }}>
+                  Consultation pricing is arranged with the clinic; no app fee is charged for this booking flow.
+                </Text>
               </View>
             </>
           )}
@@ -458,9 +576,9 @@ export function BookVetFlow() {
             <View style={styles.summaryRow}>
               <Ionicons name="person-circle-outline" size={44} color={accent} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{assignedDoctor.name}</Text>
+                <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{assignedDoctor.fullName}</Text>
                 <Text style={{ color: t.colors.muted, fontSize: 14 }}>
-                  {assignedDoctor.title} | {assignedDoctor.experience}
+                  {assignedDoctor.displayTitle} · {assignedDoctor.specializations.join(', ') || 'Vet'}
                 </Text>
               </View>
             </View>
@@ -469,13 +587,13 @@ export function BookVetFlow() {
             </Text>
             <Text style={[styles.summaryBold, { color: t.colors.foreground, marginTop: 8 }]}>
               {selectedDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })} at{' '}
-              {selectedTime}
+              {selectedSlot?.label}
             </Text>
             <View style={[styles.locInline, { marginTop: 10 }]}>
               <Ionicons name="location" size={18} color={accent} />
-              <Text style={{ color: t.colors.foreground, flex: 1, marginLeft: 8 }}>{vet.clinic}</Text>
+              <Text style={{ color: t.colors.foreground, flex: 1, marginLeft: 8 }}>{detail.name}</Text>
             </View>
-            <Text style={{ color: t.colors.muted, fontSize: 13, marginTop: 4 }}>{vet.address}</Text>
+            <Text style={{ color: t.colors.muted, fontSize: 13, marginTop: 4 }}>{detail.address}</Text>
           </View>
           <View style={[styles.priceBox, { borderColor: t.colors.border, marginTop: 14 }]}>
             <View style={styles.priceLine}>
@@ -538,14 +656,14 @@ export function BookVetFlow() {
             style={[
               styles.continueBtn,
               { backgroundColor: accent },
-              (step === 0 && !petId) || (step === 1 && reasons.length === 0) || (step === 2 && !selectedTime) || payLoading
+              (step === 0 && !petId) || (step === 1 && reasons.length === 0) || (step === 2 && !selectedSlot) || payLoading
                 ? { opacity: 0.45 }
                 : null,
             ]}
             disabled={
               (step === 0 && !petId) ||
               (step === 1 && reasons.length === 0) ||
-              (step === 2 && !selectedTime) ||
+              (step === 2 && !selectedSlot) ||
               payLoading
             }
             onPress={step === 4 ? confirmPayment : goNext}

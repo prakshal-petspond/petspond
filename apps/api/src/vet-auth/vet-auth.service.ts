@@ -1,12 +1,14 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { getAndDeleteOtp } from '../auth/otp.store';
-import { canSendOtp, getCooldownSeconds, recordOtpSent } from '../auth/otp-rate-limit';
+import { shouldAcceptOtpBypass } from '../auth/otp-bypass';
 import type { Vet } from '@petspond/types';
 import type { CreateClinicDto } from '@petspond/types';
 import { VetsService } from '@/vets/vets.service';
 import { ClinicsService } from '@/clinics/clinics.service';
 import { AuthService } from '@/auth/auth.service';
+import { ClinicInvitesService } from '@/bookings/clinic-invites.service';
 
 function normalizeMobile(mobile: string): string {
   return mobile.replace(/\D/g, '').slice(-10);
@@ -16,9 +18,11 @@ function normalizeMobile(mobile: string): string {
 export class VetAuthService {
   constructor(
     private readonly authService: AuthService,
+    private readonly config: ConfigService,
     private readonly vetsService: VetsService,
     private readonly clinicsService: ClinicsService,
     private readonly jwtService: JwtService,
+    private readonly clinicInvites: ClinicInvitesService,
   ) {}
 
   async sendOtp(mobile: string, countryCode?: string): Promise<{ success: boolean; message?: string }> {
@@ -30,6 +34,14 @@ export class VetAuthService {
     otp: string,
   ): Promise<{ verified: boolean; token?: string; vet?: Vet; message?: string }> {
     const normalized = normalizeMobile(mobile);
+    if (normalized.length < 10) {
+      return { verified: false, message: 'Invalid mobile number.' };
+    }
+    if (shouldAcceptOtpBypass(this.config, otp)) {
+      const vet = await this.vetsService.createOrFindByMobile(normalized);
+      const token = this.jwtService.sign({ sub: vet.id });
+      return { verified: true, token, vet };
+    }
     const stored = getAndDeleteOtp(normalized);
     if (!stored) {
       return { verified: false, message: 'OTP expired or not found. Please request a new one.' };
@@ -53,6 +65,8 @@ export class VetAuthService {
       specializations: string[];
       clinicId?: string;
       newClinic?: CreateClinicDto;
+      photoUrl?: string;
+      displayTitle?: string;
     },
   ): Promise<Vet> {
     let clinicId = data.clinicId;
@@ -69,9 +83,19 @@ export class VetAuthService {
       approvalStatus = 'approved';
     } else if (data.clinicId) {
       approvalStatus = 'pending';
+    } else {
+      const vet = await this.vetsService.findById(vetId);
+      if (vet) {
+        const invitedClinicId = await this.clinicInvites.consumePendingMobile(vet.mobile);
+        if (invitedClinicId) {
+          clinicId = invitedClinicId;
+          approvalStatus = 'pending';
+          isClinicAdmin = false;
+        }
+      }
     }
 
-    return this.vetsService.updateOnboarding(vetId, {
+    const updated = await this.vetsService.updateOnboarding(vetId, {
       fullName: data.fullName,
       email: data.email,
       veterinaryRegistrationNumber: data.veterinaryRegistrationNumber,
@@ -81,6 +105,14 @@ export class VetAuthService {
       clinicId,
       isClinicAdmin,
       approvalStatus,
+      photoUrl: data.photoUrl,
+      displayTitle: data.displayTitle,
     });
+
+    if (updated.clinicId) {
+      await this.clinicsService.syncDoctorCount(updated.clinicId);
+    }
+
+    return updated;
   }
 }

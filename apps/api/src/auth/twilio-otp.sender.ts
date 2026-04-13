@@ -21,10 +21,13 @@ export function toE164(mobile: string, defaultCountryCode = '91'): string {
 
 /** Twilio error codes we map to user-friendly messages */
 const TWILIO_ERROR_MESSAGES: Record<number, string> = {
+  20003: 'SMS authentication failed. Check Twilio Account SID and Auth Token on the server.',
   21211: 'Invalid mobile number. Please check and try again.',
   21408: 'SMS is not supported for this region.',
+  21604: 'Invalid destination number. Check the mobile number and country code.',
   21606: 'SMS service is not configured for this number. Please try again later.',
   21608: 'Trial accounts can only send to verified numbers. Add this number in Twilio Console or upgrade your account.',
+  21610: 'This number is blocked or cannot receive SMS from this sender.',
   21614: 'Invalid mobile number. Please check and try again.',
   21617: 'Invalid mobile number format.',
 };
@@ -60,7 +63,14 @@ export class TwilioOtpSender implements OtpSender {
         to,
       });
     } catch (err: unknown) {
-      const code = (err as { code?: number })?.code;
+      const twilioErr = err as { code?: number; message?: string; moreInfo?: string };
+      const code = twilioErr?.code;
+      // eslint-disable-next-line no-console
+      console.error('[Twilio OTP] Send failed', {
+        code,
+        message: twilioErr?.message,
+        moreInfo: twilioErr?.moreInfo,
+      });
       const message =
         (typeof code === 'number' && TWILIO_ERROR_MESSAGES[code]) ||
         'Unable to send SMS. Please try again later.';

@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import type { Vet } from '@petspond/types';
+import type { Vet, VetWeeklyAvailabilityBlock } from '@petspond/types';
 import { VetDocument } from './vet.schema';
 
 function toVet(doc: VetDocument): Vet {
@@ -18,6 +18,13 @@ function toVet(doc: VetDocument): Vet {
     isClinicAdmin: doc.isClinicAdmin ?? false,
     approvalStatus: (doc.approvalStatus as Vet['approvalStatus']) ?? 'pending',
     onboardingCompleted: doc.onboardingCompleted ?? false,
+    ...(doc.photoUrl != null && doc.photoUrl !== '' && { photoUrl: doc.photoUrl }),
+    ...(doc.displayTitle != null && doc.displayTitle !== '' && { displayTitle: doc.displayTitle }),
+    weeklyAvailability: (doc.weeklyAvailability ?? []).map((b) => ({
+      dayOfWeek: b.dayOfWeek,
+      startMinute: b.startMinute,
+      endMinute: b.endMinute,
+    })),
     createdAt: doc.createdAt?.toISOString?.() ?? new Date().toISOString(),
     updatedAt: doc.updatedAt?.toISOString?.() ?? new Date().toISOString(),
   };
@@ -71,6 +78,8 @@ export class VetsService {
       clinicId?: string;
       isClinicAdmin?: boolean;
       approvalStatus?: 'pending' | 'approved';
+      photoUrl?: string;
+      displayTitle?: string;
     },
   ): Promise<Vet> {
     const doc = await this.vetModel
@@ -87,6 +96,8 @@ export class VetsService {
             ...(data.clinicId != null && { clinicId: data.clinicId }),
             ...(data.isClinicAdmin != null && { isClinicAdmin: data.isClinicAdmin }),
             ...(data.approvalStatus != null && { approvalStatus: data.approvalStatus }),
+            ...(data.photoUrl != null && { photoUrl: data.photoUrl }),
+            ...(data.displayTitle != null && { displayTitle: data.displayTitle }),
             onboardingCompleted: true,
           },
         },
@@ -102,11 +113,83 @@ export class VetsService {
     return docs.map(toVet);
   }
 
+  async findApprovedByClinicId(clinicId: string): Promise<Vet[]> {
+    const docs = await this.vetModel
+      .find({ clinicId, onboardingCompleted: true, approvalStatus: 'approved' })
+      .sort({ isClinicAdmin: -1, createdAt: 1 })
+      .exec();
+    return docs.map(toVet);
+  }
+
+  /**
+   * Vets shown on Find Vet / public clinic pages: onboarded vets who are either approved
+   * or clinic admin (creator). Queried by clinicId so listings still work if adminVetId on
+   * the clinic document is wrong or stale. Schedule / weeklyAvailability does not affect this.
+   */
+  async findVetsForPublicClinicView(clinicId: string, _adminVetId: string): Promise<Vet[]> {
+    const docs = await this.vetModel
+      .find({ clinicId, onboardingCompleted: true })
+      .sort({ isClinicAdmin: -1, createdAt: 1 })
+      .exec();
+    return docs
+      .filter((d) => d.approvalStatus === 'approved' || d.isClinicAdmin)
+      .map(toVet);
+  }
+
+  async countApprovedInClinic(clinicId: string): Promise<number> {
+    return this.vetModel.countDocuments({
+      clinicId,
+      onboardingCompleted: true,
+      approvalStatus: 'approved',
+    });
+  }
+
   async approve(vetId: string): Promise<Vet> {
     const doc = await this.vetModel
       .findByIdAndUpdate(vetId, { $set: { approvalStatus: 'approved' } }, { new: true })
       .exec();
     if (!doc) throw new Error('Vet not found');
     return toVet(doc);
+  }
+
+  private validateWeeklyBlocks(blocks: VetWeeklyAvailabilityBlock[]): void {
+    if (blocks.length > 64) {
+      throw new BadRequestException('Too many availability windows (max 64)');
+    }
+    for (const b of blocks) {
+      if (b.dayOfWeek < 0 || b.dayOfWeek > 6) throw new BadRequestException('Invalid dayOfWeek');
+      if (b.startMinute < 0 || b.startMinute > 1439) throw new BadRequestException('Invalid startMinute');
+      if (b.endMinute < 1 || b.endMinute > 1440) throw new BadRequestException('Invalid endMinute');
+      if (b.startMinute >= b.endMinute) {
+        throw new BadRequestException('Each availability window must have positive length');
+      }
+    }
+  }
+
+  async setWeeklyAvailability(vetId: string, blocks: VetWeeklyAvailabilityBlock[]): Promise<Vet> {
+    this.validateWeeklyBlocks(blocks);
+    const doc = await this.vetModel
+      .findByIdAndUpdate(vetId, { $set: { weeklyAvailability: blocks } }, { new: true, runValidators: true })
+      .exec();
+    if (!doc) throw new BadRequestException('Vet not found');
+    return toVet(doc);
+  }
+
+  async listTeamSchedulesForClinic(clinicId: string): Promise<
+    { vetId: string; fullName: string; weeklyAvailability: VetWeeklyAvailabilityBlock[] }[]
+  > {
+    const docs = await this.vetModel
+      .find({ clinicId, onboardingCompleted: true, approvalStatus: 'approved' })
+      .sort({ isClinicAdmin: -1, fullName: 1 })
+      .exec();
+    return docs.map((d) => ({
+      vetId: d._id.toString(),
+      fullName: d.fullName ?? 'Vet',
+      weeklyAvailability: (d.weeklyAvailability ?? []).map((b) => ({
+        dayOfWeek: b.dayOfWeek,
+        startMinute: b.startMinute,
+        endMinute: b.endMinute,
+      })),
+    }));
   }
 }

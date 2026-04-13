@@ -6,6 +6,10 @@ import { HealthModule } from './health/health.module';
 import { VetAuthModule } from './vet-auth/vet-auth.module';
 import { ClinicsModule } from './clinics/clinics.module';
 import { PaymentsModule } from './payments/payments.module';
+import { PetsModule } from './pets/pets.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { VetPortalModule } from './vet-portal/vet-portal.module';
 
 @Module({
   imports: [
@@ -18,6 +22,10 @@ import { PaymentsModule } from './payments/payments.module';
     VetAuthModule,
     ClinicsModule,
     PaymentsModule,
+    PetsModule,
+    BookingsModule,
+    CatalogModule,
+    VetPortalModule,
   ],
 })
 export class AppModule {}

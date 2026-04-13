@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,11 @@ import {
   Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useTheme, useLocation } from '@/contexts';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useTheme, useLocation, useApi } from '@/contexts';
 import { Ionicons } from '@expo/vector-icons';
+import type { Pet } from '@petspond/types';
+import { fetchUserPets } from '@/services/pets';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const H_PAD = 16;
@@ -23,23 +25,13 @@ const SERVICE_CARD_WIDTH = SCREEN_WIDTH * 0.45;
 
 // Dummy data (location comes from device via useLocation)
 
-const PETS = [
-  { id: '1', name: 'LUNA', breed: 'Golden Retriever', image: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop' },
-  { id: '2', name: 'MAX', breed: 'German Shepherd', image: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop' },
-  { id: '3', name: 'BELLA', breed: 'Labrador', image: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop' },
-  { id: '4', name: 'CHARLIE', breed: 'Beagle', image: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop' },
-];
-
 const PROMO_BANNER = {
   title: 'PAWS & WHISKERS VET CLINIC',
   subtitle: 'COMPASSIONATE CARE FOR YOUR PETS',
   contact: 'OPEN | 555-0123 | www.pwvetclinic.com',
 };
 
-const REMINDER = {
-  text: "Luna's Rabies Vaccination Pending",
-  cta: 'Book now',
-};
+const REMINDER_CTA = 'Book now';
 
 const CATEGORIES = [
   { id: '1', label: 'Grooming', icon: 'cut-outline' as const },
@@ -59,21 +51,47 @@ const GROOMERS = [
   { id: '2', name: 'Fluffy & clean', rating: 4.8, distance: '1.5 kms', promo: 'Free nail trim', image: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=240&fit=crop' },
 ];
 
+const FALLBACK_PET_IMG =
+  'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop';
+
 export function LandingPage() {
   const router = useRouter();
   const t = useTheme();
+  const { client } = useApi();
   const { addressLine: locationAddress, loading: locationLoading, refresh: refreshLocation } = useLocation();
   const insets = useSafeAreaInsets();
   const accent = t.colors.accent ?? t.colors.primary;
   const accentLight = t.colors.accentLight ?? '#fed7aa';
   const cardBg = t.colors.cardBg ?? '#f5f0e8';
 
-  const [selectedPetId, setSelectedPetId] = useState(PETS[0].id);
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [petsLoading, setPetsLoading] = useState(true);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [petModalVisible, setPetModalVisible] = useState(false);
+
+  const loadPets = useCallback(() => {
+    setPetsLoading(true);
+    fetchUserPets(client)
+      .then((list) => {
+        setPets(list);
+        setSelectedPetId((prev) => {
+          if (prev && list.some((p) => p.id === prev)) return prev;
+          return list[0]?.id ?? null;
+        });
+      })
+      .catch(() => setPets([]))
+      .finally(() => setPetsLoading(false));
+  }, [client]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPets();
+    }, [loadPets]),
+  );
   const [pillLayout, setPillLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const pillRef = useRef<{ measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>(null);
 
-  const selectedPet = PETS.find((p) => p.id === selectedPetId) ?? PETS[0];
+  const selectedPet = pets.find((p) => p.id === selectedPetId) ?? null;
 
   const openPetModal = () => {
     pillRef.current?.measureInWindow((x: number, y: number, width: number, height: number) => {
@@ -105,36 +123,46 @@ export function LandingPage() {
               onPress={() => {}}
             >
             <Text style={[styles.petModalTitle, { color: accent }]}>Select Pet</Text>
-            {PETS.map((pet) => {
-              const isSelected = pet.id === selectedPetId;
-              return (
-                <TouchableOpacity
-                  key={pet.id}
-                  style={[
-                    styles.petModalRow,
-                    isSelected && { backgroundColor: accentLight },
-                  ]}
-                  onPress={() => {
-                    setSelectedPetId(pet.id);
-                    setPetModalVisible(false);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Image source={{ uri: pet.image }} style={styles.petModalAvatar} />
-                  <View style={styles.petModalTextWrap}>
-                    <Text style={[styles.petModalName, { color: t.colors.foreground }]}>{pet.name}</Text>
-                    <Text style={[styles.petModalBreed, { color: t.colors.muted }]}>{pet.breed}</Text>
-                  </View>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={24} color={accent} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+            {petsLoading ? (
+              <Text style={[styles.petModalEmpty, { color: t.colors.muted }]}>Loading pets…</Text>
+            ) : pets.length === 0 ? (
+              <Text style={[styles.petModalEmpty, { color: t.colors.muted, paddingHorizontal: 16 }]}>
+                No pets yet. Add one to personalize reminders and booking.
+              </Text>
+            ) : (
+              pets.map((pet) => {
+                const isSelected = pet.id === selectedPetId;
+                const img = pet.photoUrl ?? FALLBACK_PET_IMG;
+                return (
+                  <TouchableOpacity
+                    key={pet.id}
+                    style={[
+                      styles.petModalRow,
+                      isSelected && { backgroundColor: accentLight },
+                    ]}
+                    onPress={() => {
+                      setSelectedPetId(pet.id);
+                      setPetModalVisible(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={{ uri: img }} style={styles.petModalAvatar} />
+                    <View style={styles.petModalTextWrap}>
+                      <Text style={[styles.petModalName, { color: t.colors.foreground }]}>{pet.name}</Text>
+                      <Text style={[styles.petModalBreed, { color: t.colors.muted }]}>{pet.breed}</Text>
+                    </View>
+                    {isSelected && <Ionicons name="checkmark-circle" size={24} color={accent} />}
+                  </TouchableOpacity>
+                );
+              })
+            )}
             <View style={[styles.petModalDivider, { backgroundColor: t.colors.border }]} />
             <TouchableOpacity
               style={styles.petModalAdd}
-              onPress={() => setPetModalVisible(false)}
+              onPress={() => {
+                setPetModalVisible(false);
+                router.push('/add-pet');
+              }}
               activeOpacity={0.8}
             >
               <Ionicons name="add-circle-outline" size={20} color={accent} />
@@ -146,7 +174,10 @@ export function LandingPage() {
       </Modal>
       <ScrollView
         style={styles.fill}
-        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top, paddingBottom: insets.bottom + 88 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
       {/* Header */}
@@ -171,9 +202,28 @@ export function LandingPage() {
             onPress={openPetModal}
             activeOpacity={0.8}
           >
-            <Text style={[styles.petName, { color: t.colors.foreground }]}>{selectedPet.name}</Text>
-            <Ionicons name="chevron-down" size={14} color={t.colors.foreground} />
-            <Image source={{ uri: selectedPet.image }} style={styles.petAvatar} />
+            {petsLoading ? (
+              <Text style={[styles.petName, { color: t.colors.muted }]}>…</Text>
+            ) : selectedPet ? (
+              <>
+                <Text style={[styles.petName, { color: t.colors.foreground }]} numberOfLines={1}>
+                  {selectedPet.name.toUpperCase()}
+                </Text>
+                <Ionicons name="chevron-down" size={14} color={t.colors.foreground} />
+                <Image
+                  source={{ uri: selectedPet.photoUrl ?? FALLBACK_PET_IMG }}
+                  style={styles.petAvatar}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={[styles.petName, { color: t.colors.foreground }]}>Add pet</Text>
+                <Ionicons name="chevron-down" size={14} color={t.colors.foreground} />
+                <View style={[styles.petAvatar, { backgroundColor: t.colors.border, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="paw" size={16} color={t.colors.muted} />
+                </View>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -200,14 +250,16 @@ export function LandingPage() {
             <Ionicons name="notifications" size={18} color="#fff" />
           </View>
           <Text style={[styles.notifText, { color: t.colors.foreground }]} numberOfLines={1}>
-            {REMINDER.text}
+            {selectedPet
+              ? `${selectedPet.name}'s vaccinations — check due dates`
+              : 'Add a pet to track vaccination reminders'}
           </Text>
           <TouchableOpacity
             style={[styles.notifCta, { backgroundColor: t.colors.primary, borderRadius: t.borderRadius.md }]}
             activeOpacity={0.8}
             onPress={() => router.push('/vaccination')}
           >
-            <Text style={styles.notifCtaText}>{REMINDER.cta}</Text>
+            <Text style={styles.notifCtaText}>{REMINDER_CTA}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -361,6 +413,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 12,
     paddingHorizontal: 16,
+  },
+  petModalEmpty: {
+    fontSize: 14,
+    paddingVertical: 16,
+    textAlign: 'center',
   },
   petModalRow: {
     flexDirection: 'row',

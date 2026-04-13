@@ -13,6 +13,12 @@ import { createApiClient, ApiClient } from '@petspond/api-client';
 
 const TOKEN_KEY = 'vet-crm-token';
 
+/** Sync read for auth guards / API client when React state has not flushed yet after login. */
+export function getStoredVetToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
 const ApiContext = createContext<{
   client: ApiClient;
   token: string | null;
@@ -41,7 +47,7 @@ export function ApiProvider({ children }: { children: ReactNode }) {
   const client = useMemo(() => {
     return createApiClient({
       baseUrl: API_BASE,
-      getAccessToken: () => token,
+      getAccessToken: () => token ?? getStoredVetToken(),
       onUnauthorized: () => setToken(null),
     });
   }, [token, setToken]);

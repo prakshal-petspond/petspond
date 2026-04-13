@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useApi } from '@/contexts';
+import { useApi, getStoredVetToken } from '@/contexts';
 import { vetAuthApi } from '@/services/vet-auth.service';
 import type { Vet } from '@petspond/types';
 
@@ -13,7 +13,8 @@ export default function HomePage() {
   const [vet, setVet] = useState<Vet | null | undefined>(undefined);
 
   useEffect(() => {
-    if (!token) {
+    const effectiveToken = token ?? getStoredVetToken();
+    if (!effectiveToken) {
       router.replace('/login');
       return;
     }

@@ -8,12 +8,15 @@ import { ClinicsModule } from '@/clinics/clinics.module';
 import { VetAuthController } from './vet-auth.controller';
 import { VetAuthService } from './vet-auth.service';
 import { VetJwtStrategy } from './vet-jwt.strategy';
+import { VetJwtAuthGuard } from './vet-jwt-auth.guard';
+import { BookingsModule } from '@/bookings/bookings.module';
 
 @Module({
   imports: [
     AuthModule,
     VetsModule,
     ClinicsModule,
+    BookingsModule,
     PassportModule.register({ defaultStrategy: 'vet-jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -25,7 +28,7 @@ import { VetJwtStrategy } from './vet-jwt.strategy';
     }),
   ],
   controllers: [VetAuthController],
-  providers: [VetAuthService, VetJwtStrategy],
-  exports: [VetAuthService, VetJwtStrategy],
+  providers: [VetAuthService, VetJwtStrategy, VetJwtAuthGuard],
+  exports: [VetAuthService, VetJwtStrategy, VetJwtAuthGuard],
 })
 export class VetAuthModule {}

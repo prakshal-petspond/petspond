@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,19 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, type Href } from 'expo-router';
-import { useTheme } from '@/contexts';
+import { useRouter, useFocusEffect, type Href } from 'expo-router';
+import { useTheme, useApi } from '@/contexts';
+import { getNetworkErrorHelp } from '@/contexts/ApiContext';
 import { Ionicons } from '@expo/vector-icons';
-import { VACCINATION_PETS, VACCINATION_CLINICS } from './vaccinationData';
+import type { Pet, PublicClinicListItem } from '@petspond/types';
+import { fetchVaccinationClinics } from '@/services/catalog';
+import { fetchUserPets } from '@/services/pets';
+
+const FALLBACK_V_IMG =
+  'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=200&h=200&fit=crop';
 
 const H_PAD = 16;
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -23,12 +30,65 @@ type VaccinationTab = 'history' | 'book';
 export function VaccinationPage() {
   const t = useTheme();
   const router = useRouter();
+  const { client, token } = useApi();
   const insets = useSafeAreaInsets();
   const accent = t.colors.accent ?? t.colors.primary;
   const cream = t.colors.cardBg ?? '#f5f0e8';
 
-  const [selectedPetId, setSelectedPetId] = useState(VACCINATION_PETS[0]!.id);
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [petsLoading, setPetsLoading] = useState(true);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [tab, setTab] = useState<VaccinationTab>('book');
+  const [vClinics, setVClinics] = useState<PublicClinicListItem[]>([]);
+  const [vLoading, setVLoading] = useState(true);
+  const [vErr, setVErr] = useState<string | null>(null);
+
+  const loadPets = useCallback(() => {
+    if (!token) {
+      setPets([]);
+      setSelectedPetId(null);
+      setPetsLoading(false);
+      return;
+    }
+    setPetsLoading(true);
+    fetchUserPets(client)
+      .then((list) => {
+        setPets(list);
+        setSelectedPetId((prev) => {
+          if (prev && list.some((p) => p.id === prev)) return prev;
+          return list[0]?.id ?? null;
+        });
+      })
+      .catch(() => {
+        setPets([]);
+        setSelectedPetId(null);
+      })
+      .finally(() => setPetsLoading(false));
+  }, [client, token]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPets();
+    }, [loadPets]),
+  );
+
+  useEffect(() => {
+    let c = false;
+    setVLoading(true);
+    fetchVaccinationClinics(client)
+      .then((list) => {
+        if (!c) setVClinics(list);
+      })
+      .catch(() => {
+        if (!c) setVErr(getNetworkErrorHelp());
+      })
+      .finally(() => {
+        if (!c) setVLoading(false);
+      });
+    return () => {
+      c = true;
+    };
+  }, [client]);
 
   return (
     <View style={[styles.fill, { backgroundColor: cream }]}>
@@ -50,30 +110,61 @@ export function VaccinationPage() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={[styles.petStrip, { paddingHorizontal: H_PAD }]}
         >
-          {VACCINATION_PETS.map((pet) => {
-            const selected = pet.id === selectedPetId;
-            return (
-              <TouchableOpacity
-                key={pet.id}
-                style={[
-                  styles.petCard,
-                  {
-                    width: PET_CARD_W,
-                    backgroundColor: selected ? accent : '#fff',
-                    borderColor: selected ? accent : t.colors.border,
-                  },
-                ]}
-                onPress={() => setSelectedPetId(pet.id)}
-                activeOpacity={0.9}
-              >
-                <Image source={{ uri: pet.image }} style={styles.petPhoto} />
-                <Text style={[styles.petName, { color: selected ? '#fff' : t.colors.foreground }]}>{pet.name}</Text>
-                <Text style={[styles.petBreed, { color: selected ? 'rgba(255,255,255,0.9)' : t.colors.muted }]} numberOfLines={1}>
-                  {pet.breed}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+          {petsLoading ? (
+            <View style={{ paddingVertical: 20, paddingHorizontal: 8 }}>
+              <ActivityIndicator size="small" color={accent} />
+            </View>
+          ) : pets.length === 0 ? (
+            <TouchableOpacity
+              style={[
+                styles.petCard,
+                {
+                  width: PET_CARD_W,
+                  backgroundColor: '#fff',
+                  borderColor: t.colors.border,
+                },
+              ]}
+              onPress={() => router.push('/add-pet')}
+              activeOpacity={0.9}
+            >
+              <View style={[styles.petPhoto, { alignItems: 'center', justifyContent: 'center' }]}>
+                <Ionicons name="add-circle-outline" size={28} color={accent} />
+              </View>
+              <Text style={[styles.petName, { color: t.colors.foreground }]}>Add pet</Text>
+              <Text style={[styles.petBreed, { color: t.colors.muted }]} numberOfLines={2}>
+                Add a pet to book vaccinations
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            pets.map((pet) => {
+              const selected = pet.id === selectedPetId;
+              const img = pet.photoUrl ?? FALLBACK_V_IMG;
+              return (
+                <TouchableOpacity
+                  key={pet.id}
+                  style={[
+                    styles.petCard,
+                    {
+                      width: PET_CARD_W,
+                      backgroundColor: selected ? accent : '#fff',
+                      borderColor: selected ? accent : t.colors.border,
+                    },
+                  ]}
+                  onPress={() => setSelectedPetId(pet.id)}
+                  activeOpacity={0.9}
+                >
+                  <Image source={{ uri: img }} style={styles.petPhoto} />
+                  <Text style={[styles.petName, { color: selected ? '#fff' : t.colors.foreground }]}>{pet.name}</Text>
+                  <Text
+                    style={[styles.petBreed, { color: selected ? 'rgba(255,255,255,0.9)' : t.colors.muted }]}
+                    numberOfLines={1}
+                  >
+                    {pet.breed}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })
+          )}
         </ScrollView>
 
         <View style={[styles.summaryRow, { paddingHorizontal: H_PAD }]}>
@@ -120,60 +211,78 @@ export function VaccinationPage() {
               Available Services Near You
             </Text>
             <View style={{ paddingHorizontal: H_PAD, gap: 16 }}>
-              {VACCINATION_CLINICS.map((clinic) => (
-                <View
-                  key={clinic.vetId}
-                  style={[styles.clinicCard, { backgroundColor: '#fff', borderColor: t.colors.border }]}
-                >
-                  <View style={styles.clinicTop}>
-                    <Image source={{ uri: clinic.image }} style={styles.clinicImage} />
-                    <View style={styles.clinicBody}>
-                      <Text style={[styles.clinicName, { color: t.colors.foreground }]}>{clinic.name}</Text>
-                      <View style={styles.clinicMeta}>
-                        <Ionicons name="star" size={14} color="#eab308" />
-                        <Text style={[styles.clinicRating, { color: t.colors.foreground }]}>
-                          {clinic.rating} ({clinic.reviewCount})
-                        </Text>
-                      </View>
-                      <View style={styles.clinicMeta}>
-                        <Ionicons name="location-outline" size={14} color={accent} />
-                        <Text style={[styles.clinicDistance, { color: t.colors.muted }]}>{clinic.distance}</Text>
-                      </View>
-                      <View style={styles.clinicMeta}>
-                        <Ionicons name="time-outline" size={14} color={t.colors.muted} />
-                        <Text style={[styles.clinicSlots, { color: t.colors.foreground }]} numberOfLines={2}>
-                          {clinic.slotsLabel}
-                        </Text>
-                      </View>
-                      <View style={styles.tagRow}>
-                        {clinic.vaccines.map((v) => (
-                          <View key={v} style={[styles.tag, { backgroundColor: cream }]}>
-                            <Text style={[styles.tagText, { color: t.colors.foreground }]}>{v}</Text>
-                          </View>
-                        ))}
-                        <View style={[styles.tag, { backgroundColor: cream }]}>
-                          <Text style={[styles.tagText, { color: t.colors.muted }]}>+{clinic.extraCount}</Text>
+              {vLoading && (
+                <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color={accent} />
+                </View>
+              )}
+              {vErr && !vLoading && <Text style={{ color: t.colors.muted }}>{vErr}</Text>}
+              {!vLoading && !vErr && vClinics.length === 0 && (
+                <Text style={{ color: t.colors.muted }}>
+                  No vaccination clinics yet. Add vaccines to your clinic profile in Vet CRM.
+                </Text>
+              )}
+              {vClinics.map((clinic) => {
+                const img = clinic.primaryDoctor.photoUrl ?? FALLBACK_V_IMG;
+                const vax = clinic.vaccinesOffered.slice(0, 3).map((v) => v.name);
+                const extra = Math.max(0, clinic.vaccinesOffered.length - 3);
+                const priceInr =
+                  clinic.lowestVaccinationPricePaise != null
+                    ? Math.round(clinic.lowestVaccinationPricePaise / 100)
+                    : '—';
+                return (
+                  <View
+                    key={clinic.id}
+                    style={[styles.clinicCard, { backgroundColor: '#fff', borderColor: t.colors.border }]}
+                  >
+                    <View style={styles.clinicTop}>
+                      <Image source={{ uri: img }} style={styles.clinicImage} />
+                      <View style={styles.clinicBody}>
+                        <Text style={[styles.clinicName, { color: t.colors.foreground }]}>{clinic.name}</Text>
+                        <View style={styles.clinicMeta}>
+                          <Ionicons name="star" size={14} color="#eab308" />
+                          <Text style={[styles.clinicRating, { color: t.colors.foreground }]}>
+                            {clinic.rating} ({clinic.reviewCount})
+                          </Text>
+                        </View>
+                        <View style={styles.clinicMeta}>
+                          <Ionicons name="location-outline" size={14} color={accent} />
+                          <Text style={[styles.clinicDistance, { color: t.colors.muted }]} numberOfLines={1}>
+                            {clinic.city ?? clinic.pincode}
+                          </Text>
+                        </View>
+                        <View style={styles.tagRow}>
+                          {vax.map((v) => (
+                            <View key={v} style={[styles.tag, { backgroundColor: cream }]}>
+                              <Text style={[styles.tagText, { color: t.colors.foreground }]}>{v}</Text>
+                            </View>
+                          ))}
+                          {extra > 0 && (
+                            <View style={[styles.tag, { backgroundColor: cream }]}>
+                              <Text style={[styles.tagText, { color: t.colors.muted }]}>+{extra}</Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                     </View>
+                    <TouchableOpacity
+                      style={[styles.bookBtn, { backgroundColor: accent }]}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/vaccination/[clinicId]',
+                          params: { clinicId: String(clinic.id) },
+                        } as Href)
+                      }
+                      activeOpacity={0.9}
+                    >
+                      <Ionicons name="add" size={22} color="#fff" />
+                      <Text style={styles.bookBtnText}>Book Vaccination</Text>
+                      <Text style={styles.bookBtnPrice}>{typeof priceInr === 'number' ? `₹${priceInr}` : priceInr}</Text>
+                      <Ionicons name="chevron-forward" size={22} color="#fff" />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity
-                    style={[styles.bookBtn, { backgroundColor: accent }]}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/vaccination/[vetId]',
-                        params: { vetId: String(clinic.vetId) },
-                      } as Href)
-                    }
-                    activeOpacity={0.9}
-                  >
-                    <Ionicons name="add" size={22} color="#fff" />
-                    <Text style={styles.bookBtnText}>Book Vaccination</Text>
-                    <Text style={styles.bookBtnPrice}>₹{clinic.price}</Text>
-                    <Ionicons name="chevron-forward" size={22} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </>
         )}

@@ -18,6 +18,7 @@ import { SendOtpDto } from '@/auth/dto/send-otp.dto';
 import { VetVerifyOtpDto } from './dto/verify-otp.dto';
 import { VetCompleteOnboardingDto } from './dto/complete-onboarding.dto';
 import { VetsService } from '@/vets/vets.service';
+import { ClinicsService } from '@/clinics/clinics.service';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 @Controller('vet-auth')
@@ -25,6 +26,7 @@ export class VetAuthController {
   constructor(
     private readonly vetAuthService: VetAuthService,
     private readonly vetsService: VetsService,
+    private readonly clinicsService: ClinicsService,
   ) {}
 
   @Post('send-otp')
@@ -69,7 +71,11 @@ export class VetAuthController {
     if (vet.clinicId !== admin.clinicId || !admin.isClinicAdmin) {
       throw new ForbiddenException('Only the clinic admin can approve doctors');
     }
-    return this.vetsService.approve(vetId);
+    const updated = await this.vetsService.approve(vetId);
+    if (updated.clinicId) {
+      await this.clinicsService.syncDoctorCount(updated.clinicId);
+    }
+    return updated;
   }
 
   @Post('complete-onboarding')
@@ -88,6 +94,8 @@ export class VetAuthController {
       specializations: dto.specializations,
       clinicId: dto.clinicId,
       newClinic: dto.newClinic,
+      photoUrl: dto.photoUrl,
+      displayTitle: dto.displayTitle,
     });
   }
 }

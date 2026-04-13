@@ -4,8 +4,6 @@ import { Redirect } from 'expo-router';
 import { useTheme, useApi } from '@/contexts';
 import type { User } from '@petspond/types';
 import { authApi } from '@/services/auth.service';
-import { LandingPage } from '@/features/home/LandingPage';
-
 export default function HomeScreen() {
   const t = useTheme();
   const { client, token, setToken } = useApi();
@@ -50,11 +48,7 @@ export default function HomeScreen() {
     return <Redirect href="/onboarding" />;
   }
 
-  return (
-    <View style={styles.centered}>
-      <LandingPage />
-    </View>
-  );
+  return <Redirect href="/(tabs)" />;
 }
 
 const styles = StyleSheet.create({

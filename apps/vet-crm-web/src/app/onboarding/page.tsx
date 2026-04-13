@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useApi } from '@/contexts';
+import { useApi, getStoredVetToken } from '@/contexts';
 import { vetAuthApi } from '@/services/vet-auth.service';
 import { clinicsApi } from '@/services/vet-auth.service';
 import {
@@ -33,7 +33,8 @@ export default function OnboardingPage() {
   const [newClinicPincode, setNewClinicPincode] = useState('');
 
   useEffect(() => {
-    if (!token) {
+    const effectiveToken = token ?? getStoredVetToken();
+    if (!effectiveToken) {
       router.replace('/login');
       return;
     }
@@ -107,7 +108,7 @@ export default function OnboardingPage() {
     }
   };
 
-  if (!token) return null;
+  if (!token && !getStoredVetToken()) return null;
 
   return (
     <main className="min-h-screen bg-background p-6 pb-12">

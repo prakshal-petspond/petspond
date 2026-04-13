@@ -78,7 +78,9 @@ The API allows **one OTP per mobile per 60 seconds** to avoid abuse and control 
 | “Invalid mobile number” | Number must be at least 10 digits; with `countryCode` it’s formatted as E.164 (e.g. +91XXXXXXXXXX). |
 | “SMS is not supported for this region” | In Twilio Console: **Messaging → Geo permissions** and enable the destination country. |
 | “Trial accounts can only send to verified numbers” | Add the test number under **Phone Numbers → Verified Caller IDs**, or upgrade the account. |
+| “Unable to send SMS” (generic) | Check the **API terminal** for a `[Twilio OTP] Send failed` log line (includes Twilio `code` and `message`). Common causes: wrong Auth Token (20003), unverified destination on trial (21608), or geo permissions. |
 | OTP not received | Check Twilio **Monitor → Logs → Messaging** for delivery status and any error codes. |
+| Local development | Set `OTP_PROVIDER=mock` in `apps/api/.env.local` — the OTP is printed in the API console; no SMS is sent. |
 
 ## Production checklist
 

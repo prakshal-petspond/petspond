@@ -22,7 +22,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Petspond to choose a photo for your pet."
+        }
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "platforms": [
       "ios",
