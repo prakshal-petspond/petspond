@@ -1,9 +1,6 @@
-export { SplashStep } from './SplashScreen';
-export { IntroStep } from './IntroScreen';
-export { MobileNumberStep } from './MobileNumberScreen';
-export { OtpStep } from './OtpScreen';
-export { NameStep } from './NameScreen';
-export { EmailStep } from './EmailScreen';
-export { LocationPermissionStep } from './LocationPermissionScreen';
-export { PincodeStep } from './PincodeScreen';
-export { RegistrationSuccessStep } from './RegistrationSuccessScreen';
+export { CarouselScreen } from './CarouselScreen';
+export { MobileNumberScreen } from './MobileNumberScreen';
+export { OtpScreen } from './OtpScreen';
+export { NameScreen } from './NameScreen';
+export { EmailScreen } from './EmailScreen';
+export { PreferencesScreen } from './PreferencesScreen';

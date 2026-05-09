@@ -9,6 +9,5 @@ export class SendOtpDto {
   /** Optional country code (e.g. "91" for India). Uses server default if not set. */
   @IsOptional()
   @IsString()
-  @Matches(/^\d{1,4}$/, { message: 'Country code must be 1–4 digits' })
   countryCode?: string;
 }

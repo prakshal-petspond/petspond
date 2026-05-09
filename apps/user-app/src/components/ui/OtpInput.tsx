@@ -2,6 +2,8 @@ import React, { useRef, useState, useCallback } from 'react';
 import { View, TextInput, StyleSheet } from 'react-native';
 import { useTheme } from '@/contexts';
 
+type OtpCellRef = { focus: () => void; blur: () => void } | null;
+
 export interface OtpInputProps {
   digitCount?: number;
   value: string;
@@ -9,18 +11,12 @@ export interface OtpInputProps {
   onComplete?: (value: string) => void;
 }
 
-export function OtpInput({
-  digitCount = 6,
-  value,
-  onChangeValue,
-  onComplete,
-}: OtpInputProps) {
+export function OtpInput({ digitCount = 6, value, onChangeValue, onComplete }: OtpInputProps) {
   const t = useTheme();
-  const inputsRef = useRef<(TextInput | null)[]>([]);
+  const inputsRef = useRef<OtpCellRef[]>([]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
   const digits = value.split('').concat(Array(Math.max(0, digitCount - value.length)).fill(''));
-  const sanitize = (v: string) => v.replace(/\D/g, '').slice(0, digitCount);
 
   const handleChange = useCallback(
     (index: number, text: string) => {
@@ -43,7 +39,7 @@ export function OtpInput({
       if (combined.length === digitCount) onComplete?.(combined);
       if (num && index < digitCount - 1) inputsRef.current[index + 1]?.focus();
     },
-    [value, digitCount, onChangeValue, onComplete],
+    [value, digitCount, onChangeValue, onComplete]
   );
 
   const handleKeyPress = useCallback(
@@ -54,7 +50,7 @@ export function OtpInput({
         inputsRef.current[index - 1]?.focus();
       }
     },
-    [value, digits, onChangeValue],
+    [value, digits, onChangeValue]
   );
 
   return (
@@ -62,19 +58,22 @@ export function OtpInput({
       {Array.from({ length: digitCount }).map((_, i) => (
         <TextInput
           key={i}
-          ref={(el) => {
+          ref={(el: OtpCellRef) => {
             inputsRef.current[i] = el;
           }}
           style={[
             styles.cell,
             {
-              borderColor: focusedIndex === i ? t.colors.primary : t.colors.border,
+              borderColor: focusedIndex === i ? t.colors.primary : 'white',
               color: t.colors.foreground,
+              backgroundColor: t.colors.slate,
             },
           ]}
           value={digits[i] || ''}
-          onChangeText={(text) => handleChange(i, text)}
-          onKeyPress={({ nativeEvent }) => handleKeyPress(i, nativeEvent.key)}
+          onChangeText={(text: string) => handleChange(i, text)}
+          onKeyPress={({ nativeEvent }: { nativeEvent: { key: string } }) =>
+            handleKeyPress(i, nativeEvent.key)
+          }
           onFocus={() => setFocusedIndex(i)}
           onBlur={() => setFocusedIndex(null)}
           keyboardType="number-pad"

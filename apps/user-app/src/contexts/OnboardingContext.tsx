@@ -5,8 +5,8 @@ export interface OnboardingState {
   otp: string;
   name: string;
   email: string;
-  city: string;
-  pincode: string;
+  /** Selected preference ids from onboarding (client-side until API supports them). */
+  preferences: string[];
   completed: boolean;
 }
 
@@ -15,8 +15,7 @@ const initialState: OnboardingState = {
   otp: '',
   name: '',
   email: '',
-  city: '',
-  pincode: '',
+  preferences: [],
   completed: false,
 };
 
@@ -26,8 +25,7 @@ type OnboardingContextValue = {
   setOtp: (v: string) => void;
   setName: (v: string) => void;
   setEmail: (v: string) => void;
-  setCity: (v: string) => void;
-  setPincode: (v: string) => void;
+  setPreferences: (v: string[]) => void;
   setCompleted: (v: boolean) => void;
   reset: () => void;
 };
@@ -41,8 +39,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const setOtp = useCallback((otp: string) => setState((s) => ({ ...s, otp })), []);
   const setName = useCallback((name: string) => setState((s) => ({ ...s, name })), []);
   const setEmail = useCallback((email: string) => setState((s) => ({ ...s, email })), []);
-  const setCity = useCallback((city: string) => setState((s) => ({ ...s, city })), []);
-  const setPincode = useCallback((pincode: string) => setState((s) => ({ ...s, pincode })), []);
+  const setPreferences = useCallback((preferences: string[]) => setState((s) => ({ ...s, preferences })), []);
   const setCompleted = useCallback((completed: boolean) => setState((s) => ({ ...s, completed })), []);
   const reset = useCallback(() => setState(initialState), []);
 
@@ -52,8 +49,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setOtp,
     setName,
     setEmail,
-    setCity,
-    setPincode,
+    setPreferences,
     setCompleted,
     reset,
   };

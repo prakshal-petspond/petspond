@@ -1,15 +1,8 @@
 import React from 'react';
-import {
-  View,
-  TextInput,
-  Text,
-  StyleSheet,
-  TextInputProps,
-  TouchableOpacity,
-} from 'react-native';
+import { View, TextInput, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/contexts';
 
-export interface TextInputFieldProps extends Omit<TextInputProps, 'style'> {
+export interface TextInputFieldProps extends Omit<React.ComponentProps<typeof TextInput>, 'style'> {
   label?: string;
   error?: string;
   rightIcon?: React.ReactNode;
@@ -27,16 +20,16 @@ export function TextInputField({
 
   return (
     <View style={styles.wrapper}>
-      {label ? (
-        <Text style={[styles.label, { color: t.colors.muted }]}>{label}</Text>
-      ) : null}
-      <View style={[styles.inputRow, { borderColor: t.colors.border }]}>
+      {label ? <Text style={[styles.label, { color: t.colors.muted }]}>{label}</Text> : null}
+      <View
+        style={[styles.inputRow, { borderColor: t.colors.border, backgroundColor: t.colors.slate }]}
+      >
         <TextInput
           style={[
             styles.input,
             {
               color: t.colors.foreground,
-              backgroundColor: t.colors.background,
+              backgroundColor: t.colors.slate,
             },
           ]}
           placeholderTextColor={t.colors.muted}
@@ -52,9 +45,7 @@ export function TextInputField({
           </TouchableOpacity>
         ) : null}
       </View>
-      {error ? (
-        <Text style={[styles.error, { color: t.colors.error }]}>{error}</Text>
-      ) : null}
+      {error ? <Text style={[styles.error, { color: t.colors.error }]}>{error}</Text> : null}
     </View>
   );
 }

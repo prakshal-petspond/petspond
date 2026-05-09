@@ -1,20 +1,22 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { useTheme } from '@/contexts';
-import { useOnboarding } from '@/contexts';
-import { ProgressBar, ScreenHeader, TextInputField, PrimaryButton, SecondaryButton } from '@/components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme, useOnboarding } from '@/contexts';
+import { OnboardingStepHeader } from '../components/OnboardingStepHeader';
+import { ScreenHeader, TextInputField, PrimaryButton, SecondaryButton } from '@/components/ui';
 
-const TOTAL_STEPS = 4;
-const STEP = 3;
+const TOTAL_STEPS = 5;
+const STEP = 4;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export interface EmailStepProps {
+export type EmailScreenProps = {
   onNext: () => void;
-  onSkip?: () => void;
-}
+  onBack: () => void;
+};
 
-export function EmailStep({ onNext, onSkip }: EmailStepProps) {
+export function EmailScreen({ onNext, onBack }: EmailScreenProps) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const { state, setEmail } = useOnboarding();
   const [email, setLocalEmail] = useState(state.email);
   const [error, setError] = useState('');
@@ -32,7 +34,7 @@ export function EmailStep({ onNext, onSkip }: EmailStepProps) {
 
   const skip = () => {
     setEmail('');
-    onSkip?.();
+    onNext();
   };
 
   return (
@@ -41,26 +43,30 @@ export function EmailStep({ onNext, onSkip }: EmailStepProps) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={24}
     >
-      <ProgressBar currentStep={STEP} totalSteps={TOTAL_STEPS} />
-      <ScreenHeader
-        title="Enter Email"
-        description="Optional but recommended for reminders and receipts."
-      />
-      <TextInputField
-        label="EMAIL ID"
-        placeholder="your@email.com"
-        value={email}
-        onChangeText={(v) => { setLocalEmail(v); setError(''); }}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        error={error}
-      />
-      <View style={styles.actions}>
-        <View style={styles.skipWrap}>
-          <SecondaryButton title="Skip" onPress={skip} />
-        </View>
-        <View style={styles.proceedWrap}>
-          <PrimaryButton title="Proceed" onPress={proceed} />
+      <View style={[styles.inner, { paddingBottom: insets.bottom + 16 }]}>
+        <OnboardingStepHeader currentStep={STEP} totalSteps={TOTAL_STEPS} onBack={onBack} />
+        <ScreenHeader
+          title="Enter Email"
+          description="Get booking confirmations and updates (Optional)"
+        />
+        <TextInputField
+          placeholder="your@email.com"
+          value={email}
+          onChangeText={(v: string) => {
+            setLocalEmail(v);
+            setError('');
+          }}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          error={error}
+        />
+        <View style={styles.actions}>
+          <View style={styles.skipWrap}>
+            <SecondaryButton title="Skip" onPress={skip} />
+          </View>
+          <View style={styles.proceedWrap}>
+            <PrimaryButton tone="accent" title="Proceed ›" onPress={proceed} />
+          </View>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -70,8 +76,10 @@ export function EmailStep({ onNext, onSkip }: EmailStepProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    paddingTop: 48,
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: 24,
   },
   actions: {
     flexDirection: 'row',

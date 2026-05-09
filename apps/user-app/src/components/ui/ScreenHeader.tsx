@@ -12,9 +12,9 @@ export function ScreenHeader({ title, description }: ScreenHeaderProps) {
 
   return (
     <View style={styles.wrapper}>
-      <Text style={[styles.title, { color: t.colors.foreground }]}>{title}</Text>
+      <Text style={[styles.title, { color: t.colors.text_dark_grey }]}>{title}</Text>
       {description ? (
-        <Text style={[styles.description, { color: t.colors.muted }]}>{description}</Text>
+        <Text style={[styles.description, { color: t.colors.text_grey }]}>{description}</Text>
       ) : null}
     </View>
   );
@@ -23,12 +23,13 @@ export function ScreenHeader({ title, description }: ScreenHeaderProps) {
 const styles = StyleSheet.create({
   wrapper: { marginBottom: 24 },
   title: {
-    fontSize: 22,
+    fontSize: 32,
     fontWeight: '700',
     marginBottom: 8,
+    lineHeight: 48,
   },
   description: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 22,
   },
 });

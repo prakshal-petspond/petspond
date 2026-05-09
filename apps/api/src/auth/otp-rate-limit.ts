@@ -4,7 +4,7 @@
  */
 const lastSentAt = new Map<string, number>();
 
-const COOLDOWN_MS = 60 * 1000; // 1 minute
+const COOLDOWN_MS = 5 * 1000; // 5 seconds
 
 export function canSendOtp(mobile: string): boolean {
   const normalized = mobile.replace(/\D/g, '').slice(-10);

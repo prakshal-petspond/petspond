@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
-import { useTheme } from '@/contexts';
-import { useOnboarding } from '@/contexts';
-import { ProgressBar, ScreenHeader, TextInputField, PrimaryButton } from '@/components/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme, useOnboarding } from '@/contexts';
+import { OnboardingStepHeader } from '../components/OnboardingStepHeader';
+import { ScreenHeader, TextInputField, PrimaryButton } from '@/components/ui';
 
-const TOTAL_STEPS = 4;
-const STEP = 2;
+const TOTAL_STEPS = 5;
+const STEP = 3;
 
-export interface NameStepProps {
+export type NameScreenProps = {
   onNext: () => void;
-}
+  onBack: () => void;
+};
 
-export function NameStep({ onNext }: NameStepProps) {
+export function NameScreen({ onNext, onBack }: NameScreenProps) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const { state, setName } = useOnboarding();
   const [name, setLocalName] = useState(state.name);
   const [error, setError] = useState('');
@@ -34,21 +37,25 @@ export function NameStep({ onNext }: NameStepProps) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={24}
     >
-      <ProgressBar currentStep={STEP} totalSteps={TOTAL_STEPS} />
-      <ScreenHeader
-        title="Enter Name"
-        description="What should we call you?"
-      />
-      <TextInputField
-        label="USERNAME"
-        placeholder="Your name"
-        value={name}
-        onChangeText={(v) => { setLocalName(v); setError(''); }}
-        autoCapitalize="words"
-        error={error}
-      />
-      <View style={styles.cta}>
-        <PrimaryButton title="Proceed" onPress={proceed} />
+      <View style={[styles.inner, { paddingBottom: insets.bottom + 16 }]}>
+        <OnboardingStepHeader currentStep={STEP} totalSteps={TOTAL_STEPS} onBack={onBack} />
+        <ScreenHeader
+          title="Enter Name"
+          description="Help us personalize your experience"
+        />
+        <TextInputField
+          placeholder="Your Name"
+          value={name}
+          onChangeText={(v: string) => {
+            setLocalName(v);
+            setError('');
+          }}
+          autoCapitalize="words"
+          error={error}
+        />
+        <View style={styles.cta}>
+          <PrimaryButton tone="accent" title="Proceed ›" onPress={proceed} />
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -57,8 +64,10 @@ export function NameStep({ onNext }: NameStepProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    paddingTop: 48,
+  },
+  inner: {
+    flex: 1,
+    paddingHorizontal: 24,
   },
   cta: {
     marginTop: 'auto',

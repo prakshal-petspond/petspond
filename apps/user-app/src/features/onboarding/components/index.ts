@@ -1,3 +1,2 @@
-export { FeatureCarousel } from './FeatureCarousel';
-export type { FeatureSlide } from './FeatureCarousel';
-export { LocationPermissionCard } from './LocationPermissionCard';
+export { OnboardingStepHeader } from './OnboardingStepHeader';
+export type { OnboardingStepHeaderProps } from './OnboardingStepHeader';

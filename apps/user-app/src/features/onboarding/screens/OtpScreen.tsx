@@ -1,20 +1,24 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, useOnboarding, useApi } from '@/contexts';
-import { ProgressBar, ScreenHeader, OtpInput, PrimaryButton } from '@/components/ui';
+import { OnboardingStepHeader } from '../components/OnboardingStepHeader';
+import { ScreenHeader, OtpInput, PrimaryButton } from '@/components/ui';
 import { authApi } from '@/services/auth.service';
 
-const TOTAL_STEPS = 4;
-const STEP = 1;
+const TOTAL_STEPS = 5;
+const STEP = 2;
 const OTP_DIGITS = 6;
 
-export interface OtpStepProps {
+export type OtpScreenProps = {
   onNext: () => void;
-}
+  onBack: () => void;
+};
 
-export function OtpStep({ onNext }: OtpStepProps) {
+export function OtpScreen({ onNext, onBack }: OtpScreenProps) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { client, setToken } = useApi();
   const { state, setOtp } = useOnboarding();
@@ -56,8 +60,7 @@ export function OtpStep({ onNext }: OtpStepProps) {
     setError('');
     setResendLoading(true);
     try {
-      await authApi.sendOtp(client, state.mobile);
-      setError('');
+      await authApi.sendOtp(client, state.mobile, { countryCode: 'IN' });
     } catch (e: unknown) {
       const message = (e as { message?: string })?.message ?? 'Failed to resend OTP.';
       setError(message);
@@ -72,35 +75,41 @@ export function OtpStep({ onNext }: OtpStepProps) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={24}
     >
-      <ProgressBar currentStep={STEP} totalSteps={TOTAL_STEPS} />
-      <ScreenHeader
-        title="Enter OTP"
-        description="We’ve sent a one-time password to your mobile number. Enter it below."
-      />
-      <Text style={[styles.hint, { color: t.colors.muted }]}>
-        Didn't get the code? If the API is in mock mode, check the API server console for the OTP.
-      </Text>
-      <OtpInput
-        digitCount={OTP_DIGITS}
-        value={otp}
-        onChangeValue={(v) => { setLocalOtp(v); setError(''); }}
-        onComplete={setLocalOtp}
-      />
-      <TouchableOpacity onPress={resendOtp} disabled={resendLoading} style={styles.resend}>
-        <Text style={[styles.resendText, { color: t.colors.primary }]}>
-          {resendLoading ? 'Sending…' : 'Resend OTP'}
-        </Text>
-      </TouchableOpacity>
-      {error ? (
-        <Text style={[styles.errorText, { color: t.colors.error }]}>{error}</Text>
-      ) : null}
-      <View style={styles.cta}>
-        <PrimaryButton
-          title="Proceed"
-          onPress={proceed}
-          disabled={otp.length !== OTP_DIGITS || loading}
-          loading={loading}
+      <View style={[styles.inner, { paddingBottom: insets.bottom + 16 }]}>
+        <OnboardingStepHeader currentStep={STEP} totalSteps={TOTAL_STEPS} onBack={onBack} />
+        <ScreenHeader
+          title="Enter OTP"
+          description="We've sent a verification code to your mobile number"
         />
+        <OtpInput
+          digitCount={OTP_DIGITS}
+          value={otp}
+          onChangeValue={(v) => {
+            setLocalOtp(v);
+            setError('');
+          }}
+          onComplete={setLocalOtp}
+        />
+        <View style={styles.resendRow}>
+          <Text style={[styles.resendLine, { color: t.colors.muted }]}>
+            Did not receive the code?{' '}
+          </Text>
+          <Pressable onPress={resendOtp} disabled={resendLoading} hitSlop={8}>
+            <Text style={[styles.resendAction, { color: t.colors.accent }]}>
+              {resendLoading ? 'Sending…' : 'Resend OTP'}
+            </Text>
+          </Pressable>
+        </View>
+        {error ? <Text style={[styles.errorText, { color: t.colors.error }]}>{error}</Text> : null}
+        <View style={styles.cta}>
+          <PrimaryButton
+            tone="accent"
+            title="Proceed ›"
+            onPress={proceed}
+            disabled={otp.length !== OTP_DIGITS || loading}
+            loading={loading}
+          />
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -109,16 +118,31 @@ export function OtpStep({ onNext }: OtpStepProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    paddingTop: 48,
   },
-  hint: {
-    fontSize: 12,
+  inner: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  resendRow: {
+    flexDirection: 'column',
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 12,
   },
-  resend: { alignSelf: 'flex-start', marginBottom: 8 },
-  resendText: { fontSize: 14 },
-  errorText: { fontSize: 12, marginBottom: 12 },
+  resendLine: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  resendAction: {
+    fontWeight: '700',
+    marginTop: 20,
+  },
+  errorText: {
+    fontSize: 12,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
   cta: {
     marginTop: 'auto',
   },
