@@ -5,11 +5,25 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts';
 
-function TabLabel({ focused, color, children }: { focused: boolean; color: string; children: string }) {
+function TabLabel({
+  focused,
+  color,
+  children,
+}: {
+  focused: boolean;
+  color: string;
+  children: string;
+}) {
   return (
     <View style={styles.labelWrap}>
-      <Text style={[styles.labelText, { color, fontWeight: focused ? '700' : '500' }]}>{children}</Text>
-      {focused ? <View style={[styles.dot, { backgroundColor: color }]} /> : <View style={styles.dotPlaceholder} />}
+      <Text style={[styles.labelText, { color, fontWeight: focused ? '700' : '500' }]}>
+        {children}
+      </Text>
+      {focused ? (
+        <View style={[styles.dot, { backgroundColor: color }]} />
+      ) : (
+        <View style={styles.dotPlaceholder} />
+      )}
     </View>
   );
 }
@@ -17,7 +31,7 @@ function TabLabel({ focused, color, children }: { focused: boolean; color: strin
 export default function TabsLayout() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
   const inactive = '#9ca3af';
 
   return (
@@ -28,8 +42,8 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: inactive,
         tabBarStyle: {
           borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: t.colors.border,
-          backgroundColor: t.colors.background,
+          borderTopColor: t.colors.inactive_bg_alpha,
+          backgroundColor: t.colors.solid_white,
           paddingTop: 6,
           paddingBottom: Math.max(insets.bottom, 10),
           height: 56 + Math.max(insets.bottom, 10),
@@ -46,28 +60,36 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size ?? 24} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size ?? 24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="find"
         options={{
           title: 'Find',
-          tabBarIcon: ({ color, size }) => <Ionicons name="search-outline" size={size ?? 24} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="search-outline" size={size ?? 24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
           title: 'Bookings',
-          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size ?? 24} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size ?? 24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size ?? 24} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size ?? 24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
@@ -76,7 +98,9 @@ export default function TabsLayout() {
           title: 'Add pet',
           href: null,
           tabBarStyle: { display: 'none' },
-          tabBarIcon: ({ color, size }) => <Ionicons name="paw-outline" size={size ?? 24} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="paw-outline" size={size ?? 24} color={color} />
+          ),
         }}
       />
     </Tabs>

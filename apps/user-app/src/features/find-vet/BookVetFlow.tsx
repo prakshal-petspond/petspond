@@ -23,7 +23,11 @@ import { slotsForDoctorOnDate } from '@/lib/vetAvailability';
 
 const H_PAD = 16;
 
-const REASONS: { id: string; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+const REASONS: {
+  id: string;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+}[] = [
   { id: 'checkup', label: 'General Check-up', icon: 'medical-outline' },
   { id: 'vax', label: 'Vaccination', icon: 'bandage-outline' },
   { id: 'illness', label: 'Illness/Symptoms', icon: 'pulse-outline' },
@@ -53,7 +57,11 @@ type PaymentMethod = 'card' | 'upi' | 'clinic';
 type SlotDef = (typeof TIME_SLOT_DEFS)[number];
 
 function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 export function BookVetFlow() {
@@ -62,7 +70,7 @@ export function BookVetFlow() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { client, token } = useApi();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
 
   const [detail, setDetail] = useState<PublicClinicDetail | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -127,14 +135,14 @@ export function BookVetFlow() {
 
   const availableSlots = useMemo(
     () => slotsForDoctorOnDate(selectedDate, assignedDoctor?.weeklyAvailability, TIME_SLOT_DEFS),
-    [selectedDate, assignedDoctor],
+    [selectedDate, assignedDoctor]
   );
 
   useEffect(() => {
     setSelectedSlot((prev) => {
       if (!prev) return null;
       const ok = availableSlots.some(
-        (s) => s.hour === prev.hour && s.minute === prev.minute && s.label === prev.label,
+        (s) => s.hour === prev.hour && s.minute === prev.minute && s.label === prev.label
       );
       return ok ? prev : null;
     });
@@ -236,7 +244,10 @@ export function BookVetFlow() {
         setStep(5);
       }
     } catch (e) {
-      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : 'Booking failed';
+      const msg =
+        e && typeof e === 'object' && 'message' in e
+          ? String((e as { message: string }).message)
+          : 'Booking failed';
       Alert.alert('Booking', msg);
     } finally {
       setPayLoading(false);
@@ -245,8 +256,12 @@ export function BookVetFlow() {
 
   if (loadErr || !detail || !assignedDoctor) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
-        <Text style={{ padding: H_PAD, color: t.colors.muted }}>{loadErr ?? 'Unable to load clinic.'}</Text>
+      <View
+        style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}
+      >
+        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>
+          {loadErr ?? 'Unable to load clinic.'}
+        </Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
           <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
         </TouchableOpacity>
@@ -257,12 +272,19 @@ export function BookVetFlow() {
   const headerSubtitle = bookingId ? 'Confirmed' : `Step ${Math.min(step + 1, 5)} of 5`;
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 8, borderBottomColor: t.colors.border }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top + 8, borderBottomColor: t.colors.inactive_bg_alpha },
+        ]}
+      >
         <TouchableOpacity style={styles.backRound} onPress={goBack} activeOpacity={0.85}>
-          <Ionicons name="arrow-back" size={22} color={t.colors.foreground} />
+          <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerStep, { color: t.colors.muted }]}>{headerSubtitle}</Text>
+        <Text style={[styles.headerStep, { color: t.colors.text_secondary }]}>
+          {headerSubtitle}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -274,16 +296,22 @@ export function BookVetFlow() {
         >
           {step === 0 && (
             <>
-              <Text style={[styles.title, { color: t.colors.foreground }]}>Select Your Pet</Text>
-              <Text style={[styles.subtitle, { color: t.colors.muted }]}>Which pet needs care?</Text>
+              <Text style={[styles.title, { color: t.colors.text_primary }]}>Select Your Pet</Text>
+              <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>
+                Which pet needs care?
+              </Text>
               {!token && (
-                <Text style={[styles.subtitle, { color: t.colors.muted, marginTop: 12 }]}>
+                <Text style={[styles.subtitle, { color: t.colors.text_secondary, marginTop: 12 }]}>
                   Sign in (complete onboarding) to load your pets and book.
                 </Text>
               )}
               {detail.doctors.length > 1 && (
                 <>
-                  <Text style={[styles.notesLabel, { color: t.colors.foreground, marginTop: 20 }]}>Veterinarian</Text>
+                  <Text
+                    style={[styles.notesLabel, { color: t.colors.text_primary, marginTop: 20 }]}
+                  >
+                    Veterinarian
+                  </Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                     {detail.doctors.map((d) => {
                       const sel = selectedVetId === d.id;
@@ -293,14 +321,19 @@ export function BookVetFlow() {
                           style={[
                             styles.timeChip,
                             {
-                              borderColor: sel ? accent : t.colors.border,
-                              backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                              borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                              backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
                             },
                           ]}
                           onPress={() => setSelectedVetId(d.id)}
                           activeOpacity={0.85}
                         >
-                          <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>
+                          <Text
+                            style={[
+                              styles.timeChipText,
+                              { color: sel ? accent : t.colors.text_primary },
+                            ]}
+                          >
                             {d.fullName}
                           </Text>
                         </TouchableOpacity>
@@ -311,7 +344,7 @@ export function BookVetFlow() {
               )}
               <View style={{ marginTop: 20, gap: 12 }}>
                 {pets.length === 0 ? (
-                  <Text style={{ color: t.colors.muted }}>
+                  <Text style={{ color: t.colors.text_secondary }}>
                     {token ? 'No pets yet. Add pets via your profile (API: POST /user/pets).' : '—'}
                   </Text>
                 ) : (
@@ -323,19 +356,26 @@ export function BookVetFlow() {
                         style={[
                           styles.petCard,
                           {
-                            borderColor: sel ? accent : t.colors.border,
-                            backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                            borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                            backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
                           },
                         ]}
                         onPress={() => setPetId(p.id)}
                         activeOpacity={0.85}
                       >
-                        <View style={[styles.petAvatar, { backgroundColor: t.colors.border }]}>
-                          <Ionicons name="paw" size={28} color={t.colors.muted} />
+                        <View
+                          style={[
+                            styles.petAvatar,
+                            { backgroundColor: t.colors.inactive_bg_alpha },
+                          ]}
+                        >
+                          <Ionicons name="paw" size={28} color={t.colors.text_secondary} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={[styles.petName, { color: t.colors.foreground }]}>{p.name}</Text>
-                          <Text style={[styles.petDetail, { color: t.colors.muted }]}>
+                          <Text style={[styles.petName, { color: t.colors.text_primary }]}>
+                            {p.name}
+                          </Text>
+                          <Text style={[styles.petDetail, { color: t.colors.text_secondary }]}>
                             {p.species} · {p.breed}
                             {p.weight != null ? ` · ${p.weight} kg` : ''}
                           </Text>
@@ -351,8 +391,8 @@ export function BookVetFlow() {
 
           {step === 1 && (
             <>
-              <Text style={[styles.title, { color: t.colors.foreground }]}>Reason for Visit</Text>
-              <Text style={[styles.subtitle, { color: t.colors.muted }]}>
+              <Text style={[styles.title, { color: t.colors.text_primary }]}>Reason for Visit</Text>
+              <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>
                 What&apos;s the reason for visit? Select all that apply.
               </Text>
               <View style={styles.reasonGrid}>
@@ -364,29 +404,42 @@ export function BookVetFlow() {
                       style={[
                         styles.reasonCell,
                         {
-                          borderColor: sel ? accent : t.colors.border,
-                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                          borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                          backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
                         },
                       ]}
                       onPress={() => toggleReason(r.id)}
                       activeOpacity={0.85}
                     >
-                      <Ionicons name={r.icon} size={26} color={sel ? accent : t.colors.muted} />
-                      <Text style={[styles.reasonLabel, { color: t.colors.foreground }]} numberOfLines={2}>
+                      <Ionicons
+                        name={r.icon}
+                        size={26}
+                        color={sel ? accent : t.colors.text_secondary}
+                      />
+                      <Text
+                        style={[styles.reasonLabel, { color: t.colors.text_primary }]}
+                        numberOfLines={2}
+                      >
                         {r.label}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
-              <Text style={[styles.notesLabel, { color: t.colors.foreground }]}>Additional Notes (Optional)</Text>
+              <Text style={[styles.notesLabel, { color: t.colors.text_primary }]}>
+                Additional Notes (Optional)
+              </Text>
               <TextInput
                 style={[
                   styles.notesInput,
-                  { color: t.colors.foreground, borderColor: t.colors.border, backgroundColor: t.colors.background },
+                  {
+                    color: t.colors.text_primary,
+                    borderColor: t.colors.inactive_bg_alpha,
+                    backgroundColor: t.colors.solid_white,
+                  },
                 ]}
                 placeholder="Describe symptoms, behaviors, or other specific concerns..."
-                placeholderTextColor={t.colors.muted}
+                placeholderTextColor={t.colors.text_secondary}
                 multiline
                 value={notes}
                 onChangeText={setNotes}
@@ -396,8 +449,14 @@ export function BookVetFlow() {
 
           {step === 2 && (
             <>
-              <Text style={[styles.title, { color: t.colors.foreground }]}>Select Date & Time</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
+              <Text style={[styles.title, { color: t.colors.text_primary }]}>
+                Select Date & Time
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.dateStrip}
+              >
                 {dates.map((d, i) => {
                   const sel = sameDay(d, selectedDate);
                   return (
@@ -406,17 +465,27 @@ export function BookVetFlow() {
                       style={[
                         styles.dateChip,
                         {
-                          borderColor: sel ? accent : t.colors.border,
-                          backgroundColor: sel ? accent : t.colors.background,
+                          borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                          backgroundColor: sel ? accent : t.colors.solid_white,
                         },
                       ]}
                       onPress={() => setSelectedDate(d)}
                       activeOpacity={0.85}
                     >
-                      <Text style={[styles.dateChipTop, { color: sel ? '#fff' : t.colors.muted }]}>
+                      <Text
+                        style={[
+                          styles.dateChipTop,
+                          { color: sel ? '#fff' : t.colors.text_secondary },
+                        ]}
+                      >
                         {d.toLocaleDateString(undefined, { weekday: 'short' })}
                       </Text>
-                      <Text style={[styles.dateChipDay, { color: sel ? '#fff' : t.colors.foreground }]}>
+                      <Text
+                        style={[
+                          styles.dateChipDay,
+                          { color: sel ? '#fff' : t.colors.text_primary },
+                        ]}
+                      >
                         {d.getDate()}
                       </Text>
                     </TouchableOpacity>
@@ -424,9 +493,9 @@ export function BookVetFlow() {
                 })}
               </ScrollView>
               {availableSlots.length === 0 ? (
-                <Text style={{ color: t.colors.muted, marginTop: 12 }}>
-                  No bookable times on this day for {assignedDoctor.fullName}. Pick another date or ask the clinic to
-                  widen hours in Vet CRM (Schedule).
+                <Text style={{ color: t.colors.text_secondary, marginTop: 12 }}>
+                  No bookable times on this day for {assignedDoctor.fullName}. Pick another date or
+                  ask the clinic to widen hours in Vet CRM (Schedule).
                 </Text>
               ) : (
                 <View style={styles.timeGrid}>
@@ -441,14 +510,19 @@ export function BookVetFlow() {
                         style={[
                           styles.timeChip,
                           {
-                            borderColor: sel ? accent : t.colors.border,
-                            backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                            borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                            backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
                           },
                         ]}
                         onPress={() => setSelectedSlot(slot)}
                         activeOpacity={0.85}
                       >
-                        <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>
+                        <Text
+                          style={[
+                            styles.timeChipText,
+                            { color: sel ? accent : t.colors.text_primary },
+                          ]}
+                        >
                           {slot.label}
                         </Text>
                       </TouchableOpacity>
@@ -461,37 +535,63 @@ export function BookVetFlow() {
 
           {step === 3 && (
             <>
-              <Text style={[styles.title, { color: t.colors.foreground }]}>Review Appointment</Text>
-              <Text style={[styles.summaryHead, { color: t.colors.muted }]}>Appointment Summary</Text>
-              <View style={[styles.summaryCard, { borderColor: t.colors.border }]}>
-                <Text style={[styles.summarySection, { color: t.colors.muted }]}>Pet</Text>
+              <Text style={[styles.title, { color: t.colors.text_primary }]}>
+                Review Appointment
+              </Text>
+              <Text style={[styles.summaryHead, { color: t.colors.text_secondary }]}>
+                Appointment Summary
+              </Text>
+              <View style={[styles.summaryCard, { borderColor: t.colors.inactive_bg_alpha }]}>
+                <Text style={[styles.summarySection, { color: t.colors.text_secondary }]}>Pet</Text>
                 <View style={styles.summaryRow}>
                   <Ionicons name="paw" size={22} color={accent} />
                   <View>
-                    <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{pet?.name ?? '—'}</Text>
-                    <Text style={{ color: t.colors.muted, fontSize: 14 }}>{petDetailLine}</Text>
-                  </View>
-                </View>
-                <Text style={[styles.summarySection, { color: t.colors.muted, marginTop: 14 }]}>Veterinarian</Text>
-                <View style={styles.summaryRow}>
-                  <Ionicons name="person-circle-outline" size={40} color={accent} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{assignedDoctor.fullName}</Text>
-                    <Text style={{ color: t.colors.muted, fontSize: 14 }}>
-                      {assignedDoctor.displayTitle} · {assignedDoctor.specializations.join(', ') || 'Vet'}
+                    <Text style={[styles.summaryBold, { color: t.colors.text_primary }]}>
+                      {pet?.name ?? '—'}
+                    </Text>
+                    <Text style={{ color: t.colors.text_secondary, fontSize: 14 }}>
+                      {petDetailLine}
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.summarySection, { color: t.colors.muted, marginTop: 14 }]}>Reason for Visit</Text>
+                <Text
+                  style={[styles.summarySection, { color: t.colors.text_secondary, marginTop: 14 }]}
+                >
+                  Veterinarian
+                </Text>
+                <View style={styles.summaryRow}>
+                  <Ionicons name="person-circle-outline" size={40} color={accent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.summaryBold, { color: t.colors.text_primary }]}>
+                      {assignedDoctor.fullName}
+                    </Text>
+                    <Text style={{ color: t.colors.text_secondary, fontSize: 14 }}>
+                      {assignedDoctor.displayTitle} ·{' '}
+                      {assignedDoctor.specializations.join(', ') || 'Vet'}
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={[styles.summarySection, { color: t.colors.text_secondary, marginTop: 14 }]}
+                >
+                  Reason for Visit
+                </Text>
                 <View style={styles.tagRow}>
                   {reasonLabels.map((label) => (
-                    <View key={label} style={[styles.tag, { backgroundColor: t.colors.accentLight }]}>
+                    <View
+                      key={label}
+                      style={[styles.tag, { backgroundColor: t.colors.primary_light }]}
+                    >
                       <Text style={[styles.tagText, { color: accent }]}>{label}</Text>
                     </View>
                   ))}
                 </View>
-                <Text style={[styles.summarySection, { color: t.colors.muted, marginTop: 14 }]}>Schedule</Text>
-                <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>
+                <Text
+                  style={[styles.summarySection, { color: t.colors.text_secondary, marginTop: 14 }]}
+                >
+                  Schedule
+                </Text>
+                <Text style={[styles.summaryBold, { color: t.colors.text_primary }]}>
                   {formatFullDate(selectedDate)} @ {selectedSlot?.label ?? '—'}
                 </Text>
               </View>
@@ -500,21 +600,28 @@ export function BookVetFlow() {
 
           {step === 4 && (
             <>
-              <Text style={[styles.title, { color: t.colors.foreground }]}>Review Appointment</Text>
-              <Text style={[styles.subtitle, { color: t.colors.muted }]}>Payment</Text>
-              <View style={[styles.promoRow, { borderColor: t.colors.border }]}>
+              <Text style={[styles.title, { color: t.colors.text_primary }]}>
+                Review Appointment
+              </Text>
+              <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>Payment</Text>
+              <View style={[styles.promoRow, { borderColor: t.colors.inactive_bg_alpha }]}>
                 <TextInput
-                  style={[styles.promoInput, { color: t.colors.foreground }]}
+                  style={[styles.promoInput, { color: t.colors.text_primary }]}
                   placeholder="Promo code"
-                  placeholderTextColor={t.colors.muted}
+                  placeholderTextColor={t.colors.text_secondary}
                   value={promoInput}
                   onChangeText={setPromoInput}
                 />
-                <TouchableOpacity style={[styles.applyBtn, { backgroundColor: accent }]} onPress={applyPromo}>
+                <TouchableOpacity
+                  style={[styles.applyBtn, { backgroundColor: accent }]}
+                  onPress={applyPromo}
+                >
                   <Text style={styles.applyBtnText}>Apply</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={[styles.paySection, { color: t.colors.foreground }]}>Payment method</Text>
+              <Text style={[styles.paySection, { color: t.colors.text_primary }]}>
+                Payment method
+              </Text>
               {(
                 [
                   ['card', 'Credit/Debit Card', 'card-outline'] as const,
@@ -526,36 +633,66 @@ export function BookVetFlow() {
                 return (
                   <TouchableOpacity
                     key={id}
-                    style={[styles.payRow, { borderColor: sel ? accent : t.colors.border }]}
+                    style={[
+                      styles.payRow,
+                      { borderColor: sel ? accent : t.colors.inactive_bg_alpha },
+                    ]}
                     onPress={() => setPaymentMethod(id)}
                     activeOpacity={0.85}
                   >
-                    <Ionicons name={icon} size={22} color={sel ? accent : t.colors.muted} />
-                    <Text style={[styles.payRowText, { color: t.colors.foreground, flex: 1 }]}>{label}</Text>
-                    <View style={[styles.radio, { borderColor: sel ? accent : t.colors.muted }]}>
+                    <Ionicons
+                      name={icon}
+                      size={22}
+                      color={sel ? accent : t.colors.text_secondary}
+                    />
+                    <Text style={[styles.payRowText, { color: t.colors.text_primary, flex: 1 }]}>
+                      {label}
+                    </Text>
+                    <View
+                      style={[
+                        styles.radio,
+                        { borderColor: sel ? accent : t.colors.text_secondary },
+                      ]}
+                    >
                       {sel && <View style={[styles.radioInner, { backgroundColor: accent }]} />}
                     </View>
                   </TouchableOpacity>
                 );
               })}
               {paymentMethod === 'upi' && (
-                <Text style={{ color: t.colors.muted, fontSize: 13, marginTop: 8 }}>
-                  UPI is processed securely via Stripe Checkout when your API has STRIPE_SECRET_KEY set.
+                <Text style={{ color: t.colors.text_secondary, fontSize: 13, marginTop: 8 }}>
+                  UPI is processed securely via Stripe Checkout when your API has STRIPE_SECRET_KEY
+                  set.
                 </Text>
               )}
-              <View style={[styles.priceBox, { borderColor: t.colors.border }]}>
+              <View style={[styles.priceBox, { borderColor: t.colors.inactive_bg_alpha }]}>
                 {promoDiscount > 0 && (
                   <View style={styles.priceLine}>
                     <Text style={{ color: t.colors.success }}>Discount</Text>
-                    <Text style={{ color: t.colors.success, fontWeight: '600' }}>-₹{promoDiscount}</Text>
+                    <Text style={{ color: t.colors.success, fontWeight: '600' }}>
+                      -₹{promoDiscount}
+                    </Text>
                   </View>
                 )}
-                <View style={[styles.priceLine, { marginTop: promoDiscount > 0 ? 8 : 0, paddingTop: promoDiscount > 0 ? 8 : 0, borderTopWidth: promoDiscount > 0 ? 1 : 0, borderTopColor: t.colors.border }]}>
-                  <Text style={{ color: t.colors.foreground, fontWeight: '800' }}>Total</Text>
-                  <Text style={{ color: accent, fontWeight: '800', fontSize: 18 }}>₹{totalInr}</Text>
+                <View
+                  style={[
+                    styles.priceLine,
+                    {
+                      marginTop: promoDiscount > 0 ? 8 : 0,
+                      paddingTop: promoDiscount > 0 ? 8 : 0,
+                      borderTopWidth: promoDiscount > 0 ? 1 : 0,
+                      borderTopColor: t.colors.inactive_bg_alpha,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: t.colors.text_primary, fontWeight: '800' }}>Total</Text>
+                  <Text style={{ color: accent, fontWeight: '800', fontSize: 18 }}>
+                    ₹{totalInr}
+                  </Text>
                 </View>
-                <Text style={{ color: t.colors.muted, fontSize: 12, marginTop: 8 }}>
-                  Consultation pricing is arranged with the clinic; no app fee is charged for this booking flow.
+                <Text style={{ color: t.colors.text_secondary, fontSize: 12, marginTop: 8 }}>
+                  Consultation pricing is arranged with the clinic; no app fee is charged for this
+                  booking flow.
                 </Text>
               </View>
             </>
@@ -564,7 +701,10 @@ export function BookVetFlow() {
       )}
 
       {step === 5 && bookingId && (
-        <ScrollView contentContainerStyle={[styles.scrollPad, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.scrollPad, { paddingBottom: insets.bottom + 24 }]}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={[styles.successBanner, { backgroundColor: t.colors.success }]}>
             <View style={styles.successIconCircle}>
               <Ionicons name="checkmark" size={40} color="#fff" />
@@ -572,33 +712,48 @@ export function BookVetFlow() {
             <Text style={styles.successTitle}>Booking Confirmed!</Text>
             <Text style={styles.successId}>Booking ID: {bookingId}</Text>
           </View>
-          <View style={[styles.summaryCard, { borderColor: t.colors.border, marginTop: 16 }]}>
+          <View
+            style={[styles.summaryCard, { borderColor: t.colors.inactive_bg_alpha, marginTop: 16 }]}
+          >
             <View style={styles.summaryRow}>
               <Ionicons name="person-circle-outline" size={44} color={accent} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.summaryBold, { color: t.colors.foreground }]}>{assignedDoctor.fullName}</Text>
-                <Text style={{ color: t.colors.muted, fontSize: 14 }}>
-                  {assignedDoctor.displayTitle} · {assignedDoctor.specializations.join(', ') || 'Vet'}
+                <Text style={[styles.summaryBold, { color: t.colors.text_primary }]}>
+                  {assignedDoctor.fullName}
+                </Text>
+                <Text style={{ color: t.colors.text_secondary, fontSize: 14 }}>
+                  {assignedDoctor.displayTitle} ·{' '}
+                  {assignedDoctor.specializations.join(', ') || 'Vet'}
                 </Text>
               </View>
             </View>
-            <Text style={{ color: t.colors.muted, marginTop: 12, fontSize: 14 }}>
+            <Text style={{ color: t.colors.text_secondary, marginTop: 12, fontSize: 14 }}>
               {pet?.name} · {reasonLabels.join(', ') || 'Consultation'}
             </Text>
-            <Text style={[styles.summaryBold, { color: t.colors.foreground, marginTop: 8 }]}>
-              {selectedDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })} at{' '}
-              {selectedSlot?.label}
+            <Text style={[styles.summaryBold, { color: t.colors.text_primary, marginTop: 8 }]}>
+              {selectedDate.toLocaleDateString(undefined, {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              })}{' '}
+              at {selectedSlot?.label}
             </Text>
             <View style={[styles.locInline, { marginTop: 10 }]}>
               <Ionicons name="location" size={18} color={accent} />
-              <Text style={{ color: t.colors.foreground, flex: 1, marginLeft: 8 }}>{detail.name}</Text>
+              <Text style={{ color: t.colors.text_primary, flex: 1, marginLeft: 8 }}>
+                {detail.name}
+              </Text>
             </View>
-            <Text style={{ color: t.colors.muted, fontSize: 13, marginTop: 4 }}>{detail.address}</Text>
+            <Text style={{ color: t.colors.text_secondary, fontSize: 13, marginTop: 4 }}>
+              {detail.address}
+            </Text>
           </View>
-          <View style={[styles.priceBox, { borderColor: t.colors.border, marginTop: 14 }]}>
+          <View
+            style={[styles.priceBox, { borderColor: t.colors.inactive_bg_alpha, marginTop: 14 }]}
+          >
             <View style={styles.priceLine}>
-              <Text style={{ color: t.colors.muted }}>Consultation + platform</Text>
-              <Text style={{ color: t.colors.foreground }}>₹{subtotalInr}</Text>
+              <Text style={{ color: t.colors.text_secondary }}>Consultation + platform</Text>
+              <Text style={{ color: t.colors.text_primary }}>₹{subtotalInr}</Text>
             </View>
             {promoDiscount > 0 && (
               <View style={styles.priceLine}>
@@ -607,26 +762,36 @@ export function BookVetFlow() {
               </View>
             )}
             <View style={styles.priceLine}>
-              <Text style={{ color: t.colors.muted }}>Payment method</Text>
-              <Text style={{ color: t.colors.foreground }}>
-                {paymentMethod === 'clinic' ? 'Pay at clinic' : paymentMethod === 'upi' ? 'UPI (Stripe)' : 'Card (Stripe)'}
+              <Text style={{ color: t.colors.text_secondary }}>Payment method</Text>
+              <Text style={{ color: t.colors.text_primary }}>
+                {paymentMethod === 'clinic'
+                  ? 'Pay at clinic'
+                  : paymentMethod === 'upi'
+                    ? 'UPI (Stripe)'
+                    : 'Card (Stripe)'}
               </Text>
             </View>
             {paidStripeSession && (
-              <Text style={{ fontSize: 11, color: t.colors.muted, marginTop: 6 }} numberOfLines={1}>
+              <Text
+                style={{ fontSize: 11, color: t.colors.text_secondary, marginTop: 6 }}
+                numberOfLines={1}
+              >
                 Stripe session: {paidStripeSession}
               </Text>
             )}
             <View style={[styles.priceLine, { marginTop: 8 }]}>
-              <Text style={{ fontWeight: '800', color: t.colors.foreground }}>Total paid</Text>
+              <Text style={{ fontWeight: '800', color: t.colors.text_primary }}>Total paid</Text>
               <Text style={{ fontWeight: '800', color: accent, fontSize: 18 }}>
                 ₹{paymentMethod === 'clinic' ? 0 : totalInr}
               </Text>
             </View>
           </View>
-          <Text style={[styles.notesLabel, { color: t.colors.foreground, marginTop: 20 }]}>Important</Text>
-          <Text style={{ color: t.colors.muted, lineHeight: 22, fontSize: 14 }}>
-            • Arrive 10 minutes early with your pet&apos;s medical records{'\n'}• Cancel or reschedule up to 2 hours before
+          <Text style={[styles.notesLabel, { color: t.colors.text_primary, marginTop: 20 }]}>
+            Important
+          </Text>
+          <Text style={{ color: t.colors.text_secondary, lineHeight: 22, fontSize: 14 }}>
+            • Arrive 10 minutes early with your pet&apos;s medical records{'\n'}• Cancel or
+            reschedule up to 2 hours before
             {'\n'}
             {paymentMethod === 'clinic' ? '• Pay consultation fee at the clinic front desk\n' : ''}
           </Text>
@@ -647,8 +812,8 @@ export function BookVetFlow() {
             styles.footer,
             {
               paddingBottom: Math.max(insets.bottom, 14),
-              backgroundColor: t.colors.background,
-              borderTopColor: t.colors.border,
+              backgroundColor: t.colors.solid_white,
+              borderTopColor: t.colors.inactive_bg_alpha,
             },
           ]}
         >
@@ -656,7 +821,10 @@ export function BookVetFlow() {
             style={[
               styles.continueBtn,
               { backgroundColor: accent },
-              (step === 0 && !petId) || (step === 1 && reasons.length === 0) || (step === 2 && !selectedSlot) || payLoading
+              (step === 0 && !petId) ||
+              (step === 1 && reasons.length === 0) ||
+              (step === 2 && !selectedSlot) ||
+              payLoading
                 ? { opacity: 0.45 }
                 : null,
             ]}
@@ -674,7 +842,9 @@ export function BookVetFlow() {
             ) : (
               <>
                 <Text style={styles.continueText}>
-                  {step === 4 ? `Confirm Appointment — ₹${paymentMethod === 'clinic' ? 0 : totalInr}` : 'Continue'}
+                  {step === 4
+                    ? `Confirm Appointment — ₹${paymentMethod === 'clinic' ? 0 : totalInr}`
+                    : 'Continue'}
                 </Text>
                 {step < 4 && <Ionicons name="chevron-forward" size={22} color="#fff" />}
               </>

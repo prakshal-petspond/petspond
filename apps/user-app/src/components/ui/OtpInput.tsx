@@ -65,8 +65,8 @@ export function OtpInput({ digitCount = 6, value, onChangeValue, onComplete }: O
             styles.cell,
             {
               borderColor: focusedIndex === i ? t.colors.primary : 'white',
-              color: t.colors.foreground,
-              backgroundColor: t.colors.slate,
+              color: t.colors.text_primary,
+              backgroundColor: t.colors.grey_bg,
             },
           ]}
           value={digits[i] || ''}

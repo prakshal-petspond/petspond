@@ -27,7 +27,7 @@ export function VaccinationClinicDetailPage() {
   const { client } = useApi();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
   const [detail, setDetail] = useState<PublicClinicDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -56,7 +56,12 @@ export function VaccinationClinicDetailPage() {
 
   if (loading) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.fill,
+          { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
         <ActivityIndicator size="large" color={accent} />
       </View>
     );
@@ -64,8 +69,12 @@ export function VaccinationClinicDetailPage() {
 
   if (err || !detail) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
-        <Text style={{ padding: H_PAD, color: t.colors.muted }}>{err ?? 'Clinic not found.'}</Text>
+      <View
+        style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}
+      >
+        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>
+          {err ?? 'Clinic not found.'}
+        </Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
           <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
         </TouchableOpacity>
@@ -77,39 +86,53 @@ export function VaccinationClinicDetailPage() {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(detail.address)}`;
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.heroWrap}>
           <Image source={{ uri: heroUri }} style={styles.heroImage} />
           <View style={[styles.heroOverlay, { paddingTop: insets.top }]}>
-            <TouchableOpacity style={styles.heroBtn} onPress={() => router.back()} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.heroBtn}
+              onPress={() => router.back()}
+              activeOpacity={0.85}
+            >
               <Ionicons name="arrow-back" size={22} color="#0f172a" />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={{ paddingHorizontal: H_PAD, paddingTop: 16, paddingBottom: 120 }}>
-          <Text style={[styles.title, { color: t.colors.foreground }]}>{detail.name}</Text>
+          <Text style={[styles.title, { color: t.colors.text_primary }]}>{detail.name}</Text>
           <View style={styles.ratingRow}>
             <Ionicons name="star" size={18} color="#eab308" />
-            <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>
+            <Text style={{ color: t.colors.text_primary, fontWeight: '600' }}>
               {detail.rating} ({detail.reviewCount} reviews)
             </Text>
           </View>
-          <Text style={{ color: t.colors.muted, marginTop: 10, lineHeight: 22 }}>{detail.address}</Text>
+          <Text style={{ color: t.colors.text_secondary, marginTop: 10, lineHeight: 22 }}>
+            {detail.address}
+          </Text>
 
-          <Text style={[styles.section, { color: t.colors.foreground }]}>Vaccines offered</Text>
+          <Text style={[styles.section, { color: t.colors.text_primary }]}>Vaccines offered</Text>
           {(detail.vaccinesOffered ?? []).length === 0 ? (
-            <Text style={{ color: t.colors.muted }}>No vaccines listed yet.</Text>
+            <Text style={{ color: t.colors.text_secondary }}>No vaccines listed yet.</Text>
           ) : (
             <View style={{ gap: 10 }}>
               {detail.vaccinesOffered.map((v) => (
                 <View
                   key={v.id}
-                  style={[styles.vaxRow, { borderColor: t.colors.border, backgroundColor: t.colors.background }]}
+                  style={[
+                    styles.vaxRow,
+                    {
+                      borderColor: t.colors.inactive_bg_alpha,
+                      backgroundColor: t.colors.solid_white,
+                    },
+                  ]}
                 >
                   <Ionicons name="bandage-outline" size={22} color={accent} />
-                  <Text style={{ flex: 1, color: t.colors.foreground, fontWeight: '600' }}>{v.name}</Text>
+                  <Text style={{ flex: 1, color: t.colors.text_primary, fontWeight: '600' }}>
+                    {v.name}
+                  </Text>
                   <Text style={{ color: accent, fontWeight: '700' }}>₹{v.pricePaise / 100}</Text>
                 </View>
               ))}
@@ -118,7 +141,7 @@ export function VaccinationClinicDetailPage() {
 
           <View style={styles.actionBar}>
             <TouchableOpacity
-              style={[styles.actionPill, { backgroundColor: t.colors.accentLight }]}
+              style={[styles.actionPill, { backgroundColor: t.colors.primary_light }]}
               onPress={() => Linking.openURL(mapsUrl)}
               activeOpacity={0.85}
             >
@@ -129,7 +152,15 @@ export function VaccinationClinicDetailPage() {
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12), borderTopColor: t.colors.border }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: Math.max(insets.bottom, 12),
+            borderTopColor: t.colors.inactive_bg_alpha,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.bookCta, { backgroundColor: accent }]}
           onPress={() =>

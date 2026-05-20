@@ -2,8 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-
-const GRADIENT = ['#fb923c', '#ea580c'] as const;
+import { useTheme } from '@/contexts';
 
 type Props = {
   step: number;
@@ -13,8 +12,14 @@ type Props = {
 };
 
 export function AddPetFlowHeader({ step, totalSteps, onBack, paddingTop }: Props) {
+  const t = useTheme();
   return (
-    <LinearGradient colors={[...GRADIENT]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.gradient, { paddingTop }]}>
+    <LinearGradient
+      colors={[t.colors.primary, t.colors.accent]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.gradient, { paddingTop }]}
+    >
       <View style={styles.headerRow}>
         <Pressable style={styles.backHit} onPress={onBack} hitSlop={12}>
           <Ionicons name="chevron-back" size={28} color="#fff" />

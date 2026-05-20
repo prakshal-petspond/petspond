@@ -12,9 +12,9 @@ export function ScreenHeader({ title, description }: ScreenHeaderProps) {
 
   return (
     <View style={styles.wrapper}>
-      <Text style={[styles.title, { color: t.colors.text_dark_grey }]}>{title}</Text>
+      <Text style={[styles.title, { color: t.colors.text_primary }]}>{title}</Text>
       {description ? (
-        <Text style={[styles.description, { color: t.colors.text_grey }]}>{description}</Text>
+        <Text style={[styles.description, { color: t.colors.text_secondary }]}>{description}</Text>
       ) : null}
     </View>
   );

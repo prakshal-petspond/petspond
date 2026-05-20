@@ -40,9 +40,9 @@ export function CarouselScreen({ onComplete }: CarouselScreenProps) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const listRef = useRef<{ scrollToIndex: (o: { index: number; animated?: boolean }) => void } | null>(
-    null,
-  );
+  const listRef = useRef<{
+    scrollToIndex: (o: { index: number; animated?: boolean }) => void;
+  } | null>(null);
   const [index, setIndex] = useState(0);
   const isLast = index === SLIDES.length - 1;
 
@@ -52,7 +52,7 @@ export function CarouselScreen({ onComplete }: CarouselScreenProps) {
       const i = Math.round(x / width);
       if (i >= 0 && i < SLIDES.length) setIndex(i);
     },
-    [width],
+    [width]
   );
 
   const goNext = useCallback(() => {
@@ -72,18 +72,23 @@ export function CarouselScreen({ onComplete }: CarouselScreenProps) {
   const renderItem = useCallback(
     ({ item }: { item: Slide }) => (
       <View style={[styles.slide, { width }]}>
-        <View style={[styles.iconRing, { backgroundColor: t.colors.accentLight }]}>
+        <View style={[styles.iconRing, { backgroundColor: t.colors.primary_light }]}>
           <Text style={styles.emoji}>{item.emoji}</Text>
         </View>
-        <Text style={[styles.title, { color: t.colors.foreground }]}>{item.title}</Text>
-        <Text style={[styles.body, { color: t.colors.muted }]}>{item.body}</Text>
+        <Text style={[styles.title, { color: t.colors.text_primary }]}>{item.title}</Text>
+        <Text style={[styles.body, { color: t.colors.text_secondary }]}>{item.body}</Text>
       </View>
     ),
-    [t.colors.accentLight, t.colors.foreground, t.colors.muted, width],
+    [t.colors.primary_light, t.colors.text_primary, t.colors.text_secondary, width]
   );
 
   return (
-    <View style={[styles.screen, { backgroundColor: t.colors.background, paddingBottom: insets.bottom + 16 }]}>
+    <View
+      style={[
+        styles.screen,
+        { backgroundColor: t.colors.solid_white, paddingBottom: insets.bottom + 16 },
+      ]}
+    >
       <FlatList
         ref={listRef}
         style={styles.list}
@@ -109,7 +114,7 @@ export function CarouselScreen({ onComplete }: CarouselScreenProps) {
             style={[
               styles.dot,
               {
-                backgroundColor: i === index ? t.colors.accent : t.colors.border,
+                backgroundColor: i === index ? t.colors.accent : t.colors.inactive_bg_alpha,
                 width: i === index ? 22 : 8,
                 borderRadius: i === index ? 4 : 4,
               },
@@ -125,7 +130,7 @@ export function CarouselScreen({ onComplete }: CarouselScreenProps) {
         />
         {!isLast ? (
           <Pressable onPress={skip} hitSlop={12} style={styles.skipHit}>
-            <Text style={[styles.skip, { color: t.colors.muted }]}>Skip</Text>
+            <Text style={[styles.skip, { color: t.colors.text_secondary }]}>Skip</Text>
           </Pressable>
         ) : null}
       </View>

@@ -32,8 +32,8 @@ export function VaccinationPage() {
   const router = useRouter();
   const { client, token } = useApi();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
-  const cream = t.colors.cardBg ?? '#f5f0e8';
+  const accent = t.colors.accent;
+  const cream = t.colors.primary_bg;
 
   const [pets, setPets] = useState<Pet[]>([]);
   const [petsLoading, setPetsLoading] = useState(true);
@@ -94,9 +94,9 @@ export function VaccinationPage() {
     <View style={[styles.fill, { backgroundColor: cream }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: cream }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.85}>
-          <Ionicons name="arrow-back" size={22} color={t.colors.foreground} />
+          <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: t.colors.foreground }]}>Vaccination</Text>
+        <Text style={[styles.headerTitle, { color: t.colors.text_primary }]}>Vaccination</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -121,7 +121,7 @@ export function VaccinationPage() {
                 {
                   width: PET_CARD_W,
                   backgroundColor: '#fff',
-                  borderColor: t.colors.border,
+                  borderColor: t.colors.inactive_bg_alpha,
                 },
               ]}
               onPress={() => router.push('/add-pet')}
@@ -130,8 +130,8 @@ export function VaccinationPage() {
               <View style={[styles.petPhoto, { alignItems: 'center', justifyContent: 'center' }]}>
                 <Ionicons name="add-circle-outline" size={28} color={accent} />
               </View>
-              <Text style={[styles.petName, { color: t.colors.foreground }]}>Add pet</Text>
-              <Text style={[styles.petBreed, { color: t.colors.muted }]} numberOfLines={2}>
+              <Text style={[styles.petName, { color: t.colors.text_primary }]}>Add pet</Text>
+              <Text style={[styles.petBreed, { color: t.colors.text_secondary }]} numberOfLines={2}>
                 Add a pet to book vaccinations
               </Text>
             </TouchableOpacity>
@@ -147,16 +147,16 @@ export function VaccinationPage() {
                     {
                       width: PET_CARD_W,
                       backgroundColor: selected ? accent : '#fff',
-                      borderColor: selected ? accent : t.colors.border,
+                      borderColor: selected ? accent : t.colors.inactive_bg_alpha,
                     },
                   ]}
                   onPress={() => setSelectedPetId(pet.id)}
                   activeOpacity={0.9}
                 >
                   <Image source={{ uri: img }} style={styles.petPhoto} />
-                  <Text style={[styles.petName, { color: selected ? '#fff' : t.colors.foreground }]}>{pet.name}</Text>
+                  <Text style={[styles.petName, { color: selected ? '#fff' : t.colors.text_primary }]}>{pet.name}</Text>
                   <Text
-                    style={[styles.petBreed, { color: selected ? 'rgba(255,255,255,0.9)' : t.colors.muted }]}
+                    style={[styles.petBreed, { color: selected ? 'rgba(255,255,255,0.9)' : t.colors.text_secondary }]}
                     numberOfLines={1}
                   >
                     {pet.breed}
@@ -184,22 +184,22 @@ export function VaccinationPage() {
             onPress={() => setTab('history')}
             activeOpacity={0.9}
           >
-            <Text style={[styles.tabText, { color: tab === 'history' ? accent : t.colors.muted }]}>Vaccination History</Text>
+            <Text style={[styles.tabText, { color: tab === 'history' ? accent : t.colors.text_secondary }]}>Vaccination History</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tabHalf, tab === 'book' && styles.tabHalfActive]}
             onPress={() => setTab('book')}
             activeOpacity={0.9}
           >
-            <Text style={[styles.tabText, { color: tab === 'book' ? accent : t.colors.muted }]}>Book Vaccination</Text>
+            <Text style={[styles.tabText, { color: tab === 'book' ? accent : t.colors.text_secondary }]}>Book Vaccination</Text>
           </TouchableOpacity>
         </View>
 
         {tab === 'history' && (
           <View style={[styles.emptyHistory, { paddingHorizontal: H_PAD }]}>
-            <Ionicons name="document-text-outline" size={48} color={t.colors.muted} />
-            <Text style={[styles.emptyTitle, { color: t.colors.foreground }]}>No records yet</Text>
-            <Text style={[styles.emptySub, { color: t.colors.muted }]}>
+            <Ionicons name="document-text-outline" size={48} color={t.colors.text_secondary} />
+            <Text style={[styles.emptyTitle, { color: t.colors.text_primary }]}>No records yet</Text>
+            <Text style={[styles.emptySub, { color: t.colors.text_secondary }]}>
               Completed vaccinations will appear here after your visits.
             </Text>
           </View>
@@ -207,7 +207,7 @@ export function VaccinationPage() {
 
         {tab === 'book' && (
           <>
-            <Text style={[styles.sectionHeading, { color: t.colors.foreground, paddingHorizontal: H_PAD }]}>
+            <Text style={[styles.sectionHeading, { color: t.colors.text_primary, paddingHorizontal: H_PAD }]}>
               Available Services Near You
             </Text>
             <View style={{ paddingHorizontal: H_PAD, gap: 16 }}>
@@ -216,9 +216,9 @@ export function VaccinationPage() {
                   <ActivityIndicator size="large" color={accent} />
                 </View>
               )}
-              {vErr && !vLoading && <Text style={{ color: t.colors.muted }}>{vErr}</Text>}
+              {vErr && !vLoading && <Text style={{ color: t.colors.text_secondary }}>{vErr}</Text>}
               {!vLoading && !vErr && vClinics.length === 0 && (
-                <Text style={{ color: t.colors.muted }}>
+                <Text style={{ color: t.colors.text_secondary }}>
                   No vaccination clinics yet. Add vaccines to your clinic profile in Vet CRM.
                 </Text>
               )}
@@ -233,33 +233,33 @@ export function VaccinationPage() {
                 return (
                   <View
                     key={clinic.id}
-                    style={[styles.clinicCard, { backgroundColor: '#fff', borderColor: t.colors.border }]}
+                    style={[styles.clinicCard, { backgroundColor: '#fff', borderColor: t.colors.inactive_bg_alpha }]}
                   >
                     <View style={styles.clinicTop}>
                       <Image source={{ uri: img }} style={styles.clinicImage} />
                       <View style={styles.clinicBody}>
-                        <Text style={[styles.clinicName, { color: t.colors.foreground }]}>{clinic.name}</Text>
+                        <Text style={[styles.clinicName, { color: t.colors.text_primary }]}>{clinic.name}</Text>
                         <View style={styles.clinicMeta}>
                           <Ionicons name="star" size={14} color="#eab308" />
-                          <Text style={[styles.clinicRating, { color: t.colors.foreground }]}>
+                          <Text style={[styles.clinicRating, { color: t.colors.text_primary }]}>
                             {clinic.rating} ({clinic.reviewCount})
                           </Text>
                         </View>
                         <View style={styles.clinicMeta}>
                           <Ionicons name="location-outline" size={14} color={accent} />
-                          <Text style={[styles.clinicDistance, { color: t.colors.muted }]} numberOfLines={1}>
+                          <Text style={[styles.clinicDistance, { color: t.colors.text_secondary }]} numberOfLines={1}>
                             {clinic.city ?? clinic.pincode}
                           </Text>
                         </View>
                         <View style={styles.tagRow}>
                           {vax.map((v) => (
                             <View key={v} style={[styles.tag, { backgroundColor: cream }]}>
-                              <Text style={[styles.tagText, { color: t.colors.foreground }]}>{v}</Text>
+                              <Text style={[styles.tagText, { color: t.colors.text_primary }]}>{v}</Text>
                             </View>
                           ))}
                           {extra > 0 && (
                             <View style={[styles.tag, { backgroundColor: cream }]}>
-                              <Text style={[styles.tagText, { color: t.colors.muted }]}>+{extra}</Text>
+                              <Text style={[styles.tagText, { color: t.colors.text_secondary }]}>+{extra}</Text>
                             </View>
                           )}
                         </View>

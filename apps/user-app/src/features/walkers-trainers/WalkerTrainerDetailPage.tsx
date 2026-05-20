@@ -31,15 +31,19 @@ export function WalkerTrainerDetailPage() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
   const [tab, setTab] = useState<TabId>('about');
 
   const profile = id ? getWalkerProfile(String(id)) : null;
 
   if (!profile) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
-        <Text style={{ padding: H_PAD, color: t.colors.muted }}>Professional not found.</Text>
+      <View
+        style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}
+      >
+        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>
+          Professional not found.
+        </Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
           <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
         </TouchableOpacity>
@@ -53,13 +57,17 @@ export function WalkerTrainerDetailPage() {
   const availToday = profile.availabilityLabel === 'today';
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
       <ScrollView showsVerticalScrollIndicator={false} bounces>
         <View style={styles.heroWrap}>
           <Image source={{ uri: profile.heroImage }} style={styles.heroImage} />
           <View style={[styles.heroOverlay, { paddingTop: insets.top }]} pointerEvents="box-none">
             <View style={styles.heroTopRow}>
-              <TouchableOpacity style={styles.heroCircleBtn} onPress={() => router.back()} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={styles.heroCircleBtn}
+                onPress={() => router.back()}
+                activeOpacity={0.85}
+              >
                 <Ionicons name="arrow-back" size={22} color="#0f172a" />
               </TouchableOpacity>
               <View style={styles.heroRightBtns}>
@@ -74,7 +82,9 @@ export function WalkerTrainerDetailPage() {
             <View style={styles.heroBadgeWrap}>
               <View style={[styles.availBadge, { backgroundColor: t.colors.success }]}>
                 <View style={styles.availDot} />
-                <Text style={styles.availBadgeText}>{availToday ? 'Available Today' : 'Available Tomorrow'}</Text>
+                <Text style={styles.availBadgeText}>
+                  {availToday ? 'Available Today' : 'Available Tomorrow'}
+                </Text>
               </View>
             </View>
           </View>
@@ -82,29 +92,39 @@ export function WalkerTrainerDetailPage() {
 
         <View style={{ paddingHorizontal: H_PAD, paddingTop: 18 }}>
           <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: t.colors.foreground }]}>{profile.name}</Text>
+            <Text style={[styles.name, { color: t.colors.text_primary }]}>{profile.name}</Text>
             <Ionicons name="checkmark-circle" size={22} color="#2563eb" style={{ marginLeft: 8 }} />
           </View>
-          <Text style={[styles.headline, { color: t.colors.muted }]}>{profile.headlineTitle}</Text>
+          <Text style={[styles.headline, { color: t.colors.text_secondary }]}>
+            {profile.headlineTitle}
+          </Text>
 
           <View style={styles.statsBlock}>
             <View style={styles.statLine}>
               <Ionicons name="star" size={18} color="#eab308" />
-              <Text style={[styles.statText, { color: t.colors.foreground }]}>
+              <Text style={[styles.statText, { color: t.colors.text_primary }]}>
                 {profile.rating} ({profile.reviewCount} reviews)
               </Text>
             </View>
             <View style={styles.statLine}>
               <Ionicons name="location" size={18} color={accent} />
-              <Text style={[styles.statText, { color: t.colors.foreground }]}>{profile.distance} away</Text>
+              <Text style={[styles.statText, { color: t.colors.text_primary }]}>
+                {profile.distance} away
+              </Text>
             </View>
             <View style={styles.statLine}>
-              <Ionicons name="person-outline" size={18} color={t.colors.muted} />
-              <Text style={[styles.statText, { color: t.colors.foreground }]}>{profile.yearsExp} years experience</Text>
+              <Ionicons name="person-outline" size={18} color={t.colors.text_secondary} />
+              <Text style={[styles.statText, { color: t.colors.text_primary }]}>
+                {profile.yearsExp} years experience
+              </Text>
             </View>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.certScroll}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.certScroll}
+          >
             {profile.certifications.map((c) => (
               <View key={c.label} style={[styles.certPill, { backgroundColor: '#dcfce7' }]}>
                 <CertIcon c={c} />
@@ -115,16 +135,20 @@ export function WalkerTrainerDetailPage() {
 
           <View style={styles.priceRow}>
             {showWalk && (
-              <View style={[styles.priceCard, { backgroundColor: t.colors.accentLight }]}>
+              <View style={[styles.priceCard, { backgroundColor: t.colors.primary_light }]}>
                 <Text style={[styles.priceCardLabel, { color: accent }]}>Walking from</Text>
-                <Text style={[styles.priceCardAmt, { color: accent }]}>₹{profile.walkPriceInr}</Text>
+                <Text style={[styles.priceCardAmt, { color: accent }]}>
+                  ₹{profile.walkPriceInr}
+                </Text>
                 <Text style={[styles.priceCardSub, { color: accent }]}>per walk</Text>
               </View>
             )}
             {showTrain && (
-              <View style={[styles.priceCard, { backgroundColor: t.colors.accentLight }]}>
+              <View style={[styles.priceCard, { backgroundColor: t.colors.primary_light }]}>
                 <Text style={[styles.priceCardLabel, { color: accent }]}>Training from</Text>
-                <Text style={[styles.priceCardAmt, { color: accent }]}>₹{profile.trainingPriceInr}</Text>
+                <Text style={[styles.priceCardAmt, { color: accent }]}>
+                  ₹{profile.trainingPriceInr}
+                </Text>
                 <Text style={[styles.priceCardSub, { color: accent }]}>per session</Text>
               </View>
             )}
@@ -164,12 +188,25 @@ export function WalkerTrainerDetailPage() {
                   key={tid}
                   style={[
                     styles.tabPill,
-                    active && { backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+                    active && {
+                      backgroundColor: '#fff',
+                      shadowColor: '#000',
+                      shadowOpacity: 0.06,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    },
                   ]}
                   onPress={() => setTab(tid)}
                   activeOpacity={0.85}
                 >
-                  <Text style={[styles.tabPillText, { color: active ? accent : t.colors.muted }]}>{label}</Text>
+                  <Text
+                    style={[
+                      styles.tabPillText,
+                      { color: active ? accent : t.colors.text_secondary },
+                    ]}
+                  >
+                    {label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -177,22 +214,37 @@ export function WalkerTrainerDetailPage() {
 
           {tab === 'about' && (
             <View style={{ paddingBottom: 12 }}>
-              <Text style={[styles.blockTitle, { color: t.colors.foreground }]}>About Me</Text>
-              <Text style={[styles.bodyText, { color: t.colors.muted }]}>{profile.about}</Text>
+              <Text style={[styles.blockTitle, { color: t.colors.text_primary }]}>About Me</Text>
+              <Text style={[styles.bodyText, { color: t.colors.text_secondary }]}>
+                {profile.about}
+              </Text>
               <View style={styles.langRow}>
                 {profile.languages.map((lang) => (
-                  <View key={lang} style={[styles.langPill, { backgroundColor: t.colors.border }]}>
-                    <Text style={[styles.langText, { color: t.colors.foreground }]}>{lang}</Text>
+                  <View
+                    key={lang}
+                    style={[styles.langPill, { backgroundColor: t.colors.inactive_bg_alpha }]}
+                  >
+                    <Text style={[styles.langText, { color: t.colors.text_primary }]}>{lang}</Text>
                   </View>
                 ))}
               </View>
-              <Text style={[styles.blockTitle, { color: t.colors.foreground, marginTop: 22 }]}>Weekly Schedule</Text>
+              <Text style={[styles.blockTitle, { color: t.colors.text_primary, marginTop: 22 }]}>
+                Weekly Schedule
+              </Text>
               {profile.weeklySchedule.map((row) => (
-                <View key={row.day} style={[styles.scheduleRow, { borderBottomColor: t.colors.border }]}>
-                  <Text style={[styles.scheduleDay, { color: t.colors.foreground }]}>{row.day}</Text>
+                <View
+                  key={row.day}
+                  style={[styles.scheduleRow, { borderBottomColor: t.colors.inactive_bg_alpha }]}
+                >
+                  <Text style={[styles.scheduleDay, { color: t.colors.text_primary }]}>
+                    {row.day}
+                  </Text>
                   <View style={styles.scheduleSlots}>
                     {row.slots.map((slot) => (
-                      <View key={slot} style={[styles.slotPill, { backgroundColor: t.colors.accentLight }]}>
+                      <View
+                        key={slot}
+                        style={[styles.slotPill, { backgroundColor: t.colors.primary_light }]}
+                      >
                         <Text style={[styles.slotText, { color: accent }]}>{slot}</Text>
                       </View>
                     ))}
@@ -205,9 +257,16 @@ export function WalkerTrainerDetailPage() {
           {tab === 'services' && (
             <View style={{ gap: 14, paddingBottom: 12 }}>
               {profile.services.map((s) => (
-                <View key={s.title} style={[styles.serviceBlock, { borderColor: t.colors.border }]}>
-                  <Text style={[styles.serviceTitle, { color: t.colors.foreground }]}>{s.title}</Text>
-                  <Text style={[styles.serviceDesc, { color: t.colors.muted }]}>{s.description}</Text>
+                <View
+                  key={s.title}
+                  style={[styles.serviceBlock, { borderColor: t.colors.inactive_bg_alpha }]}
+                >
+                  <Text style={[styles.serviceTitle, { color: t.colors.text_primary }]}>
+                    {s.title}
+                  </Text>
+                  <Text style={[styles.serviceDesc, { color: t.colors.text_secondary }]}>
+                    {s.description}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -216,14 +275,21 @@ export function WalkerTrainerDetailPage() {
           {tab === 'reviews' && (
             <View style={{ gap: 14, paddingBottom: 12 }}>
               {profile.reviews.map((r, i) => (
-                <View key={i} style={[styles.reviewCard, { borderColor: t.colors.border }]}>
-                  <Text style={[styles.reviewName, { color: t.colors.foreground }]}>{r.name}</Text>
+                <View
+                  key={i}
+                  style={[styles.reviewCard, { borderColor: t.colors.inactive_bg_alpha }]}
+                >
+                  <Text style={[styles.reviewName, { color: t.colors.text_primary }]}>
+                    {r.name}
+                  </Text>
                   <View style={styles.starsRow}>
                     {Array.from({ length: r.stars }).map((_, j) => (
                       <Ionicons key={j} name="star" size={14} color="#eab308" />
                     ))}
                   </View>
-                  <Text style={[styles.reviewText, { color: t.colors.muted }]}>{r.text}</Text>
+                  <Text style={[styles.reviewText, { color: t.colors.text_secondary }]}>
+                    {r.text}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -232,7 +298,11 @@ export function WalkerTrainerDetailPage() {
           {tab === 'gallery' && (
             <View style={[styles.galleryGrid, { paddingBottom: 12 }]}>
               {profile.gallery.map((uri, i) => (
-                <Image key={i} source={{ uri }} style={[styles.galleryCell, { width: GALLERY_CELL, height: GALLERY_CELL }]} />
+                <Image
+                  key={i}
+                  source={{ uri }}
+                  style={[styles.galleryCell, { width: GALLERY_CELL, height: GALLERY_CELL }]}
+                />
               ))}
             </View>
           )}
@@ -246,14 +316,16 @@ export function WalkerTrainerDetailPage() {
           styles.footer,
           {
             paddingBottom: Math.max(insets.bottom, 12),
-            backgroundColor: t.colors.background,
-            borderTopColor: t.colors.border,
+            backgroundColor: t.colors.solid_white,
+            borderTopColor: t.colors.inactive_bg_alpha,
           },
         ]}
       >
         <View style={styles.footerLeft}>
-          <Text style={[styles.footerSmall, { color: t.colors.muted }]}>Starting from</Text>
-          <Text style={[styles.footerPrice, { color: t.colors.foreground }]}>₹{starting}</Text>
+          <Text style={[styles.footerSmall, { color: t.colors.text_secondary }]}>
+            Starting from
+          </Text>
+          <Text style={[styles.footerPrice, { color: t.colors.text_primary }]}>₹{starting}</Text>
         </View>
         <TouchableOpacity
           style={[styles.bookBtn, { backgroundColor: accent }]}

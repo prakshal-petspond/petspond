@@ -39,14 +39,14 @@ export function OnboardingStepHeader({
           { opacity: pressed ? 0.6 : 1 },
         ]}
       >
-        <View style={[styles.backCircle, { backgroundColor: t.colors.border }]}>
-          <AntDesign name="arrowleft" size={24} color={t.colors.icon_dark} />
+        <View style={[styles.backCircle, { backgroundColor: t.colors.inactive_bg_alpha }]}>
+          <AntDesign name="arrowleft" size={24} color={t.colors.text_primary} />
         </View>
       </Pressable>
-      <Text style={[styles.stepLabel, { color: t.colors.text_grey }]}>
+      <Text style={[styles.stepLabel, { color: t.colors.text_secondary }]}>
         Step {currentStep}/{totalSteps}
       </Text>
-      <View style={[styles.track, { backgroundColor: t.colors.border }]}>
+      <View style={[styles.track, { backgroundColor: t.colors.inactive_bg_alpha }]}>
         <View
           style={[
             styles.fill,

@@ -19,12 +19,12 @@ export function SecondaryButton({ title, onPress, disabled }: SecondaryButtonPro
       style={[
         styles.button,
         {
-          backgroundColor: t.colors.border,
+          backgroundColor: t.colors.inactive_bg_alpha,
           borderRadius: t.borderRadius.lg,
         },
       ]}
     >
-      <Text style={[styles.label, { color: t.colors.foreground }]}>{title}</Text>
+      <Text style={[styles.label, { color: t.colors.text_primary }]}>{title}</Text>
     </TouchableOpacity>
   );
 }

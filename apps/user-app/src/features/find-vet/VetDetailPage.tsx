@@ -33,7 +33,7 @@ export function VetDetailPage() {
   const { client } = useApi();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
   const [tab, setTab] = useState<TabId>('overview');
   const [detail, setDetail] = useState<PublicClinicDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,17 +64,26 @@ export function VetDetailPage() {
 
   if (loading) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.fill,
+          { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
         <ActivityIndicator size="large" color={accent} />
-        <Text style={{ marginTop: 12, color: t.colors.muted }}>Loading clinic…</Text>
+        <Text style={{ marginTop: 12, color: t.colors.text_secondary }}>Loading clinic…</Text>
       </View>
     );
   }
 
   if (error || !detail) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
-        <Text style={{ padding: H_PAD, color: t.colors.muted }}>{error ?? 'Clinic not found.'}</Text>
+      <View
+        style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}
+      >
+        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>
+          {error ?? 'Clinic not found.'}
+        </Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
           <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
         </TouchableOpacity>
@@ -90,20 +99,32 @@ export function VetDetailPage() {
   const closing = vet.closingTimeLabel ?? 'See hours';
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
       <ScrollView showsVerticalScrollIndicator={false} bounces>
         <View style={styles.heroWrap}>
           <Image source={{ uri: heroUri }} style={styles.heroImage} />
           <View style={[styles.heroOverlay, { paddingTop: insets.top }]} pointerEvents="box-none">
             <View style={styles.heroTopRow}>
-              <TouchableOpacity style={styles.heroCircleBtn} onPress={() => router.back()} activeOpacity={0.85}>
+              <TouchableOpacity
+                style={styles.heroCircleBtn}
+                onPress={() => router.back()}
+                activeOpacity={0.85}
+              >
                 <Ionicons name="arrow-back" size={22} color="#0f172a" />
               </TouchableOpacity>
               <View style={styles.heroRightBtns}>
-                <TouchableOpacity style={styles.heroCircleBtn} onPress={() => {}} activeOpacity={0.85}>
+                <TouchableOpacity
+                  style={styles.heroCircleBtn}
+                  onPress={() => {}}
+                  activeOpacity={0.85}
+                >
                   <Ionicons name="share-outline" size={20} color="#0f172a" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.heroCircleBtn} onPress={() => {}} activeOpacity={0.85}>
+                <TouchableOpacity
+                  style={styles.heroCircleBtn}
+                  onPress={() => {}}
+                  activeOpacity={0.85}
+                >
                   <Ionicons name="heart-outline" size={20} color="#0f172a" />
                 </TouchableOpacity>
               </View>
@@ -117,24 +138,30 @@ export function VetDetailPage() {
         </View>
 
         <View style={{ paddingHorizontal: H_PAD, paddingTop: 16 }}>
-          <Text style={[styles.clinicTitle, { color: t.colors.foreground }]}>{vet.name}</Text>
-          <Text style={[styles.tagline, { color: accent }]}>{vet.tagline ?? vet.primaryDoctor.displayTitle ?? ''}</Text>
+          <Text style={[styles.clinicTitle, { color: t.colors.text_primary }]}>{vet.name}</Text>
+          <Text style={[styles.tagline, { color: accent }]}>
+            {vet.tagline ?? vet.primaryDoctor.displayTitle ?? ''}
+          </Text>
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Ionicons name="star" size={18} color="#eab308" />
-              <Text style={[styles.statText, { color: t.colors.foreground }]}>
+              <Text style={[styles.statText, { color: t.colors.text_primary }]}>
                 {vet.rating} ({vet.reviewCount})
               </Text>
             </View>
             <View style={styles.statItem}>
-              <Ionicons name="people-outline" size={18} color={t.colors.muted} />
-              <Text style={[styles.statText, { color: t.colors.foreground }]}>{vet.totalDoctors} Doctors</Text>
+              <Ionicons name="people-outline" size={18} color={t.colors.text_secondary} />
+              <Text style={[styles.statText, { color: t.colors.text_primary }]}>
+                {vet.totalDoctors} Doctors
+              </Text>
             </View>
             {vet.establishedYear != null && (
               <View style={styles.statItem}>
-                <Ionicons name="ribbon-outline" size={18} color={t.colors.muted} />
-                <Text style={[styles.statText, { color: t.colors.foreground }]}>Est. {vet.establishedYear}</Text>
+                <Ionicons name="ribbon-outline" size={18} color={t.colors.text_secondary} />
+                <Text style={[styles.statText, { color: t.colors.text_primary }]}>
+                  Est. {vet.establishedYear}
+                </Text>
               </View>
             )}
           </View>
@@ -142,7 +169,7 @@ export function VetDetailPage() {
           <View style={styles.locRow}>
             <Ionicons name="location" size={20} color={accent} style={{ marginTop: 2 }} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.address, { color: t.colors.foreground }]}>{vet.address}</Text>
+              <Text style={[styles.address, { color: t.colors.text_primary }]}>{vet.address}</Text>
               {vet.city != null && vet.pincode != null && (
                 <Text style={[styles.distance, { color: accent }]}>
                   {vet.city}, {vet.pincode}
@@ -152,8 +179,8 @@ export function VetDetailPage() {
           </View>
 
           <View style={styles.hoursRow}>
-            <Ionicons name="time-outline" size={20} color={t.colors.muted} />
-            <Text style={[styles.hoursText, { color: t.colors.foreground }]}>
+            <Ionicons name="time-outline" size={20} color={t.colors.text_secondary} />
+            <Text style={[styles.hoursText, { color: t.colors.text_primary }]}>
               <Text style={{ color: t.colors.success, fontWeight: '700' }}>{statusOpen}</Text>
               {vet.is24_7 ? '' : ` — ${closing}`}
             </Text>
@@ -161,7 +188,7 @@ export function VetDetailPage() {
 
           <View style={styles.actionBar}>
             <TouchableOpacity
-              style={[styles.actionPill, { backgroundColor: t.colors.accentLight }]}
+              style={[styles.actionPill, { backgroundColor: t.colors.primary_light }]}
               onPress={() => Linking.openURL('tel:+911800000000')}
               activeOpacity={0.85}
             >
@@ -169,7 +196,7 @@ export function VetDetailPage() {
               <Text style={[styles.actionPillText, { color: accent }]}>Call</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionPill, { backgroundColor: t.colors.accentLight }]}
+              style={[styles.actionPill, { backgroundColor: t.colors.primary_light }]}
               onPress={() => Linking.openURL('sms:+911800000000')}
               activeOpacity={0.85}
             >
@@ -177,7 +204,7 @@ export function VetDetailPage() {
               <Text style={[styles.actionPillText, { color: accent }]}>Message</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionPill, { backgroundColor: t.colors.accentLight }]}
+              style={[styles.actionPill, { backgroundColor: t.colors.primary_light }]}
               onPress={() => Linking.openURL(mapsUrl)}
               activeOpacity={0.85}
             >
@@ -187,18 +214,24 @@ export function VetDetailPage() {
           </View>
 
           <View style={styles.photosHeader}>
-            <Text style={[styles.sectionTitle, { color: t.colors.foreground }]}>Clinic Photos</Text>
+            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>
+              Clinic Photos
+            </Text>
             <TouchableOpacity activeOpacity={0.8}>
               <Text style={[styles.viewAll, { color: accent }]}>View All ({photos.length})</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.photoGrid}>
             {photos.slice(0, 6).map((uri, i) => (
-              <Image key={i} source={{ uri }} style={[styles.photoCell, { width: PHOTO_CELL, height: PHOTO_CELL }]} />
+              <Image
+                key={i}
+                source={{ uri }}
+                style={[styles.photoCell, { width: PHOTO_CELL, height: PHOTO_CELL }]}
+              />
             ))}
           </View>
 
-          <View style={[styles.tabsRow, { borderBottomColor: t.colors.border }]}>
+          <View style={[styles.tabsRow, { borderBottomColor: t.colors.inactive_bg_alpha }]}>
             {(
               [
                 ['overview', 'Overview'],
@@ -208,8 +241,17 @@ export function VetDetailPage() {
             ).map(([id, label]) => {
               const active = tab === id;
               return (
-                <TouchableOpacity key={id} style={styles.tabBtn} onPress={() => setTab(id)} activeOpacity={0.8}>
-                  <Text style={[styles.tabLabel, { color: active ? accent : t.colors.muted }]}>{label}</Text>
+                <TouchableOpacity
+                  key={id}
+                  style={styles.tabBtn}
+                  onPress={() => setTab(id)}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[styles.tabLabel, { color: active ? accent : t.colors.text_secondary }]}
+                  >
+                    {label}
+                  </Text>
                   {active && <View style={[styles.tabUnderline, { backgroundColor: accent }]} />}
                 </TouchableOpacity>
               );
@@ -218,22 +260,29 @@ export function VetDetailPage() {
 
           {tab === 'overview' && (
             <>
-              <Text style={[styles.blockTitle, { color: t.colors.foreground }]}>Facilities & Equipment</Text>
+              <Text style={[styles.blockTitle, { color: t.colors.text_primary }]}>
+                Facilities & Equipment
+              </Text>
               <View style={styles.facilityGrid}>
                 {(vet.facilities ?? []).map((f) => (
                   <View key={f} style={styles.facilityCell}>
                     <Ionicons name="checkmark-circle" size={18} color={t.colors.success} />
-                    <Text style={[styles.facilityText, { color: t.colors.foreground }]} numberOfLines={2}>
+                    <Text
+                      style={[styles.facilityText, { color: t.colors.text_primary }]}
+                      numberOfLines={2}
+                    >
                       {f}
                     </Text>
                   </View>
                 ))}
               </View>
-              <Text style={[styles.blockTitle, { color: t.colors.foreground, marginTop: 8 }]}>Operating Hours</Text>
+              <Text style={[styles.blockTitle, { color: t.colors.text_primary, marginTop: 8 }]}>
+                Operating Hours
+              </Text>
               {(vet.hours ?? []).map((h) => (
                 <View key={h.day} style={styles.hourLine}>
-                  <Text style={[styles.hourDay, { color: t.colors.muted }]}>{h.day}</Text>
-                  <Text style={[styles.hourTime, { color: t.colors.foreground }]}>{h.hours}</Text>
+                  <Text style={[styles.hourDay, { color: t.colors.text_secondary }]}>{h.day}</Text>
+                  <Text style={[styles.hourTime, { color: t.colors.text_primary }]}>{h.hours}</Text>
                 </View>
               ))}
             </>
@@ -244,9 +293,15 @@ export function VetDetailPage() {
               {(vet.servicesOffered ?? []).map((s) => (
                 <View
                   key={s.id}
-                  style={[styles.serviceRow, { borderColor: t.colors.border, backgroundColor: t.colors.background }]}
+                  style={[
+                    styles.serviceRow,
+                    {
+                      borderColor: t.colors.inactive_bg_alpha,
+                      backgroundColor: t.colors.solid_white,
+                    },
+                  ]}
                 >
-                  <View style={[styles.serviceIcon, { backgroundColor: t.colors.accentLight }]}>
+                  <View style={[styles.serviceIcon, { backgroundColor: t.colors.primary_light }]}>
                     <Ionicons
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       name={(s.icon as any) ?? 'medical'}
@@ -254,7 +309,9 @@ export function VetDetailPage() {
                       color={accent}
                     />
                   </View>
-                  <Text style={[styles.serviceName, { color: t.colors.foreground }]}>{s.name}</Text>
+                  <Text style={[styles.serviceName, { color: t.colors.text_primary }]}>
+                    {s.name}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -263,18 +320,36 @@ export function VetDetailPage() {
           {tab === 'doctors' && (
             <View style={{ gap: 14, paddingBottom: 8 }}>
               {(vet.doctors ?? []).map((d) => (
-                <View key={d.id} style={[styles.doctorCard, { borderColor: t.colors.border }]}>
+                <View
+                  key={d.id}
+                  style={[styles.doctorCard, { borderColor: t.colors.inactive_bg_alpha }]}
+                >
                   {d.photoUrl ? (
                     <Image source={{ uri: d.photoUrl }} style={styles.doctorImg} />
                   ) : (
-                    <View style={[styles.doctorImg, { backgroundColor: t.colors.border, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Ionicons name="person" size={28} color={t.colors.muted} />
+                    <View
+                      style={[
+                        styles.doctorImg,
+                        {
+                          backgroundColor: t.colors.inactive_bg_alpha,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        },
+                      ]}
+                    >
+                      <Ionicons name="person" size={28} color={t.colors.text_secondary} />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.doctorName, { color: t.colors.foreground }]}>{d.fullName}</Text>
-                    <Text style={[styles.doctorMeta, { color: t.colors.muted }]}>{d.displayTitle}</Text>
-                    <Text style={[styles.doctorExp, { color: accent }]}>{d.specializations.join(', ') || 'Veterinarian'}</Text>
+                    <Text style={[styles.doctorName, { color: t.colors.text_primary }]}>
+                      {d.fullName}
+                    </Text>
+                    <Text style={[styles.doctorMeta, { color: t.colors.text_secondary }]}>
+                      {d.displayTitle}
+                    </Text>
+                    <Text style={[styles.doctorExp, { color: accent }]}>
+                      {d.specializations.join(', ') || 'Veterinarian'}
+                    </Text>
                   </View>
                 </View>
               ))}
@@ -290,8 +365,8 @@ export function VetDetailPage() {
           styles.footer,
           {
             paddingBottom: Math.max(insets.bottom, 12),
-            borderTopColor: t.colors.border,
-            backgroundColor: t.colors.background,
+            borderTopColor: t.colors.inactive_bg_alpha,
+            backgroundColor: t.colors.solid_white,
           },
         ]}
       >
@@ -390,7 +465,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
   },
-  serviceIcon: { width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  serviceIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   serviceName: { fontSize: 16, fontWeight: '600' },
   doctorCard: {
     flexDirection: 'row',

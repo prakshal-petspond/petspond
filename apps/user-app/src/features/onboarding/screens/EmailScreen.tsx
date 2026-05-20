@@ -39,7 +39,7 @@ export function EmailScreen({ onNext, onBack }: EmailScreenProps) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: t.colors.background }]}
+      style={[styles.container, { backgroundColor: t.colors.solid_white }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={24}
     >

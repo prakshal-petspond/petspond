@@ -41,14 +41,14 @@ export function FindHubPage() {
   const t = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
-  const cream = t.colors.cardBg ?? '#f5f0e8';
+  const accent = t.colors.accent;
+  const cream = t.colors.primary_bg;
 
   return (
     <View style={[styles.fill, { backgroundColor: cream, paddingTop: insets.top }]}>
       <View style={[styles.header, { paddingHorizontal: H_PAD }]}>
-        <Text style={[styles.title, { color: t.colors.foreground }]}>Find</Text>
-        <Text style={[styles.sub, { color: t.colors.muted }]}>Services for your pet</Text>
+        <Text style={[styles.title, { color: t.colors.text_primary }]}>Find</Text>
+        <Text style={[styles.sub, { color: t.colors.text_secondary }]}>Services for your pet</Text>
       </View>
       <ScrollView
         contentContainerStyle={{ padding: H_PAD, paddingBottom: insets.bottom + 24 }}
@@ -57,18 +57,23 @@ export function FindHubPage() {
         {ITEMS.map((item) => (
           <TouchableOpacity
             key={item.id}
-            style={[styles.card, { backgroundColor: t.colors.background, borderColor: t.colors.border }]}
+            style={[
+              styles.card,
+              { backgroundColor: t.colors.solid_white, borderColor: t.colors.inactive_bg_alpha },
+            ]}
             onPress={() => router.push(item.href)}
             activeOpacity={0.85}
           >
-            <View style={[styles.iconCircle, { backgroundColor: t.colors.accentLight ?? '#fed7aa' }]}>
+            <View style={[styles.iconCircle, { backgroundColor: t.colors.primary_light }]}>
               <Ionicons name={item.icon} size={26} color={accent} />
             </View>
             <View style={styles.cardBody}>
-              <Text style={[styles.cardTitle, { color: t.colors.foreground }]}>{item.title}</Text>
-              <Text style={[styles.cardSub, { color: t.colors.muted }]}>{item.subtitle}</Text>
+              <Text style={[styles.cardTitle, { color: t.colors.text_primary }]}>{item.title}</Text>
+              <Text style={[styles.cardSub, { color: t.colors.text_secondary }]}>
+                {item.subtitle}
+              </Text>
             </View>
-            <Ionicons name="chevron-forward" size={22} color={t.colors.muted} />
+            <Ionicons name="chevron-forward" size={22} color={t.colors.text_secondary} />
           </TouchableOpacity>
         ))}
       </ScrollView>

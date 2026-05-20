@@ -31,8 +31,8 @@ export function BookingsPage() {
   const t = useTheme();
   const { client } = useApi();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
-  const cream = t.colors.cardBg ?? '#f5f0e8';
+  const accent = t.colors.accent;
+  const cream = t.colors.primary_bg;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -72,8 +72,10 @@ export function BookingsPage() {
   return (
     <View style={[styles.fill, { backgroundColor: cream, paddingTop: insets.top }]}>
       <View style={[styles.header, { paddingHorizontal: H_PAD }]}>
-        <Text style={[styles.title, { color: t.colors.foreground }]}>Bookings</Text>
-        <Text style={[styles.sub, { color: t.colors.muted }]}>Consultations and vaccinations</Text>
+        <Text style={[styles.title, { color: t.colors.text_primary }]}>Bookings</Text>
+        <Text style={[styles.sub, { color: t.colors.text_secondary }]}>
+          Consultations and vaccinations
+        </Text>
       </View>
 
       {loading && !refreshing ? (
@@ -83,11 +85,15 @@ export function BookingsPage() {
       ) : (
         <ScrollView
           contentContainerStyle={{ padding: H_PAD, paddingBottom: insets.bottom + 24 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />
+          }
         >
-          {err && <Text style={{ color: t.colors.muted, marginBottom: 12 }}>{err}</Text>}
+          {err && <Text style={{ color: t.colors.text_secondary, marginBottom: 12 }}>{err}</Text>}
           {rows.length === 0 && !err ? (
-            <Text style={{ color: t.colors.muted }}>No bookings yet. Book from Find or Home.</Text>
+            <Text style={{ color: t.colors.text_secondary }}>
+              No bookings yet. Book from Find or Home.
+            </Text>
           ) : (
             rows.map((row) => {
               if (row.kind === 'consult') {
@@ -95,14 +101,24 @@ export function BookingsPage() {
                 return (
                   <View
                     key={`c-${b.id}`}
-                    style={[styles.card, { backgroundColor: t.colors.background, borderColor: t.colors.border }]}
+                    style={[
+                      styles.card,
+                      {
+                        backgroundColor: t.colors.solid_white,
+                        borderColor: t.colors.inactive_bg_alpha,
+                      },
+                    ]}
                   >
                     <Text style={[styles.badge, { color: accent }]}>Consultation</Text>
-                    <Text style={[styles.cardTitle, { color: t.colors.foreground }]}>{b.clinicName ?? 'Clinic'}</Text>
-                    <Text style={[styles.meta, { color: t.colors.muted }]}>
+                    <Text style={[styles.cardTitle, { color: t.colors.text_primary }]}>
+                      {b.clinicName ?? 'Clinic'}
+                    </Text>
+                    <Text style={[styles.meta, { color: t.colors.text_secondary }]}>
                       {b.petName} · {formatWhen(b.scheduledAt)}
                     </Text>
-                    <Text style={[styles.status, { color: t.colors.foreground }]}>Status: {b.status}</Text>
+                    <Text style={[styles.status, { color: t.colors.text_primary }]}>
+                      Status: {b.status}
+                    </Text>
                   </View>
                 );
               }
@@ -110,14 +126,24 @@ export function BookingsPage() {
               return (
                 <View
                   key={`v-${b.id}`}
-                  style={[styles.card, { backgroundColor: t.colors.background, borderColor: t.colors.border }]}
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: t.colors.solid_white,
+                      borderColor: t.colors.inactive_bg_alpha,
+                    },
+                  ]}
                 >
                   <Text style={[styles.badge, { color: accent }]}>Vaccination</Text>
-                  <Text style={[styles.cardTitle, { color: t.colors.foreground }]}>{b.clinicName ?? 'Clinic'}</Text>
-                  <Text style={[styles.meta, { color: t.colors.muted }]}>
+                  <Text style={[styles.cardTitle, { color: t.colors.text_primary }]}>
+                    {b.clinicName ?? 'Clinic'}
+                  </Text>
+                  <Text style={[styles.meta, { color: t.colors.text_secondary }]}>
                     {b.petName} · {formatWhen(b.scheduledAt)}
                   </Text>
-                  <Text style={[styles.status, { color: t.colors.foreground }]}>Status: {b.status}</Text>
+                  <Text style={[styles.status, { color: t.colors.text_primary }]}>
+                    Status: {b.status}
+                  </Text>
                 </View>
               );
             })

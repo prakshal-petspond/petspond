@@ -45,7 +45,11 @@ function buildDateStrip(): Date[] {
 type SlotDef = (typeof TIME_SLOT_DEFS)[number];
 
 function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 function StepProgress({ step, accent }: { step: number; accent: string }) {
@@ -67,7 +71,7 @@ export function VaccineBookFlow() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { client, token } = useApi();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
 
   const [detail, setDetail] = useState<PublicClinicDetail | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -128,14 +132,14 @@ export function VaccineBookFlow() {
       detail?.doctors?.length
         ? slotsUnionForClinicDoctorsOnDate(selectedDate, detail.doctors, TIME_SLOT_DEFS)
         : TIME_SLOT_DEFS,
-    [detail?.doctors, selectedDate],
+    [detail?.doctors, selectedDate]
   );
 
   useEffect(() => {
     setSelectedSlot((prev) => {
       if (!prev) return null;
       const ok = availableVaxSlots.some(
-        (s) => s.hour === prev.hour && s.minute === prev.minute && s.label === prev.label,
+        (s) => s.hour === prev.hour && s.minute === prev.minute && s.label === prev.label
       );
       return ok ? prev : null;
     });
@@ -220,12 +224,17 @@ export function VaccineBookFlow() {
       if (result.status === 'paid' || result.status === 'mock_ok') {
         const stripeSessionId = result.status === 'paid' ? result.stripeSessionId : undefined;
         await confirmVaccinationPayment(client, booking.id, stripeSessionId);
-        Alert.alert('Booking confirmed', `Reference: ${booking.id}\nThank you — we will see you at the clinic.`, [
-          { text: 'OK', onPress: () => router.replace('/vaccination') },
-        ]);
+        Alert.alert(
+          'Booking confirmed',
+          `Reference: ${booking.id}\nThank you — we will see you at the clinic.`,
+          [{ text: 'OK', onPress: () => router.replace('/vaccination') }]
+        );
       }
     } catch (e) {
-      const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : 'Booking failed';
+      const msg =
+        e && typeof e === 'object' && 'message' in e
+          ? String((e as { message: string }).message)
+          : 'Booking failed';
       Alert.alert('Booking', msg);
     } finally {
       setPayLoading(false);
@@ -234,8 +243,12 @@ export function VaccineBookFlow() {
 
   if (loadErr || !detail) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
-        <Text style={{ padding: H_PAD, color: t.colors.muted }}>{loadErr ?? 'Clinic not found.'}</Text>
+      <View
+        style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}
+      >
+        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>
+          {loadErr ?? 'Clinic not found.'}
+        </Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
           <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
         </TouchableOpacity>
@@ -244,12 +257,17 @@ export function VaccineBookFlow() {
   }
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
-      <View style={[styles.topBar, { paddingTop: insets.top + 8, borderBottomColor: t.colors.border }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
+      <View
+        style={[
+          styles.topBar,
+          { paddingTop: insets.top + 8, borderBottomColor: t.colors.inactive_bg_alpha },
+        ]}
+      >
         <TouchableOpacity style={styles.backRound} onPress={goBack} activeOpacity={0.85}>
-          <Ionicons name="arrow-back" size={22} color={t.colors.foreground} />
+          <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
         </TouchableOpacity>
-        <Text style={[styles.stepLabel, { color: t.colors.muted }]}>
+        <Text style={[styles.stepLabel, { color: t.colors.text_secondary }]}>
           Step {step + 1} of {STEPS}
         </Text>
         <View style={{ width: 40 }} />
@@ -266,16 +284,20 @@ export function VaccineBookFlow() {
       >
         {step === 0 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Select Your Pet</Text>
-            <Text style={[styles.subtitle, { color: t.colors.muted }]}>Choose which pet needs vaccination</Text>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Select Your Pet</Text>
+            <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>
+              Choose which pet needs vaccination
+            </Text>
             {!token && (
-              <Text style={[styles.subtitle, { color: t.colors.muted, marginTop: 10 }]}>
+              <Text style={[styles.subtitle, { color: t.colors.text_secondary, marginTop: 10 }]}>
                 Sign in to load your pets from your account.
               </Text>
             )}
             <View style={{ marginTop: 20, gap: 12 }}>
               {pets.length === 0 ? (
-                <Text style={{ color: t.colors.muted }}>{token ? 'Add pets via the API (POST /user/pets).' : '—'}</Text>
+                <Text style={{ color: t.colors.text_secondary }}>
+                  {token ? 'Add pets via the API (POST /user/pets).' : '—'}
+                </Text>
               ) : (
                 pets.map((p) => {
                   const sel = petId === p.id;
@@ -285,8 +307,8 @@ export function VaccineBookFlow() {
                       style={[
                         styles.petRow,
                         {
-                          borderColor: sel ? accent : t.colors.border,
-                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                          borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                          backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
                         },
                       ]}
                       onPress={() => setPetId(p.id)}
@@ -295,13 +317,24 @@ export function VaccineBookFlow() {
                       {p.photoUrl ? (
                         <Image source={{ uri: p.photoUrl }} style={styles.petAvatar} />
                       ) : (
-                        <View style={[styles.petAvatar, { backgroundColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' }]}>
-                          <Ionicons name="paw" size={26} color={t.colors.muted} />
+                        <View
+                          style={[
+                            styles.petAvatar,
+                            {
+                              backgroundColor: '#e2e8f0',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            },
+                          ]}
+                        >
+                          <Ionicons name="paw" size={26} color={t.colors.text_secondary} />
                         </View>
                       )}
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.petName, { color: t.colors.foreground }]}>{p.name}</Text>
-                        <Text style={[styles.petMeta, { color: t.colors.muted }]}>
+                        <Text style={[styles.petName, { color: t.colors.text_primary }]}>
+                          {p.name}
+                        </Text>
+                        <Text style={[styles.petMeta, { color: t.colors.text_secondary }]}>
                           {p.species} · {p.breed}
                           {p.weight != null ? ` · ${p.weight} kg` : ''}
                         </Text>
@@ -317,11 +350,15 @@ export function VaccineBookFlow() {
 
         {step === 1 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Select Vaccines</Text>
-            <Text style={[styles.subtitle, { color: t.colors.muted }]}>Choose one or more vaccines for your pet</Text>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Select Vaccines</Text>
+            <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>
+              Choose one or more vaccines for your pet
+            </Text>
             <View style={{ marginTop: 20, gap: 12 }}>
               {offered.length === 0 ? (
-                <Text style={{ color: t.colors.muted }}>This clinic has not published vaccine prices yet.</Text>
+                <Text style={{ color: t.colors.text_secondary }}>
+                  This clinic has not published vaccine prices yet.
+                </Text>
               ) : (
                 offered.map((v, idx) => {
                   const checked = vaccineIds.includes(v.id);
@@ -329,21 +366,33 @@ export function VaccineBookFlow() {
                   return (
                     <TouchableOpacity
                       key={v.id}
-                      style={[styles.vaccineCard, { borderColor: checked ? accent : t.colors.border }]}
+                      style={[
+                        styles.vaccineCard,
+                        { borderColor: checked ? accent : t.colors.inactive_bg_alpha },
+                      ]}
                       onPress={mandatory ? undefined : () => toggleVaccine(v.id, mandatory)}
                       activeOpacity={mandatory ? 1 : 0.9}
                     >
-                      <View style={[styles.checkbox, { borderColor: checked ? accent : t.colors.muted }]}>
+                      <View
+                        style={[
+                          styles.checkbox,
+                          { borderColor: checked ? accent : t.colors.text_secondary },
+                        ]}
+                      >
                         {checked && <Ionicons name="checkmark" size={16} color={accent} />}
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[styles.vaccineCardTitle, { color: t.colors.foreground }]}>
+                        <Text style={[styles.vaccineCardTitle, { color: t.colors.text_primary }]}>
                           {v.name}
                           {mandatory ? <Text style={{ color: accent }}> (required)</Text> : null}
                         </Text>
-                        <Text style={[styles.petMeta, { color: t.colors.muted }]}>Clinic price</Text>
+                        <Text style={[styles.petMeta, { color: t.colors.text_secondary }]}>
+                          Clinic price
+                        </Text>
                       </View>
-                      <Text style={[styles.vaccineCardPrice, { color: accent }]}>₹{v.pricePaise / 100}</Text>
+                      <Text style={[styles.vaccineCardPrice, { color: accent }]}>
+                        ₹{v.pricePaise / 100}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })
@@ -354,8 +403,12 @@ export function VaccineBookFlow() {
 
         {step === 2 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Select Date & Time</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Select Date & Time</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateStrip}
+            >
               {dates.map((d, i) => {
                 const sel = sameDay(d, selectedDate);
                 return (
@@ -364,23 +417,32 @@ export function VaccineBookFlow() {
                     style={[
                       styles.dateChip,
                       {
-                        borderColor: sel ? accent : t.colors.border,
-                        backgroundColor: sel ? accent : t.colors.background,
+                        borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                        backgroundColor: sel ? accent : t.colors.solid_white,
                       },
                     ]}
                     onPress={() => setSelectedDate(d)}
                     activeOpacity={0.85}
                   >
-                    <Text style={[styles.dateChipTop, { color: sel ? '#fff' : t.colors.muted }]}>
+                    <Text
+                      style={[
+                        styles.dateChipTop,
+                        { color: sel ? '#fff' : t.colors.text_secondary },
+                      ]}
+                    >
                       {d.toLocaleDateString(undefined, { weekday: 'short' })}
                     </Text>
-                    <Text style={[styles.dateChipDay, { color: sel ? '#fff' : t.colors.foreground }]}>{d.getDate()}</Text>
+                    <Text
+                      style={[styles.dateChipDay, { color: sel ? '#fff' : t.colors.text_primary }]}
+                    >
+                      {d.getDate()}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
             </ScrollView>
             {availableVaxSlots.length === 0 ? (
-              <Text style={{ color: t.colors.muted, marginTop: 12 }}>
+              <Text style={{ color: t.colors.text_secondary, marginTop: 12 }}>
                 No shared times on this day when at least one vet is available. Try another date.
               </Text>
             ) : (
@@ -396,14 +458,19 @@ export function VaccineBookFlow() {
                       style={[
                         styles.timeChip,
                         {
-                          borderColor: sel ? accent : t.colors.border,
-                          backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                          borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                          backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
                         },
                       ]}
                       onPress={() => setSelectedSlot(slot)}
                       activeOpacity={0.85}
                     >
-                      <Text style={[styles.timeChipText, { color: sel ? accent : t.colors.foreground }]}>
+                      <Text
+                        style={[
+                          styles.timeChipText,
+                          { color: sel ? accent : t.colors.text_primary },
+                        ]}
+                      >
                         {slot.label}
                       </Text>
                     </TouchableOpacity>
@@ -424,25 +491,31 @@ export function VaccineBookFlow() {
 
         {step === 3 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Additional Information</Text>
-            <Text style={[styles.subtitle, { color: t.colors.muted }]}>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>
+              Additional Information
+            </Text>
+            <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>
               Any specific instructions or concerns? (Optional)
             </Text>
             <TextInput
               style={[
                 styles.notesInput,
-                { color: t.colors.foreground, borderColor: t.colors.border, backgroundColor: t.colors.background },
+                {
+                  color: t.colors.text_primary,
+                  borderColor: t.colors.inactive_bg_alpha,
+                  backgroundColor: t.colors.solid_white,
+                },
               ]}
               placeholder={NOTES_PLACEHOLDER}
-              placeholderTextColor={t.colors.muted}
+              placeholderTextColor={t.colors.text_secondary}
               multiline
               value={notes}
               onChangeText={setNotes}
             />
-            <View style={[styles.reminderBox, { backgroundColor: t.colors.accentLight }]}>
+            <View style={[styles.reminderBox, { backgroundColor: t.colors.primary_light }]}>
               <Text style={[styles.reminderTitle, { color: accent }]}>Important reminders</Text>
               {VACCINE_REMINDERS.map((line, i) => (
-                <Text key={i} style={[styles.reminderBullet, { color: t.colors.foreground }]}>
+                <Text key={i} style={[styles.reminderBullet, { color: t.colors.text_primary }]}>
                   • {line}
                 </Text>
               ))}
@@ -452,43 +525,80 @@ export function VaccineBookFlow() {
 
         {step === 4 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Review booking</Text>
-            <Text style={[styles.subtitle, { color: t.colors.muted }]}>Confirm details before payment</Text>
-            <View style={[styles.summaryCard, { borderColor: t.colors.border }]}>
-              <Row label="Pet" value={pet ? `${pet.name} · ${pet.breed}` : '—'} muted={t.colors.muted} foreground={t.colors.foreground} />
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Review booking</Text>
+            <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>
+              Confirm details before payment
+            </Text>
+            <View style={[styles.summaryCard, { borderColor: t.colors.inactive_bg_alpha }]}>
+              <Row
+                label="Pet"
+                value={pet ? `${pet.name} · ${pet.breed}` : '—'}
+                muted={t.colors.text_secondary}
+                foreground={t.colors.text_primary}
+              />
               <Row
                 label="Vaccines"
                 value={selectedVaccines.map((v) => v.name).join(', ') || '—'}
-                muted={t.colors.muted}
-                foreground={t.colors.foreground}
+                muted={t.colors.text_secondary}
+                foreground={t.colors.text_primary}
               />
               <Row
                 label="Schedule"
-                value={selectedSlot ? `${formatFullDate(selectedDate)} @ ${selectedSlot.label}` : '—'}
-                muted={t.colors.muted}
-                foreground={t.colors.foreground}
+                value={
+                  selectedSlot ? `${formatFullDate(selectedDate)} @ ${selectedSlot.label}` : '—'
+                }
+                muted={t.colors.text_secondary}
+                foreground={t.colors.text_primary}
               />
-              <Row label="Clinic" value={detail.name} muted={t.colors.muted} foreground={t.colors.foreground} />
-              <Text style={[styles.summaryAddr, { color: t.colors.muted }]}>{detail.address}</Text>
+              <Row
+                label="Clinic"
+                value={detail.name}
+                muted={t.colors.text_secondary}
+                foreground={t.colors.text_primary}
+              />
+              <Text style={[styles.summaryAddr, { color: t.colors.text_secondary }]}>
+                {detail.address}
+              </Text>
             </View>
           </>
         )}
 
         {step === 5 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Payment</Text>
-            <View style={[styles.summaryCard, { borderColor: t.colors.border, marginBottom: 16 }]}>
-              <Row label="Pet" value={pet?.name ?? '—'} muted={t.colors.muted} foreground={t.colors.foreground} />
-              <Row label="Vaccines" value={selectedVaccines.map((v) => v.name).join(', ')} muted={t.colors.muted} foreground={t.colors.foreground} />
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Payment</Text>
+            <View
+              style={[
+                styles.summaryCard,
+                { borderColor: t.colors.inactive_bg_alpha, marginBottom: 16 },
+              ]}
+            >
+              <Row
+                label="Pet"
+                value={pet?.name ?? '—'}
+                muted={t.colors.text_secondary}
+                foreground={t.colors.text_primary}
+              />
+              <Row
+                label="Vaccines"
+                value={selectedVaccines.map((v) => v.name).join(', ')}
+                muted={t.colors.text_secondary}
+                foreground={t.colors.text_primary}
+              />
               <Row
                 label="Date & time"
-                value={selectedSlot ? `${formatFullDate(selectedDate)} · ${selectedSlot.label}` : '—'}
-                muted={t.colors.muted}
-                foreground={t.colors.foreground}
+                value={
+                  selectedSlot ? `${formatFullDate(selectedDate)} · ${selectedSlot.label}` : '—'
+                }
+                muted={t.colors.text_secondary}
+                foreground={t.colors.text_primary}
               />
-              <Text style={[styles.summaryAddr, { color: t.colors.muted, marginTop: 8 }]}>{detail.address}</Text>
+              <Text style={[styles.summaryAddr, { color: t.colors.text_secondary, marginTop: 8 }]}>
+                {detail.address}
+              </Text>
             </View>
-            <Text style={[styles.sectionSmall, { color: t.colors.foreground }]}>Payment method</Text>
+            <Text style={[styles.sectionSmall, { color: t.colors.text_primary }]}>
+              Payment method
+            </Text>
             {(
               [
                 ['upi', 'UPI Payment', 'phone-portrait-outline'] as const,
@@ -499,46 +609,71 @@ export function VaccineBookFlow() {
               return (
                 <TouchableOpacity
                   key={id}
-                  style={[styles.payRow, { borderColor: sel ? accent : t.colors.border }]}
+                  style={[
+                    styles.payRow,
+                    { borderColor: sel ? accent : t.colors.inactive_bg_alpha },
+                  ]}
                   onPress={() => setPaymentMethod(id)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name={icon} size={22} color={sel ? accent : t.colors.muted} />
-                  <Text style={[styles.payRowText, { color: t.colors.foreground, flex: 1 }]}>{label}</Text>
-                  <View style={[styles.radio, { borderColor: sel ? accent : t.colors.muted }]}>
+                  <Ionicons name={icon} size={22} color={sel ? accent : t.colors.text_secondary} />
+                  <Text style={[styles.payRowText, { color: t.colors.text_primary, flex: 1 }]}>
+                    {label}
+                  </Text>
+                  <View
+                    style={[styles.radio, { borderColor: sel ? accent : t.colors.text_secondary }]}
+                  >
                     {sel && <View style={[styles.radioInner, { backgroundColor: accent }]} />}
                   </View>
                 </TouchableOpacity>
               );
             })}
-            <View style={[styles.promoRow, { borderColor: t.colors.border }]}>
+            <View style={[styles.promoRow, { borderColor: t.colors.inactive_bg_alpha }]}>
               <TextInput
-                style={[styles.promoInput, { color: t.colors.foreground }]}
+                style={[styles.promoInput, { color: t.colors.text_primary }]}
                 placeholder="Promo code"
-                placeholderTextColor={t.colors.muted}
+                placeholderTextColor={t.colors.text_secondary}
                 value={promoInput}
                 onChangeText={setPromoInput}
               />
-              <TouchableOpacity style={[styles.applyBtn, { backgroundColor: accent }]} onPress={applyPromo}>
+              <TouchableOpacity
+                style={[styles.applyBtn, { backgroundColor: accent }]}
+                onPress={applyPromo}
+              >
                 <Text style={styles.applyBtnText}>Apply</Text>
               </TouchableOpacity>
             </View>
-            <Text style={[styles.promoHint, { color: t.colors.muted }]}>Try VACC100 for ₹100 off.</Text>
-            <View style={[styles.priceBox, { borderColor: t.colors.border }]}>
+            <Text style={[styles.promoHint, { color: t.colors.text_secondary }]}>
+              Try VACC100 for ₹100 off.
+            </Text>
+            <View style={[styles.priceBox, { borderColor: t.colors.inactive_bg_alpha }]}>
               <View style={styles.priceLine}>
-                <Text style={{ color: t.colors.muted }}>
-                  Vaccination fee ({selectedVaccines.length} vaccine{selectedVaccines.length !== 1 ? 's' : ''})
+                <Text style={{ color: t.colors.text_secondary }}>
+                  Vaccination fee ({selectedVaccines.length} vaccine
+                  {selectedVaccines.length !== 1 ? 's' : ''})
                 </Text>
-                <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{vaccinesSubtotal}</Text>
+                <Text style={{ color: t.colors.text_primary, fontWeight: '600' }}>
+                  ₹{vaccinesSubtotal}
+                </Text>
               </View>
               {promoDiscount > 0 && (
                 <View style={styles.priceLine}>
                   <Text style={{ color: t.colors.success }}>Discount</Text>
-                  <Text style={{ color: t.colors.success, fontWeight: '600' }}>-₹{promoDiscount}</Text>
+                  <Text style={{ color: t.colors.success, fontWeight: '600' }}>
+                    -₹{promoDiscount}
+                  </Text>
                 </View>
               )}
-              <View style={[styles.priceLine, styles.priceTotalRow, { borderTopColor: t.colors.border }]}>
-                <Text style={{ color: t.colors.foreground, fontWeight: '800' }}>Total amount</Text>
+              <View
+                style={[
+                  styles.priceLine,
+                  styles.priceTotalRow,
+                  { borderTopColor: t.colors.inactive_bg_alpha },
+                ]}
+              >
+                <Text style={{ color: t.colors.text_primary, fontWeight: '800' }}>
+                  Total amount
+                </Text>
                 <Text style={{ color: accent, fontWeight: '800', fontSize: 18 }}>₹{totalInr}</Text>
               </View>
             </View>
@@ -551,8 +686,8 @@ export function VaccineBookFlow() {
           styles.footer,
           {
             paddingBottom: Math.max(insets.bottom, 14),
-            backgroundColor: t.colors.background,
-            borderTopColor: t.colors.border,
+            backgroundColor: t.colors.solid_white,
+            borderTopColor: t.colors.inactive_bg_alpha,
           },
         ]}
       >
@@ -560,11 +695,11 @@ export function VaccineBookFlow() {
           <View style={styles.footerRow}>
             {step > 0 && (
               <TouchableOpacity
-                style={[styles.backFooterBtn, { borderColor: t.colors.border }]}
+                style={[styles.backFooterBtn, { borderColor: t.colors.inactive_bg_alpha }]}
                 onPress={goBack}
                 activeOpacity={0.85}
               >
-                <Text style={[styles.backFooterText, { color: t.colors.foreground }]}>Back</Text>
+                <Text style={[styles.backFooterText, { color: t.colors.text_primary }]}>Back</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -585,14 +720,18 @@ export function VaccineBookFlow() {
         ) : (
           <View style={styles.footerRow}>
             <TouchableOpacity
-              style={[styles.backFooterBtn, { borderColor: t.colors.border }]}
+              style={[styles.backFooterBtn, { borderColor: t.colors.inactive_bg_alpha }]}
               onPress={goBack}
               activeOpacity={0.85}
             >
-              <Text style={[styles.backFooterText, { color: t.colors.foreground }]}>Back</Text>
+              <Text style={[styles.backFooterText, { color: t.colors.text_primary }]}>Back</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.continueBtn, { backgroundColor: accent, flex: 1 }, payLoading ? { opacity: 0.7 } : null]}
+              style={[
+                styles.continueBtn,
+                { backgroundColor: accent, flex: 1 },
+                payLoading ? { opacity: 0.7 } : null,
+              ]}
               onPress={confirmPay}
               disabled={payLoading}
               activeOpacity={0.9}
@@ -613,11 +752,25 @@ export function VaccineBookFlow() {
   );
 }
 
-function Row({ label, value, muted, foreground }: { label: string; value: string; muted: string; foreground: string }) {
+function Row({
+  label,
+  value,
+  muted,
+  foreground,
+}: {
+  label: string;
+  value: string;
+  muted: string;
+  foreground: string;
+}) {
   return (
     <View style={{ marginBottom: 10 }}>
-      <Text style={{ fontSize: 12, fontWeight: '700', color: muted, textTransform: 'uppercase' }}>{label}</Text>
-      <Text style={{ fontSize: 15, fontWeight: '600', color: foreground, marginTop: 4 }}>{value}</Text>
+      <Text style={{ fontSize: 12, fontWeight: '700', color: muted, textTransform: 'uppercase' }}>
+        {label}
+      </Text>
+      <Text style={{ fontSize: 15, fontWeight: '600', color: foreground, marginTop: 4 }}>
+        {value}
+      </Text>
     </View>
   );
 }

@@ -39,9 +39,13 @@ function roleBadgeStyle(role: WalkerRole): { bg: string; text: string; label: st
 export function WalkersTrainersPage() {
   const t = useTheme();
   const router = useRouter();
-  const { addressLine: locationAddress, loading: locationLoading, refresh: refreshLocation } = useLocation();
+  const {
+    addressLine: locationAddress,
+    loading: locationLoading,
+    refresh: refreshLocation,
+  } = useLocation();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
   const headerBg = '#f5f0e8';
 
   const [filter, setFilter] = useState<FilterId>('all');
@@ -49,7 +53,8 @@ export function WalkersTrainersPage() {
 
   const locationDisplay = locationLoading
     ? 'Getting location…'
-    : (locationAddress ?? 'Your location').split(',').slice(0, 2).join(',').trim() || 'Vasundhara sec 5';
+    : (locationAddress ?? 'Your location').split(',').slice(0, 2).join(',').trim() ||
+      'Vasundhara sec 5';
 
   const filtered = useMemo(() => {
     let list = WALKER_PROFESSIONALS;
@@ -62,40 +67,46 @@ export function WalkersTrainersPage() {
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.title.toLowerCase().includes(q) ||
-          p.tags.some((tag) => tag.toLowerCase().includes(q)),
+          p.tags.some((tag) => tag.toLowerCase().includes(q))
       );
     }
     return list;
   }, [filter, searchQuery]);
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
       <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top }]}>
         <View style={[styles.headerRow, { paddingHorizontal: H_PAD }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.8}>
-            <Ionicons name="arrow-back" size={22} color={t.colors.foreground} />
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: t.colors.foreground }]}>Walkers & Trainers</Text>
+          <Text style={[styles.headerTitle, { color: t.colors.text_primary }]}>
+            Walkers & Trainers
+          </Text>
         </View>
 
         <View style={[styles.inputsWrap, { paddingHorizontal: H_PAD }]}>
-          <View style={[styles.searchWrap, { backgroundColor: t.colors.background }]}>
-            <Ionicons name="search" size={20} color={t.colors.muted} />
+          <View style={[styles.searchWrap, { backgroundColor: t.colors.solid_white }]}>
+            <Ionicons name="search" size={20} color={t.colors.text_secondary} />
             <TextInput
-              style={[styles.searchInput, { color: t.colors.foreground }]}
+              style={[styles.searchInput, { color: t.colors.text_primary }]}
               placeholder="Search by name or service..."
-              placeholderTextColor={t.colors.muted}
+              placeholderTextColor={t.colors.text_secondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
           </View>
           <TouchableOpacity
-            style={[styles.locationWrap, { backgroundColor: t.colors.background }]}
+            style={[styles.locationWrap, { backgroundColor: t.colors.solid_white }]}
             onPress={() => refreshLocation()}
             activeOpacity={0.8}
           >
             <Ionicons name="location" size={18} color={accent} />
-            <Text style={[styles.locationText, { color: t.colors.foreground }]} numberOfLines={1}>
+            <Text style={[styles.locationText, { color: t.colors.text_primary }]} numberOfLines={1}>
               {locationDisplay}
             </Text>
           </TouchableOpacity>
@@ -112,11 +123,21 @@ export function WalkersTrainersPage() {
             return (
               <TouchableOpacity
                 key={f.id}
-                style={[styles.filterPill, { backgroundColor: selected ? accent : t.colors.background }]}
+                style={[
+                  styles.filterPill,
+                  { backgroundColor: selected ? accent : t.colors.solid_white },
+                ]}
                 onPress={() => setFilter(f.id)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.filterPillText, { color: selected ? '#fff' : t.colors.muted }]}>{f.label}</Text>
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: selected ? '#fff' : t.colors.text_secondary },
+                  ]}
+                >
+                  {f.label}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -129,9 +150,13 @@ export function WalkersTrainersPage() {
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.resultsLine, { paddingHorizontal: H_PAD }]}>
-          <Text style={[styles.resultsText, { color: t.colors.muted }]}>
-            Found <Text style={{ fontWeight: '800', color: t.colors.foreground }}>{filtered.length}</Text>{' '}
-            <Text style={{ fontWeight: '800', color: t.colors.foreground }}>professionals</Text> near you
+          <Text style={[styles.resultsText, { color: t.colors.text_secondary }]}>
+            Found{' '}
+            <Text style={{ fontWeight: '800', color: t.colors.text_primary }}>
+              {filtered.length}
+            </Text>{' '}
+            <Text style={{ fontWeight: '800', color: t.colors.text_primary }}>professionals</Text>{' '}
+            near you
           </Text>
         </View>
 
@@ -141,7 +166,13 @@ export function WalkersTrainersPage() {
             return (
               <View
                 key={p.id}
-                style={[styles.card, { backgroundColor: t.colors.background, borderColor: t.colors.border }]}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: t.colors.solid_white,
+                    borderColor: t.colors.inactive_bg_alpha,
+                  },
+                ]}
               >
                 <View style={styles.cardInner}>
                   <View style={styles.imageWrap}>
@@ -152,35 +183,58 @@ export function WalkersTrainersPage() {
                   </View>
                   <View style={styles.cardBody}>
                     <View style={[styles.rolePill, { backgroundColor: badge.bg }]}>
-                      <Text style={[styles.rolePillText, { color: badge.text }]}>{badge.label}</Text>
+                      <Text style={[styles.rolePillText, { color: badge.text }]}>
+                        {badge.label}
+                      </Text>
                     </View>
-                    <Text style={[styles.proName, { color: t.colors.foreground }]}>{p.name}</Text>
-                    <Text style={[styles.proTitle, { color: t.colors.muted }]}>{p.title}</Text>
+                    <Text style={[styles.proName, { color: t.colors.text_primary }]}>{p.name}</Text>
+                    <Text style={[styles.proTitle, { color: t.colors.text_secondary }]}>
+                      {p.title}
+                    </Text>
                     <View style={styles.metaRow}>
                       <Ionicons name="star" size={14} color={accent} />
-                      <Text style={[styles.metaText, { color: t.colors.foreground }]}>
+                      <Text style={[styles.metaText, { color: t.colors.text_primary }]}>
                         {p.rating} ({p.reviewCount})
                       </Text>
-                      <Ionicons name="location" size={14} color={accent} style={{ marginLeft: 10 }} />
-                      <Text style={[styles.metaText, { color: t.colors.muted }]}>{p.distance}</Text>
+                      <Ionicons
+                        name="location"
+                        size={14}
+                        color={accent}
+                        style={{ marginLeft: 10 }}
+                      />
+                      <Text style={[styles.metaText, { color: t.colors.text_secondary }]}>
+                        {p.distance}
+                      </Text>
                     </View>
                     <View style={styles.metaRow}>
-                      <Ionicons name="person-outline" size={14} color={t.colors.muted} />
-                      <Text style={[styles.metaSmall, { color: t.colors.muted }]}>{p.yearsExp} years exp</Text>
-                      <Ionicons name="time-outline" size={14} color={t.colors.success} style={{ marginLeft: 12 }} />
+                      <Ionicons name="person-outline" size={14} color={t.colors.text_secondary} />
+                      <Text style={[styles.metaSmall, { color: t.colors.text_secondary }]}>
+                        {p.yearsExp} years exp
+                      </Text>
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={t.colors.success}
+                        style={{ marginLeft: 12 }}
+                      />
                       <Text style={[styles.metaSmall, { color: t.colors.success }]}>
                         {p.availabilityLabel === 'today' ? 'Available Today' : 'Available Tomorrow'}
                       </Text>
                     </View>
                     <View style={styles.tagRow}>
                       {p.tags.map((tag) => (
-                        <View key={tag} style={[styles.tag, { backgroundColor: t.colors.accentLight }]}>
+                        <View
+                          key={tag}
+                          style={[styles.tag, { backgroundColor: t.colors.primary_light }]}
+                        >
                           <Text style={[styles.tagText, { color: accent }]}>{tag}</Text>
                         </View>
                       ))}
                       {p.extraTagCount > 0 && (
-                        <View style={[styles.tag, { backgroundColor: t.colors.accentLight }]}>
-                          <Text style={[styles.tagText, { color: t.colors.muted }]}>+{p.extraTagCount}</Text>
+                        <View style={[styles.tag, { backgroundColor: t.colors.primary_light }]}>
+                          <Text style={[styles.tagText, { color: t.colors.text_secondary }]}>
+                            +{p.extraTagCount}
+                          </Text>
                         </View>
                       )}
                     </View>

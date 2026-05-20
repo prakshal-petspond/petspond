@@ -20,19 +20,19 @@ export function TextInputField({
 
   return (
     <View style={styles.wrapper}>
-      {label ? <Text style={[styles.label, { color: t.colors.muted }]}>{label}</Text> : null}
+      {label ? <Text style={[styles.label, { color: t.colors.text_secondary }]}>{label}</Text> : null}
       <View
-        style={[styles.inputRow, { borderColor: t.colors.border, backgroundColor: t.colors.slate }]}
+        style={[styles.inputRow, { borderColor: t.colors.inactive_bg_alpha, backgroundColor: t.colors.grey_bg }]}
       >
         <TextInput
           style={[
             styles.input,
             {
-              color: t.colors.foreground,
-              backgroundColor: t.colors.slate,
+              color: t.colors.text_primary,
+              backgroundColor: t.colors.grey_bg,
             },
           ]}
-          placeholderTextColor={t.colors.muted}
+          placeholderTextColor={t.colors.text_secondary}
           {...rest}
         />
         {rightIcon ? (
@@ -45,7 +45,7 @@ export function TextInputField({
           </TouchableOpacity>
         ) : null}
       </View>
-      {error ? <Text style={[styles.error, { color: t.colors.error }]}>{error}</Text> : null}
+      {error ? <Text style={[styles.error, { color: t.colors.warning }]}>{error}</Text> : null}
     </View>
   );
 }

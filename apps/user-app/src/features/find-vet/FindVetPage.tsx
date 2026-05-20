@@ -44,7 +44,7 @@ export function FindVetPage() {
     coords,
   } = useLocation();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
   const headerBg = '#f5f0e8';
 
   const [selectedFilter, setSelectedFilter] = useState<FilterId>('all');
@@ -85,7 +85,7 @@ export function FindVetPage() {
         (c) =>
           c.name.toLowerCase().includes(q) ||
           c.primaryDoctor.fullName.toLowerCase().includes(q) ||
-          c.address.toLowerCase().includes(q),
+          c.address.toLowerCase().includes(q)
       );
     }
     if (selectedFilter === 'topRated') list.sort((a, b) => b.rating - a.rating);
@@ -107,7 +107,7 @@ export function FindVetPage() {
   }, [clinics, searchQuery, selectedFilter, coords]);
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
       {/* Header with cream background */}
       <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top }]}>
         <View style={[styles.headerRow, { paddingHorizontal: H_PAD }]}>
@@ -116,29 +116,29 @@ export function FindVetPage() {
             onPress={() => router.back()}
             activeOpacity={0.8}
           >
-            <Ionicons name="arrow-back" size={22} color={t.colors.foreground} />
+            <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: t.colors.foreground }]}>Find a Vet</Text>
+          <Text style={[styles.headerTitle, { color: t.colors.text_primary }]}>Find a Vet</Text>
         </View>
 
         <View style={[styles.inputsWrap, { paddingHorizontal: H_PAD }]}>
-          <View style={[styles.searchWrap, { backgroundColor: t.colors.background }]}>
-            <Ionicons name="search" size={20} color={t.colors.muted} />
+          <View style={[styles.searchWrap, { backgroundColor: t.colors.solid_white }]}>
+            <Ionicons name="search" size={20} color={t.colors.text_secondary} />
             <TextInput
-              style={[styles.searchInput, { color: t.colors.foreground }]}
+              style={[styles.searchInput, { color: t.colors.text_primary }]}
               placeholder="Search by name, clinic or specialty..."
-              placeholderTextColor={t.colors.muted}
+              placeholderTextColor={t.colors.text_secondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
           </View>
           <TouchableOpacity
-            style={[styles.locationWrap, { backgroundColor: t.colors.background }]}
+            style={[styles.locationWrap, { backgroundColor: t.colors.solid_white }]}
             onPress={() => refreshLocation()}
             activeOpacity={0.8}
           >
             <Ionicons name="location" size={18} color={accent} />
-            <Text style={[styles.locationText, { color: t.colors.foreground }]} numberOfLines={1}>
+            <Text style={[styles.locationText, { color: t.colors.text_primary }]} numberOfLines={1}>
               {locationLoading ? 'Getting location…' : (locationAddress ?? 'Your location')}
             </Text>
           </TouchableOpacity>
@@ -158,7 +158,7 @@ export function FindVetPage() {
                 style={[
                   styles.filterPill,
                   {
-                    backgroundColor: isSelected ? accent : t.colors.background,
+                    backgroundColor: isSelected ? accent : t.colors.solid_white,
                   },
                 ]}
                 onPress={() => setSelectedFilter(f.id)}
@@ -167,7 +167,7 @@ export function FindVetPage() {
                 <Text
                   style={[
                     styles.filterPillText,
-                    { color: isSelected ? '#fff' : t.colors.muted },
+                    { color: isSelected ? '#fff' : t.colors.text_secondary },
                   ]}
                 >
                   {f.label}
@@ -187,7 +187,9 @@ export function FindVetPage() {
         }
       >
         <View style={[styles.sectionHeader, { paddingHorizontal: H_PAD }]}>
-          <Text style={[styles.sectionLabel, { color: t.colors.muted }]}>Clinics near you</Text>
+          <Text style={[styles.sectionLabel, { color: t.colors.text_secondary }]}>
+            Clinics near you
+          </Text>
         </View>
 
         <View style={{ paddingHorizontal: H_PAD }}>
@@ -197,26 +199,36 @@ export function FindVetPage() {
             </View>
           )}
           {listErr && !loading && (
-            <Text style={{ color: t.colors.muted, marginBottom: 12 }}>{listErr}</Text>
+            <Text style={{ color: t.colors.text_secondary, marginBottom: 12 }}>{listErr}</Text>
           )}
           {!loading && !listErr && filtered.length === 0 && (
-            <Text style={{ color: t.colors.muted }}>
-              No clinics yet. This list depends on onboarding and approval in Vet CRM (not your schedule). You need an
-              approved vet linked to a clinic that accepts consultations. On a phone, set EXPO_PUBLIC_API_URL to your
-              computer&apos;s IP if the API runs locally. Pull down to refresh.
+            <Text style={{ color: t.colors.text_secondary }}>
+              No clinics yet. This list depends on onboarding and approval in Vet CRM (not your
+              schedule). You need an approved vet linked to a clinic that accepts consultations. On
+              a phone, set EXPO_PUBLIC_API_URL to your computer&apos;s IP if the API runs locally.
+              Pull down to refresh.
             </Text>
           )}
           {filtered.map((c) => {
             const img = c.primaryDoctor.photoUrl ?? FALLBACK_IMG;
-            const spec = c.primaryDoctor.specializations[0] ?? c.primaryDoctor.displayTitle ?? 'Veterinarian';
+            const spec =
+              c.primaryDoctor.specializations[0] ?? c.primaryDoctor.displayTitle ?? 'Veterinarian';
             const distLabel =
               coords && c.latitude != null && c.longitude != null
-                ? formatDistanceKm(haversineKm(coords, { latitude: c.latitude, longitude: c.longitude }))
+                ? formatDistanceKm(
+                    haversineKm(coords, { latitude: c.latitude, longitude: c.longitude })
+                  )
                 : null;
             return (
               <View
                 key={c.id}
-                style={[styles.vetCard, { backgroundColor: t.colors.background, borderColor: t.colors.border }]}
+                style={[
+                  styles.vetCard,
+                  {
+                    backgroundColor: t.colors.solid_white,
+                    borderColor: t.colors.inactive_bg_alpha,
+                  },
+                ]}
               >
                 {c.is24_7 && (
                   <View style={[styles.badge24_7, { backgroundColor: '#dcfce7' }]}>
@@ -230,34 +242,54 @@ export function FindVetPage() {
                 >
                   <Image source={{ uri: img }} style={styles.vetImage} />
                   <View style={styles.vetCardBody}>
-                    <Text style={[styles.vetName, { color: t.colors.foreground }]}>{c.name}</Text>
-                    <Text style={[styles.vetClinic, { color: t.colors.muted }]}>{c.primaryDoctor.fullName}</Text>
+                    <Text style={[styles.vetName, { color: t.colors.text_primary }]}>{c.name}</Text>
+                    <Text style={[styles.vetClinic, { color: t.colors.text_secondary }]}>
+                      {c.primaryDoctor.fullName}
+                    </Text>
                     <Text style={[styles.vetSpecialty, { color: accent }]}>{spec}</Text>
                     <View style={styles.vetMeta}>
                       <Ionicons name="star" size={14} color="#eab308" />
-                      <Text style={[styles.vetRating, { color: t.colors.foreground }]}>
+                      <Text style={[styles.vetRating, { color: t.colors.text_primary }]}>
                         {c.rating} ({c.reviewCount})
                       </Text>
-                      <Ionicons name="location" size={14} color={accent} style={{ marginLeft: 12 }} />
-                      <Text style={[styles.vetDistance, { color: t.colors.muted }]} numberOfLines={1}>
+                      <Ionicons
+                        name="location"
+                        size={14}
+                        color={accent}
+                        style={{ marginLeft: 12 }}
+                      />
+                      <Text
+                        style={[styles.vetDistance, { color: t.colors.text_secondary }]}
+                        numberOfLines={1}
+                      >
                         {distLabel ?? c.city ?? c.pincode}
                       </Text>
                     </View>
                     <View style={styles.vetStatusRow}>
                       <Text style={[styles.vetStatus, { color: t.colors.success }]}>Open</Text>
-                      <Text style={[styles.vetClosing, { color: t.colors.muted }]}>
+                      <Text style={[styles.vetClosing, { color: t.colors.text_secondary }]}>
                         {' '}
                         • {c.closingTimeLabel ?? 'See profile'}
                       </Text>
                     </View>
                   </View>
                 </TouchableOpacity>
-                <View style={[styles.vetCardActions, { borderTopColor: t.colors.border }]}>
-                  <TouchableOpacity style={styles.vetActionBtn} onPress={() => {}} activeOpacity={0.8}>
+                <View
+                  style={[styles.vetCardActions, { borderTopColor: t.colors.inactive_bg_alpha }]}
+                >
+                  <TouchableOpacity
+                    style={styles.vetActionBtn}
+                    onPress={() => {}}
+                    activeOpacity={0.8}
+                  >
                     <Ionicons name="call" size={18} color={accent} />
                     <Text style={[styles.vetActionText, { color: accent }]}>Call</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.vetActionBtn} onPress={() => {}} activeOpacity={0.8}>
+                  <TouchableOpacity
+                    style={styles.vetActionBtn}
+                    onPress={() => {}}
+                    activeOpacity={0.8}
+                  >
                     <Ionicons name="chatbubble" size={18} color={accent} />
                     <Text style={[styles.vetActionText, { color: accent }]}>Message</Text>
                   </TouchableOpacity>

@@ -92,7 +92,7 @@ export function PreferencesScreen({ onFinish, onBack, submitting }: PreferencesS
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: t.colors.background }]}
+      style={[styles.container, { backgroundColor: t.colors.solid_white }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={24}
     >
@@ -119,8 +119,8 @@ export function PreferencesScreen({ onFinish, onBack, submitting }: PreferencesS
                 style={({ pressed }: { pressed: boolean }) => [
                   styles.card,
                   {
-                    borderColor: on ? t.colors.accent : t.colors.border,
-                    backgroundColor: t.colors.background,
+                    borderColor: on ? t.colors.accent : t.colors.inactive_bg_alpha,
+                    backgroundColor: t.colors.solid_white,
                     opacity: pressed ? 0.92 : 1,
                   },
                 ]}
@@ -129,14 +129,18 @@ export function PreferencesScreen({ onFinish, onBack, submitting }: PreferencesS
                   <Ionicons name={opt.icon} size={22} color="#fff" />
                 </View>
                 <View style={styles.cardText}>
-                  <Text style={[styles.cardTitle, { color: t.colors.foreground }]}>{opt.title}</Text>
-                  <Text style={[styles.cardDesc, { color: t.colors.muted }]}>{opt.description}</Text>
+                  <Text style={[styles.cardTitle, { color: t.colors.text_primary }]}>
+                    {opt.title}
+                  </Text>
+                  <Text style={[styles.cardDesc, { color: t.colors.text_secondary }]}>
+                    {opt.description}
+                  </Text>
                 </View>
                 <View
                   style={[
                     styles.radioOuter,
                     {
-                      borderColor: on ? t.colors.accent : t.colors.border,
+                      borderColor: on ? t.colors.accent : t.colors.inactive_bg_alpha,
                       backgroundColor: on ? t.colors.accent : 'transparent',
                     },
                   ]}
@@ -147,7 +151,7 @@ export function PreferencesScreen({ onFinish, onBack, submitting }: PreferencesS
             );
           })}
         </View>
-        <Text style={[styles.status, { color: t.colors.muted }]}>{statusLine}</Text>
+        <Text style={[styles.status, { color: t.colors.text_secondary }]}>{statusLine}</Text>
         <PrimaryButton
           tone="accent"
           title="Complete Setup ›"

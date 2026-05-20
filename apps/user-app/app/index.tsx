@@ -34,7 +34,7 @@ export default function HomeScreen() {
 
   if (user === undefined) {
     return (
-      <View style={[styles.centered, { backgroundColor: t.colors.background }]}>
+      <View style={[styles.centered, { backgroundColor: t.colors.solid_white }]}>
         <ActivityIndicator size="large" color={t.colors.primary} />
       </View>
     );

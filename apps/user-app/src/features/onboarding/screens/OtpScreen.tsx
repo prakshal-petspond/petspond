@@ -71,7 +71,7 @@ export function OtpScreen({ onNext, onBack }: OtpScreenProps) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: t.colors.background }]}
+      style={[styles.container, { backgroundColor: t.colors.solid_white }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={24}
     >
@@ -91,7 +91,7 @@ export function OtpScreen({ onNext, onBack }: OtpScreenProps) {
           onComplete={setLocalOtp}
         />
         <View style={styles.resendRow}>
-          <Text style={[styles.resendLine, { color: t.colors.muted }]}>
+          <Text style={[styles.resendLine, { color: t.colors.text_secondary }]}>
             Did not receive the code?{' '}
           </Text>
           <Pressable onPress={resendOtp} disabled={resendLoading} hitSlop={8}>
@@ -100,7 +100,9 @@ export function OtpScreen({ onNext, onBack }: OtpScreenProps) {
             </Text>
           </Pressable>
         </View>
-        {error ? <Text style={[styles.errorText, { color: t.colors.error }]}>{error}</Text> : null}
+        {error ? (
+          <Text style={[styles.errorText, { color: t.colors.warning }]}>{error}</Text>
+        ) : null}
         <View style={styles.cta}>
           <PrimaryButton
             tone="accent"

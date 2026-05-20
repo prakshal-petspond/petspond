@@ -13,7 +13,7 @@ export function ProgressBar({ currentStep, totalSteps }: ProgressBarProps) {
 
   return (
     <View style={styles.wrapper}>
-      <View style={[styles.track, { backgroundColor: t.colors.border }]}>
+      <View style={[styles.track, { backgroundColor: t.colors.inactive_bg_alpha }]}>
         <View
           style={[
             styles.fill,
@@ -24,7 +24,7 @@ export function ProgressBar({ currentStep, totalSteps }: ProgressBarProps) {
           ]}
         />
       </View>
-      <Text style={[styles.label, { color: t.colors.muted }]}>
+      <Text style={[styles.label, { color: t.colors.text_secondary }]}>
         Step {currentStep}/{totalSteps}
       </Text>
     </View>

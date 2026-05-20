@@ -46,7 +46,11 @@ function buildMonthDateStrip(): Date[] {
 }
 
 function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 function formatReviewDate(d: Date) {
@@ -63,7 +67,7 @@ export function WalkerBookingFlow() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { client } = useApi();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
 
   const profile = id ? getWalkerProfile(String(id)) : null;
 
@@ -93,7 +97,9 @@ export function WalkerBookingFlow() {
   const totalInr = Math.max(0, totalBeforePromo - promoDiscount);
 
   const togglePet = useCallback((petId: string) => {
-    setSelectedPetIds((prev) => (prev.includes(petId) ? prev.filter((x) => x !== petId) : [...prev, petId]));
+    setSelectedPetIds((prev) =>
+      prev.includes(petId) ? prev.filter((x) => x !== petId) : [...prev, petId]
+    );
   }, []);
 
   const applyPromo = useCallback(() => {
@@ -163,8 +169,10 @@ export function WalkerBookingFlow() {
 
   if (!profile) {
     return (
-      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.background }]}>
-        <Text style={{ padding: H_PAD, color: t.colors.muted }}>Provider not found.</Text>
+      <View
+        style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}
+      >
+        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>Provider not found.</Text>
         <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
           <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
         </TouchableOpacity>
@@ -173,27 +181,39 @@ export function WalkerBookingFlow() {
   }
 
   const providerBar = (
-    <View style={[styles.providerBar, { backgroundColor: t.colors.cardBg, borderBottomColor: t.colors.border }]}>
+    <View
+      style={[
+        styles.providerBar,
+        { backgroundColor: t.colors.primary_bg, borderBottomColor: t.colors.inactive_bg_alpha },
+      ]}
+    >
       <Image source={{ uri: profile.image }} style={styles.providerAvatar} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[styles.providerName, { color: t.colors.foreground }]} numberOfLines={1}>
+        <Text style={[styles.providerName, { color: t.colors.text_primary }]} numberOfLines={1}>
           {profile.name}
         </Text>
-        <Text style={[styles.providerTitle, { color: t.colors.muted }]} numberOfLines={1}>
+        <Text style={[styles.providerTitle, { color: t.colors.text_secondary }]} numberOfLines={1}>
           {profile.headlineTitle}
         </Text>
       </View>
       <View style={styles.providerRating}>
         <Ionicons name="star" size={14} color="#eab308" />
-        <Text style={[styles.providerRatingText, { color: t.colors.foreground }]}>{profile.rating}</Text>
+        <Text style={[styles.providerRatingText, { color: t.colors.text_primary }]}>
+          {profile.rating}
+        </Text>
       </View>
     </View>
   );
 
   if (step === 6 && bookingId) {
     return (
-      <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
-        <View style={[styles.successBanner, { backgroundColor: t.colors.success, paddingTop: insets.top + 16 }]}>
+      <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
+        <View
+          style={[
+            styles.successBanner,
+            { backgroundColor: t.colors.success, paddingTop: insets.top + 16 },
+          ]}
+        >
           <View style={styles.successIconRing}>
             <Ionicons name="checkmark" size={36} color="#fff" />
           </View>
@@ -201,62 +221,88 @@ export function WalkerBookingFlow() {
           <Text style={styles.successSub}>Booking ID: {bookingId}</Text>
         </View>
         <ScrollView contentContainerStyle={{ padding: H_PAD, paddingBottom: insets.bottom + 24 }}>
-          <View style={[styles.card, { borderColor: t.colors.border }]}>
+          <View style={[styles.card, { borderColor: t.colors.inactive_bg_alpha }]}>
             <View style={styles.successProRow}>
               <Image source={{ uri: profile.image }} style={styles.providerAvatar} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.providerName, { color: t.colors.foreground }]}>{profile.name}</Text>
-                <Text style={[styles.providerTitle, { color: t.colors.muted }]}>{profile.headlineTitle}</Text>
+                <Text style={[styles.providerName, { color: t.colors.text_primary }]}>
+                  {profile.name}
+                </Text>
+                <Text style={[styles.providerTitle, { color: t.colors.text_secondary }]}>
+                  {profile.headlineTitle}
+                </Text>
               </View>
             </View>
-            <Text style={[styles.successRow, { color: t.colors.muted }]}>
-              Pet: <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>{selectedPets.map((p) => p.name).join(', ')}</Text>
+            <Text style={[styles.successRow, { color: t.colors.text_secondary }]}>
+              Pet:{' '}
+              <Text style={{ color: t.colors.text_primary, fontWeight: '600' }}>
+                {selectedPets.map((p) => p.name).join(', ')}
+              </Text>
             </Text>
-            <Text style={[styles.successRow, { color: t.colors.muted }]}>
+            <Text style={[styles.successRow, { color: t.colors.text_secondary }]}>
               Service:{' '}
-              <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>{selectedService?.label}</Text>
+              <Text style={{ color: t.colors.text_primary, fontWeight: '600' }}>
+                {selectedService?.label}
+              </Text>
             </Text>
-            <Text style={[styles.successRow, { color: t.colors.muted }]}>
+            <Text style={[styles.successRow, { color: t.colors.text_secondary }]}>
               When:{' '}
-              <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>
+              <Text style={{ color: t.colors.text_primary, fontWeight: '600' }}>
                 {formatLongDate(selectedDate)} at {selectedTime}
               </Text>
             </Text>
             <View style={[styles.successLoc, { marginTop: 10 }]}>
               <Ionicons name="location" size={18} color={accent} />
-              <Text style={[styles.successLocText, { color: t.colors.foreground }]}>
+              <Text style={[styles.successLocText, { color: t.colors.text_primary }]}>
                 {selectedAddress?.label} · {selectedAddress?.line1}, {selectedAddress?.line2}
               </Text>
             </View>
           </View>
 
-          <Text style={[styles.blockLabel, { color: t.colors.foreground, marginTop: 20 }]}>Payment summary</Text>
-          <View style={[styles.card, { borderColor: t.colors.border, marginTop: 8 }]}>
+          <Text style={[styles.blockLabel, { color: t.colors.text_primary, marginTop: 20 }]}>
+            Payment summary
+          </Text>
+          <View style={[styles.card, { borderColor: t.colors.inactive_bg_alpha, marginTop: 8 }]}>
             <View style={styles.priceRow2}>
-              <Text style={{ color: t.colors.muted }}>Total paid</Text>
+              <Text style={{ color: t.colors.text_secondary }}>Total paid</Text>
               <Text style={{ color: accent, fontWeight: '800', fontSize: 18 }}>₹{paidTotal}</Text>
             </View>
-            <Text style={{ color: t.colors.muted, fontSize: 13, marginTop: 6 }}>Status: Paid</Text>
-            <Text style={{ color: t.colors.muted, fontSize: 13 }}>
+            <Text style={{ color: t.colors.text_secondary, fontSize: 13, marginTop: 6 }}>
+              Status: Paid
+            </Text>
+            <Text style={{ color: t.colors.text_secondary, fontSize: 13 }}>
               Method:{' '}
-              {paymentMethod === 'cash' ? 'Cash on service' : paymentMethod === 'upi' ? 'UPI' : 'Card'}
+              {paymentMethod === 'cash'
+                ? 'Cash on service'
+                : paymentMethod === 'upi'
+                  ? 'UPI'
+                  : 'Card'}
             </Text>
           </View>
 
-          <Text style={[styles.blockLabel, { color: t.colors.foreground, marginTop: 20 }]}>Important</Text>
-          <Text style={[styles.notesText, { color: t.colors.muted }]}>
-            • Please be ready 10 minutes before the scheduled time{'\n'}• The provider may call you from a private
-            number{'\n'}• Cancel or reschedule up to 3 hours before for a full fee credit
+          <Text style={[styles.blockLabel, { color: t.colors.text_primary, marginTop: 20 }]}>
+            Important
+          </Text>
+          <Text style={[styles.notesText, { color: t.colors.text_secondary }]}>
+            • Please be ready 10 minutes before the scheduled time{'\n'}• The provider may call you
+            from a private number{'\n'}• Cancel or reschedule up to 3 hours before for a full fee
+            credit
           </Text>
 
           <View style={styles.successActions}>
-            <TouchableOpacity style={[styles.outlineBtn2, { borderColor: t.colors.border }]}>
-              <Ionicons name="download-outline" size={20} color={t.colors.foreground} />
-              <Text style={[styles.outlineBtn2Text, { color: t.colors.foreground }]}>Download</Text>
+            <TouchableOpacity
+              style={[styles.outlineBtn2, { borderColor: t.colors.inactive_bg_alpha }]}
+            >
+              <Ionicons name="download-outline" size={20} color={t.colors.text_primary} />
+              <Text style={[styles.outlineBtn2Text, { color: t.colors.text_primary }]}>
+                Download
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.outlineBtn2, { borderColor: t.colors.border }]}>
-              <Ionicons name="share-outline" size={20} color={t.colors.foreground} />
-              <Text style={[styles.outlineBtn2Text, { color: t.colors.foreground }]}>Share</Text>
+            <TouchableOpacity
+              style={[styles.outlineBtn2, { borderColor: t.colors.inactive_bg_alpha }]}
+            >
+              <Ionicons name="share-outline" size={20} color={t.colors.text_primary} />
+              <Text style={[styles.outlineBtn2Text, { color: t.colors.text_primary }]}>Share</Text>
             </TouchableOpacity>
           </View>
 
@@ -268,7 +314,11 @@ export function WalkerBookingFlow() {
             <Text style={styles.contactBtnText}>Contact Provider</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.homeLink} onPress={() => router.replace('/')} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.homeLink}
+            onPress={() => router.replace('/')}
+            activeOpacity={0.85}
+          >
             <Ionicons name="home-outline" size={20} color={accent} />
             <Text style={[styles.homeLinkText, { color: accent }]}>Back to Home</Text>
           </TouchableOpacity>
@@ -278,21 +328,29 @@ export function WalkerBookingFlow() {
   }
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.background }]}>
-      <View style={[styles.topBar, { paddingTop: insets.top + 8, borderBottomColor: t.colors.border }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
+      <View
+        style={[
+          styles.topBar,
+          { paddingTop: insets.top + 8, borderBottomColor: t.colors.inactive_bg_alpha },
+        ]}
+      >
         <TouchableOpacity style={styles.backRound} onPress={goBack} activeOpacity={0.85}>
-          <Ionicons name="arrow-back" size={22} color={t.colors.foreground} />
+          <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
         </TouchableOpacity>
-        <Text style={[styles.screenTitle, { color: t.colors.foreground }]}>Walker</Text>
+        <Text style={[styles.screenTitle, { color: t.colors.text_primary }]}>Walker</Text>
         <View style={{ width: 40 }} />
       </View>
-      <Text style={[styles.stepText, { color: t.colors.muted, paddingHorizontal: H_PAD }]}>
+      <Text style={[styles.stepText, { color: t.colors.text_secondary, paddingHorizontal: H_PAD }]}>
         Step {step + 1} of {STEPS}
       </Text>
       <View style={{ paddingHorizontal: H_PAD, paddingTop: 8 }}>
         <View style={styles.progressWrap}>
           {Array.from({ length: STEPS }).map((_, i) => (
-            <View key={i} style={[styles.progressSeg, { backgroundColor: i <= step ? accent : '#e2e8f0' }]} />
+            <View
+              key={i}
+              style={[styles.progressSeg, { backgroundColor: i <= step ? accent : '#e2e8f0' }]}
+            />
           ))}
         </View>
       </View>
@@ -305,7 +363,7 @@ export function WalkerBookingFlow() {
       >
         {step === 0 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Select Your Pet(s)</Text>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Select Your Pet(s)</Text>
             <View style={styles.petGrid}>
               {WALKER_BOOKING_PETS.map((pet) => {
                 const sel = selectedPetIds.includes(pet.id);
@@ -316,19 +374,31 @@ export function WalkerBookingFlow() {
                       styles.petCell,
                       {
                         width: PET_CELL,
-                        borderColor: sel ? accent : t.colors.border,
-                        backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                        borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                        backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
                       },
                     ]}
                     onPress={() => togglePet(pet.id)}
                     activeOpacity={0.9}
                   >
                     <Image source={{ uri: pet.image }} style={styles.petImg} />
-                    <Text style={[styles.petName, { color: t.colors.foreground }]}>{pet.name}</Text>
-                    <Text style={[styles.petBreed, { color: t.colors.muted }]} numberOfLines={1}>
+                    <Text style={[styles.petName, { color: t.colors.text_primary }]}>
+                      {pet.name}
+                    </Text>
+                    <Text
+                      style={[styles.petBreed, { color: t.colors.text_secondary }]}
+                      numberOfLines={1}
+                    >
                       {pet.breed}
                     </Text>
-                    {sel && <Ionicons name="checkmark-circle" size={24} color={accent} style={styles.petCheck} />}
+                    {sel && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color={accent}
+                        style={styles.petCheck}
+                      />
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -338,7 +408,7 @@ export function WalkerBookingFlow() {
 
         {step === 1 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Select Service(s)</Text>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Select Service(s)</Text>
             <View style={[styles.tabShell, { backgroundColor: '#e7e5e4' }]}>
               {(
                 [
@@ -359,7 +429,14 @@ export function WalkerBookingFlow() {
                     }}
                     activeOpacity={0.9}
                   >
-                    <Text style={[styles.tabHalfText, { color: active ? accent : t.colors.muted }]}>{label}</Text>
+                    <Text
+                      style={[
+                        styles.tabHalfText,
+                        { color: active ? accent : t.colors.text_secondary },
+                      ]}
+                    >
+                      {label}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -372,13 +449,18 @@ export function WalkerBookingFlow() {
                     key={s.id}
                     style={[
                       styles.serviceRow,
-                      { borderColor: sel ? accent : t.colors.border, backgroundColor: sel ? t.colors.accentLight : t.colors.background },
+                      {
+                        borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                        backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
+                      },
                     ]}
                     onPress={() => setSelectedServiceId(s.id)}
                     activeOpacity={0.9}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.serviceLabel, { color: t.colors.foreground }]}>{s.label}</Text>
+                      <Text style={[styles.serviceLabel, { color: t.colors.text_primary }]}>
+                        {s.label}
+                      </Text>
                     </View>
                     <Text style={[styles.servicePrice, { color: accent }]}>₹{s.priceInr}</Text>
                   </TouchableOpacity>
@@ -390,8 +472,12 @@ export function WalkerBookingFlow() {
 
         {step === 2 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Select Date & Time</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Select Date & Time</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateStrip}
+            >
               {dates.map((d, i) => {
                 const sel = sameDay(d, selectedDate);
                 return (
@@ -400,17 +486,26 @@ export function WalkerBookingFlow() {
                     style={[
                       styles.dateChip,
                       {
-                        borderColor: sel ? accent : t.colors.border,
-                        backgroundColor: sel ? accent : t.colors.background,
+                        borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                        backgroundColor: sel ? accent : t.colors.solid_white,
                       },
                     ]}
                     onPress={() => setSelectedDate(d)}
                     activeOpacity={0.85}
                   >
-                    <Text style={[styles.dateChipTop, { color: sel ? '#fff' : t.colors.muted }]}>
+                    <Text
+                      style={[
+                        styles.dateChipTop,
+                        { color: sel ? '#fff' : t.colors.text_secondary },
+                      ]}
+                    >
                       {d.toLocaleDateString(undefined, { month: 'short' })}
                     </Text>
-                    <Text style={[styles.dateChipDay, { color: sel ? '#fff' : t.colors.foreground }]}>{d.getDate()}</Text>
+                    <Text
+                      style={[styles.dateChipDay, { color: sel ? '#fff' : t.colors.text_primary }]}
+                    >
+                      {d.getDate()}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -425,14 +520,18 @@ export function WalkerBookingFlow() {
                       styles.timeCell,
                       {
                         width: (SCREEN_W - H_PAD * 2 - 16) / 3,
-                        borderColor: sel ? accent : t.colors.border,
-                        backgroundColor: sel ? t.colors.accentLight : t.colors.background,
+                        borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                        backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
                       },
                     ]}
                     onPress={() => setSelectedTime(slot)}
                     activeOpacity={0.85}
                   >
-                    <Text style={[styles.timeCellText, { color: sel ? accent : t.colors.foreground }]}>{slot}</Text>
+                    <Text
+                      style={[styles.timeCellText, { color: sel ? accent : t.colors.text_primary }]}
+                    >
+                      {slot}
+                    </Text>
                   </TouchableOpacity>
                 );
               })}
@@ -443,8 +542,12 @@ export function WalkerBookingFlow() {
         {step === 3 && (
           <>
             <View style={styles.addrHeader}>
-              <Text style={[styles.title, { color: t.colors.foreground, marginBottom: 0 }]}>Service Address</Text>
-              <TouchableOpacity onPress={() => Alert.alert('Add address', 'Saved addresses coming soon.')}>
+              <Text style={[styles.title, { color: t.colors.text_primary, marginBottom: 0 }]}>
+                Service Address
+              </Text>
+              <TouchableOpacity
+                onPress={() => Alert.alert('Add address', 'Saved addresses coming soon.')}
+              >
                 <Text style={{ color: accent, fontWeight: '700' }}>Add New</Text>
               </TouchableOpacity>
             </View>
@@ -456,15 +559,20 @@ export function WalkerBookingFlow() {
                     key={a.id}
                     style={[
                       styles.addrCard,
-                      { borderColor: sel ? accent : t.colors.border, backgroundColor: sel ? t.colors.accentLight : t.colors.background },
+                      {
+                        borderColor: sel ? accent : t.colors.inactive_bg_alpha,
+                        backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
+                      },
                     ]}
                     onPress={() => setAddressId(a.id)}
                     activeOpacity={0.9}
                   >
                     <Ionicons name="location" size={22} color={accent} />
                     <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={[styles.addrLabel, { color: t.colors.foreground }]}>{a.label}</Text>
-                      <Text style={[styles.addrLine, { color: t.colors.muted }]}>
+                      <Text style={[styles.addrLabel, { color: t.colors.text_primary }]}>
+                        {a.label}
+                      </Text>
+                      <Text style={[styles.addrLine, { color: t.colors.text_secondary }]}>
                         {a.line1}, {a.line2}
                       </Text>
                     </View>
@@ -478,21 +586,31 @@ export function WalkerBookingFlow() {
 
         {step === 4 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Review Booking</Text>
-            <View style={[styles.reviewCard, { borderColor: t.colors.border }]}>
-              <Text style={[styles.reviewKey, { color: t.colors.muted }]}>Selected Pet(s)</Text>
-              <Text style={[styles.reviewVal, { color: t.colors.foreground }]}>{selectedPets.map((p) => p.name).join(', ')}</Text>
-              <Text style={[styles.reviewKey, { color: t.colors.muted, marginTop: 14 }]}>Selected Service(s)</Text>
-              <Text style={[styles.reviewVal, { color: t.colors.foreground }]}>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Review Booking</Text>
+            <View style={[styles.reviewCard, { borderColor: t.colors.inactive_bg_alpha }]}>
+              <Text style={[styles.reviewKey, { color: t.colors.text_secondary }]}>
+                Selected Pet(s)
+              </Text>
+              <Text style={[styles.reviewVal, { color: t.colors.text_primary }]}>
+                {selectedPets.map((p) => p.name).join(', ')}
+              </Text>
+              <Text style={[styles.reviewKey, { color: t.colors.text_secondary, marginTop: 14 }]}>
+                Selected Service(s)
+              </Text>
+              <Text style={[styles.reviewVal, { color: t.colors.text_primary }]}>
                 {selectedService?.label} — ₹{selectedService?.priceInr}
                 {serviceUnits > 1 ? ` × ${serviceUnits}` : ''}
               </Text>
-              <Text style={[styles.reviewKey, { color: t.colors.muted, marginTop: 14 }]}>Date & Time</Text>
-              <Text style={[styles.reviewVal, { color: t.colors.foreground }]}>
+              <Text style={[styles.reviewKey, { color: t.colors.text_secondary, marginTop: 14 }]}>
+                Date & Time
+              </Text>
+              <Text style={[styles.reviewVal, { color: t.colors.text_primary }]}>
                 {formatReviewDate(selectedDate)} | {selectedTime ?? '—'}
               </Text>
-              <Text style={[styles.reviewKey, { color: t.colors.muted, marginTop: 14 }]}>Service Address</Text>
-              <Text style={[styles.reviewVal, { color: t.colors.foreground }]}>
+              <Text style={[styles.reviewKey, { color: t.colors.text_secondary, marginTop: 14 }]}>
+                Service Address
+              </Text>
+              <Text style={[styles.reviewVal, { color: t.colors.text_primary }]}>
                 {selectedAddress?.label} | {selectedAddress?.line1}, {selectedAddress?.line2}
               </Text>
             </View>
@@ -501,20 +619,25 @@ export function WalkerBookingFlow() {
 
         {step === 5 && (
           <>
-            <Text style={[styles.title, { color: t.colors.foreground }]}>Payment & Checkout</Text>
-            <View style={[styles.promoRow, { borderColor: t.colors.border }]}>
+            <Text style={[styles.title, { color: t.colors.text_primary }]}>Payment & Checkout</Text>
+            <View style={[styles.promoRow, { borderColor: t.colors.inactive_bg_alpha }]}>
               <TextInput
-                style={[styles.promoInput, { color: t.colors.foreground }]}
+                style={[styles.promoInput, { color: t.colors.text_primary }]}
                 placeholder="Promo code"
-                placeholderTextColor={t.colors.muted}
+                placeholderTextColor={t.colors.text_secondary}
                 value={promoInput}
                 onChangeText={setPromoInput}
               />
-              <TouchableOpacity style={[styles.applyBtn, { backgroundColor: accent }]} onPress={applyPromo}>
+              <TouchableOpacity
+                style={[styles.applyBtn, { backgroundColor: accent }]}
+                onPress={applyPromo}
+              >
                 <Text style={styles.applyBtnText}>Apply</Text>
               </TouchableOpacity>
             </View>
-            <Text style={[styles.paySection, { color: t.colors.foreground }]}>Payment method</Text>
+            <Text style={[styles.paySection, { color: t.colors.text_primary }]}>
+              Payment method
+            </Text>
             {(
               [
                 ['card', 'Credit/Debit Card', 'card-outline'] as const,
@@ -526,37 +649,62 @@ export function WalkerBookingFlow() {
               return (
                 <TouchableOpacity
                   key={mid}
-                  style={[styles.payRow, { borderColor: sel ? accent : t.colors.border }]}
+                  style={[
+                    styles.payRow,
+                    { borderColor: sel ? accent : t.colors.inactive_bg_alpha },
+                  ]}
                   onPress={() => setPaymentMethod(mid)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name={icon} size={22} color={sel ? accent : t.colors.muted} />
-                  <Text style={[styles.payRowText, { color: t.colors.foreground, flex: 1 }]}>{label}</Text>
-                  <View style={[styles.radio, { borderColor: sel ? accent : t.colors.muted }]}>
+                  <Ionicons name={icon} size={22} color={sel ? accent : t.colors.text_secondary} />
+                  <Text style={[styles.payRowText, { color: t.colors.text_primary, flex: 1 }]}>
+                    {label}
+                  </Text>
+                  <View
+                    style={[styles.radio, { borderColor: sel ? accent : t.colors.text_secondary }]}
+                  >
                     {sel && <View style={[styles.radioInner, { backgroundColor: accent }]} />}
                   </View>
                 </TouchableOpacity>
               );
             })}
-            <View style={[styles.priceBox, { borderColor: t.colors.border }]}>
+            <View style={[styles.priceBox, { borderColor: t.colors.inactive_bg_alpha }]}>
               <View style={styles.priceRow2}>
-                <Text style={{ color: t.colors.muted }}>
+                <Text style={{ color: t.colors.text_secondary }}>
                   Service charge ({serviceUnits} unit{serviceUnits !== 1 ? 's' : ''})
                 </Text>
-                <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{serviceSubtotal}</Text>
+                <Text style={{ color: t.colors.text_primary, fontWeight: '600' }}>
+                  ₹{serviceSubtotal}
+                </Text>
               </View>
               <View style={styles.priceRow2}>
-                <Text style={{ color: t.colors.muted }}>Platform fee</Text>
-                <Text style={{ color: t.colors.foreground, fontWeight: '600' }}>₹{WALKER_BOOKING_PLATFORM_FEE_INR}</Text>
+                <Text style={{ color: t.colors.text_secondary }}>Platform fee</Text>
+                <Text style={{ color: t.colors.text_primary, fontWeight: '600' }}>
+                  ₹{WALKER_BOOKING_PLATFORM_FEE_INR}
+                </Text>
               </View>
               {promoDiscount > 0 && (
                 <View style={styles.priceRow2}>
                   <Text style={{ color: t.colors.success }}>Discount</Text>
-                  <Text style={{ color: t.colors.success, fontWeight: '600' }}>-₹{promoDiscount}</Text>
+                  <Text style={{ color: t.colors.success, fontWeight: '600' }}>
+                    -₹{promoDiscount}
+                  </Text>
                 </View>
               )}
-              <View style={[styles.priceRow2, { marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: t.colors.border }]}>
-                <Text style={{ color: t.colors.foreground, fontWeight: '800' }}>Total amount</Text>
+              <View
+                style={[
+                  styles.priceRow2,
+                  {
+                    marginTop: 8,
+                    paddingTop: 12,
+                    borderTopWidth: 1,
+                    borderTopColor: t.colors.inactive_bg_alpha,
+                  },
+                ]}
+              >
+                <Text style={{ color: t.colors.text_primary, fontWeight: '800' }}>
+                  Total amount
+                </Text>
                 <Text style={{ color: accent, fontWeight: '800', fontSize: 18 }}>₹{totalInr}</Text>
               </View>
             </View>
@@ -569,14 +717,18 @@ export function WalkerBookingFlow() {
           styles.footer,
           {
             paddingBottom: Math.max(insets.bottom, 14),
-            backgroundColor: t.colors.background,
-            borderTopColor: t.colors.border,
+            backgroundColor: t.colors.solid_white,
+            borderTopColor: t.colors.inactive_bg_alpha,
           },
         ]}
       >
         {step < 5 ? (
           <TouchableOpacity
-            style={[styles.continueBtn, { backgroundColor: accent }, !canContinue() ? { opacity: 0.45 } : null]}
+            style={[
+              styles.continueBtn,
+              { backgroundColor: accent },
+              !canContinue() ? { opacity: 0.45 } : null,
+            ]}
             disabled={!canContinue()}
             onPress={goNext}
             activeOpacity={0.9}
@@ -586,7 +738,11 @@ export function WalkerBookingFlow() {
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.continueBtn, { backgroundColor: accent }, payLoading ? { opacity: 0.7 } : null]}
+            style={[
+              styles.continueBtn,
+              { backgroundColor: accent },
+              payLoading ? { opacity: 0.7 } : null,
+            ]}
             onPress={completePayment}
             disabled={payLoading}
             activeOpacity={0.9}

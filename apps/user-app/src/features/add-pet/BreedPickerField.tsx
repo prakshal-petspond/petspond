@@ -36,7 +36,7 @@ export function BreedPickerField({
 }: Props) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
+  const accent = t.colors.accent;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -56,7 +56,7 @@ export function BreedPickerField({
       onChange(b);
       close();
     },
-    [close, onChange],
+    [close, onChange]
   );
 
   return (
@@ -66,8 +66,8 @@ export function BreedPickerField({
         style={[
           styles.inputRow,
           {
-            borderColor: error ? t.colors.error : t.colors.border,
-            backgroundColor: t.colors.background,
+            borderColor: error ? t.colors.warning : t.colors.inactive_bg_alpha,
+            backgroundColor: t.colors.solid_white,
             opacity: disabled ? 0.55 : 1,
           },
         ]}
@@ -76,38 +76,50 @@ export function BreedPickerField({
         disabled={disabled}
       >
         <Text
-          style={[styles.valueText, { color: value ? t.colors.foreground : t.colors.muted }]}
+          style={[
+            styles.valueText,
+            { color: value ? t.colors.text_primary : t.colors.text_secondary },
+          ]}
           numberOfLines={1}
         >
           {disabled ? disabledPlaceholder : value || 'Select breed'}
         </Text>
-        <Ionicons name="chevron-down" size={20} color={t.colors.muted} />
+        <Ionicons name="chevron-down" size={20} color={t.colors.text_secondary} />
       </TouchableOpacity>
-      {errorText ? <Text style={[styles.errorText, { color: t.colors.error }]}>{errorText}</Text> : null}
+      {errorText ? (
+        <Text style={[styles.errorText, { color: t.colors.warning }]}>{errorText}</Text>
+      ) : null}
 
       <Modal visible={open} animationType="slide" transparent onRequestClose={close}>
         <Pressable style={styles.modalBackdrop} onPress={close}>
           <Pressable
-            style={[styles.sheet, { backgroundColor: t.colors.background, paddingBottom: Math.max(insets.bottom, 16) }]}
+            style={[
+              styles.sheet,
+              { backgroundColor: t.colors.solid_white, paddingBottom: Math.max(insets.bottom, 16) },
+            ]}
             onPress={() => {}}
           >
-            <View style={[styles.sheetHandleZone, { borderBottomColor: t.colors.border }]}>
-              <Text style={[styles.sheetTitle, { color: t.colors.foreground }]}>Select breed</Text>
+            <View
+              style={[styles.sheetHandleZone, { borderBottomColor: t.colors.inactive_bg_alpha }]}
+            >
+              <Text style={[styles.sheetTitle, { color: t.colors.text_primary }]}>
+                Select breed
+              </Text>
               <TouchableOpacity onPress={close} hitSlop={12} style={styles.sheetClose}>
-                <Ionicons name="close" size={26} color={t.colors.foreground} />
+                <Ionicons name="close" size={26} color={t.colors.text_primary} />
               </TouchableOpacity>
             </View>
             <TextInput
               style={[
                 styles.search,
                 {
-                  color: t.colors.foreground,
-                  borderColor: t.colors.border,
-                  backgroundColor: t.colors.cardBg ?? t.colors.background,
+                  color: t.colors.text_primary,
+                  borderColor: t.colors.inactive_bg_alpha,
+                  backgroundColor: t.colors.primary_bg,
                 },
               ]}
               placeholder="Search breeds"
-              placeholderTextColor={t.colors.muted}
+              placeholderTextColor={t.colors.text_secondary}
               value={query}
               onChangeText={setQuery}
               autoCorrect={false}
@@ -119,16 +131,23 @@ export function BreedPickerField({
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }: { item: string }) => (
                 <TouchableOpacity
-                  style={[styles.row, item === value && { backgroundColor: t.colors.accentLight ?? '#fed7aa' }]}
+                  style={[
+                    styles.row,
+                    item === value && { backgroundColor: t.colors.primary_light },
+                  ]}
                   onPress={() => select(item)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.rowText, { color: t.colors.foreground }]}>{item}</Text>
-                  {item === value ? <Ionicons name="checkmark-circle" size={22} color={accent} /> : null}
+                  <Text style={[styles.rowText, { color: t.colors.text_primary }]}>{item}</Text>
+                  {item === value ? (
+                    <Ionicons name="checkmark-circle" size={22} color={accent} />
+                  ) : null}
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
-                <Text style={[styles.empty, { color: t.colors.muted }]}>No breeds match your search.</Text>
+                <Text style={[styles.empty, { color: t.colors.text_secondary }]}>
+                  No breeds match your search.
+                </Text>
               }
               style={styles.list}
               contentContainerStyle={styles.listContent}

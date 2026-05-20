@@ -29,7 +29,7 @@ export function PrimaryButton({
       style={[
         styles.button,
         {
-          backgroundColor: disabled || loading ? t.colors.border : accentColor,
+          backgroundColor: disabled || loading ? t.colors.inactive_bg_alpha : accentColor,
           borderRadius: t.borderRadius.full,
         },
       ]}

@@ -52,7 +52,7 @@ export function MobileNumberScreen({ onNext, onBack }: MobileNumberScreenProps) 
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: t.colors.background }]}
+      style={[styles.container, { backgroundColor: t.colors.solid_white }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={24}
     >
@@ -62,12 +62,14 @@ export function MobileNumberScreen({ onNext, onBack }: MobileNumberScreenProps) 
           title="Enter Mobile"
           description="We'll send you a verification code to confirm your number"
         />
-        <View style={[styles.phoneRow, { borderColor: 'white', backgroundColor: t.colors.slate }]}>
-          <Text style={[styles.prefix, { color: t.colors.muted }]}>+91</Text>
+        <View
+          style={[styles.phoneRow, { borderColor: 'white', backgroundColor: t.colors.grey_bg }]}
+        >
+          <Text style={[styles.prefix, { color: t.colors.text_secondary }]}>+91</Text>
           <TextInput
-            style={[styles.phoneInput, { color: t.colors.foreground }]}
+            style={[styles.phoneInput, { color: t.colors.text_primary }]}
             placeholder="Mobile Number"
-            placeholderTextColor={t.colors.muted}
+            placeholderTextColor={t.colors.text_secondary}
             value={mobile}
             onChangeText={(v: string) => {
               setLocalMobile(v);
@@ -78,7 +80,9 @@ export function MobileNumberScreen({ onNext, onBack }: MobileNumberScreenProps) 
             editable={!loading}
           />
         </View>
-        {error ? <Text style={[styles.errorText, { color: t.colors.error }]}>{error}</Text> : null}
+        {error ? (
+          <Text style={[styles.errorText, { color: t.colors.warning }]}>{error}</Text>
+        ) : null}
         <View style={styles.cta}>
           <PrimaryButton
             tone="accent"

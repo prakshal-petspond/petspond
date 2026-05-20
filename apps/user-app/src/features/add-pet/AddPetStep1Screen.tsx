@@ -29,9 +29,9 @@ const TOTAL_STEPS = 2;
 function FieldLabel({ children, required }: { children: string; required?: boolean }) {
   const t = useTheme();
   return (
-    <Text style={[styles.fieldLabel, { color: t.colors.foreground }]}>
+    <Text style={[styles.fieldLabel, { color: t.colors.text_primary }]}>
       {children}
-      {required ? <Text style={{ color: t.colors.error }}> *</Text> : null}
+      {required ? <Text style={{ color: t.colors.warning }}> *</Text> : null}
     </Text>
   );
 }
@@ -45,8 +45,8 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const { draft, updateDraft } = useAddPetDraft();
-  const accent = t.colors.accent ?? t.colors.primary;
-  const accentLight = t.colors.accentLight ?? '#fed7aa';
+  const accent = t.colors.accent;
+  const accentLight = t.colors.primary_light;
 
   const [errors, setErrors] = useState<{
     name?: string;
@@ -91,11 +91,16 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
   const petNameForCopy = draft.name.trim() || 'your pet';
 
   return (
-    <View style={[styles.root, { backgroundColor: t.colors.background }]}>
-      <AddPetFlowHeader step={1} totalSteps={TOTAL_STEPS} onBack={() => router.back()} paddingTop={insets.top} />
+    <View style={[styles.root, { backgroundColor: t.colors.solid_white }]}>
+      <AddPetFlowHeader
+        step={1}
+        totalSteps={TOTAL_STEPS}
+        onBack={() => router.back()}
+        paddingTop={insets.top}
+      />
 
       <KeyboardAvoidingView
-        style={styles.flex}
+        style={[styles.flex, { backgroundColor: t.colors.grey_bg }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
@@ -105,8 +110,10 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.sectionTitle, { color: t.colors.foreground }]}>Basic Information</Text>
-          <Text style={[styles.sectionSubtitle, { color: t.colors.muted }]}>
+          <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>
+            Basic Information
+          </Text>
+          <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
             Let&apos;s start with the basics about your pet
           </Text>
 
@@ -115,9 +122,13 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
               {draft.localPhotoUri ? (
                 <Image source={{ uri: draft.localPhotoUri }} style={styles.photoImage} />
               ) : (
-                <View style={[styles.photoPlaceholder, { borderColor: t.colors.border }]}>
-                  <Ionicons name="camera-outline" size={40} color={t.colors.muted} />
-                  <Text style={[styles.photoHint, { color: t.colors.muted }]}>Add Photo</Text>
+                <View
+                  style={[styles.photoPlaceholder, { borderColor: t.colors.inactive_bg_alpha }]}
+                >
+                  <Ionicons name="camera-outline" size={40} color={t.colors.text_secondary} />
+                  <Text style={[styles.photoHint, { color: t.colors.text_secondary }]}>
+                    Add Photo
+                  </Text>
                 </View>
               )}
               <View style={[styles.photoFab, { backgroundColor: accent }]}>
@@ -131,17 +142,19 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
             style={[
               styles.input,
               {
-                color: t.colors.foreground,
-                borderColor: errors.name ? t.colors.error : t.colors.border,
-                backgroundColor: t.colors.background,
+                color: t.colors.text_primary,
+                borderColor: errors.name ? t.colors.warning : t.colors.inactive_bg_alpha,
+                backgroundColor: t.colors.solid_white,
               },
             ]}
             placeholder="e.g., Luna, Max, Bella"
-            placeholderTextColor={t.colors.muted}
+            placeholderTextColor={t.colors.text_secondary}
             value={draft.name}
             onChangeText={(name: string) => updateDraft({ name })}
           />
-          {errors.name ? <Text style={[styles.errorText, { color: t.colors.error }]}>{errors.name}</Text> : null}
+          {errors.name ? (
+            <Text style={[styles.errorText, { color: t.colors.warning }]}>{errors.name}</Text>
+          ) : null}
 
           <FieldLabel required>Pet type</FieldLabel>
           <View style={styles.typeGrid}>
@@ -153,8 +166,12 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
                   style={[
                     styles.typeChip,
                     {
-                      borderColor: errors.petType ? t.colors.error : selected ? accent : t.colors.border,
-                      backgroundColor: selected ? accentLight : t.colors.background,
+                      borderColor: errors.petType
+                        ? t.colors.warning
+                        : selected
+                          ? accent
+                          : t.colors.inactive_bg_alpha,
+                      backgroundColor: selected ? accentLight : t.colors.solid_white,
                     },
                   ]}
                   onPress={() =>
@@ -165,7 +182,10 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
                   <Text
                     style={[
                       styles.typeChipText,
-                      { color: selected ? accent : t.colors.foreground, fontWeight: selected ? '700' : '500' },
+                      {
+                        color: selected ? accent : t.colors.text_primary,
+                        fontWeight: selected ? '700' : '500',
+                      },
                     ]}
                   >
                     {opt.label}
@@ -174,12 +194,16 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
               );
             })}
           </View>
-          {errors.petType ? <Text style={[styles.errorText, { color: t.colors.error }]}>{errors.petType}</Text> : null}
+          {errors.petType ? (
+            <Text style={[styles.errorText, { color: t.colors.warning }]}>{errors.petType}</Text>
+          ) : null}
 
           <View style={styles.sectionSpacer} />
 
-          <Text style={[styles.sectionTitle, { color: t.colors.foreground }]}>Breed &amp; gender</Text>
-          <Text style={[styles.sectionSubtitle, { color: t.colors.muted }]}>
+          <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>
+            Breed &amp; gender
+          </Text>
+          <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
             Tell us more about {petNameForCopy}
           </Text>
 
@@ -214,8 +238,12 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
                   style={[
                     styles.genderBtn,
                     {
-                      borderColor: errors.gender ? t.colors.error : selected ? accent : t.colors.border,
-                      backgroundColor: selected ? accentLight : t.colors.background,
+                      borderColor: errors.gender
+                        ? t.colors.warning
+                        : selected
+                          ? accent
+                          : t.colors.inactive_bg_alpha,
+                      backgroundColor: selected ? accentLight : t.colors.solid_white,
                     },
                   ]}
                   onPress={() => updateDraft({ gender: g })}
@@ -224,7 +252,10 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
                   <Text
                     style={[
                       styles.genderBtnText,
-                      { color: selected ? accent : t.colors.foreground, fontWeight: selected ? '700' : '600' },
+                      {
+                        color: selected ? accent : t.colors.text_primary,
+                        fontWeight: selected ? '700' : '600',
+                      },
                     ]}
                   >
                     {g === 'male' ? 'Male' : 'Female'}
@@ -233,22 +264,33 @@ export function AddPetStep1Screen({ onContinue }: AddPetStep1Props) {
               );
             })}
           </View>
-          {errors.gender ? <Text style={[styles.errorText, { color: t.colors.error }]}>{errors.gender}</Text> : null}
+          {errors.gender ? (
+            <Text style={[styles.errorText, { color: t.colors.warning }]}>{errors.gender}</Text>
+          ) : null}
 
           <FieldLabel>Color / markings</FieldLabel>
           <TextInput
             style={[
               styles.input,
-              { color: t.colors.foreground, borderColor: t.colors.border, backgroundColor: t.colors.background },
+              {
+                color: t.colors.text_primary,
+                borderColor: t.colors.inactive_bg_alpha,
+                backgroundColor: t.colors.solid_white,
+              },
             ]}
             placeholder="Optional"
-            placeholderTextColor={t.colors.muted}
+            placeholderTextColor={t.colors.text_secondary}
             value={draft.colorMarkings}
             onChangeText={(colorMarkings: string) => updateDraft({ colorMarkings })}
           />
         </ScrollView>
 
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16), backgroundColor: t.colors.background }]}>
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: Math.max(insets.bottom, 16), backgroundColor: t.colors.solid_white },
+          ]}
+        >
           <TouchableOpacity
             style={[styles.confirmBtn, { backgroundColor: accentLight }]}
             onPress={handleContinue}
@@ -270,14 +312,17 @@ const styles = StyleSheet.create({
     paddingTop: 24,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
+    lineHeight: 27,
+    textAlign: 'center',
   },
   sectionSubtitle: {
-    fontSize: 14,
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
     marginTop: 6,
     marginBottom: 20,
-    lineHeight: 20,
   },
   sectionSpacer: {
     height: 28,
@@ -326,8 +371,9 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   fieldLabel: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '700',
     marginBottom: 8,
   },
   input: {
@@ -337,6 +383,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     marginBottom: 4,
+    height: 44,
   },
   errorText: {
     fontSize: 13,

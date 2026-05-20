@@ -33,16 +33,13 @@ export function NameScreen({ onNext, onBack }: NameScreenProps) {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: t.colors.background }]}
+      style={[styles.container, { backgroundColor: t.colors.solid_white }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={24}
     >
       <View style={[styles.inner, { paddingBottom: insets.bottom + 16 }]}>
         <OnboardingStepHeader currentStep={STEP} totalSteps={TOTAL_STEPS} onBack={onBack} />
-        <ScreenHeader
-          title="Enter Name"
-          description="Help us personalize your experience"
-        />
+        <ScreenHeader title="Enter Name" description="Help us personalize your experience" />
         <TextInputField
           placeholder="Your Name"
           value={name}

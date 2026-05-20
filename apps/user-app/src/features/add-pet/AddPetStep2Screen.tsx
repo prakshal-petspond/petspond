@@ -48,9 +48,9 @@ function defaultBirthDate(): Date {
 function FieldLabel({ children, required }: { children: string; required?: boolean }) {
   const t = useTheme();
   return (
-    <Text style={[styles.fieldLabel, { color: t.colors.foreground }]}>
+    <Text style={[styles.fieldLabel, { color: t.colors.text_primary }]}>
       {children}
-      {required ? <Text style={{ color: t.colors.error }}> *</Text> : null}
+      {required ? <Text style={{ color: t.colors.warning }}> *</Text> : null}
     </Text>
   );
 }
@@ -79,8 +79,8 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
   const insets = useSafeAreaInsets();
   const { client } = useApi();
   const { draft, updateDraft, resetDraft } = useAddPetDraft();
-  const accent = t.colors.accent ?? t.colors.primary;
-  const accentLight = t.colors.accentLight ?? '#fed7aa';
+  const accent = t.colors.accent;
+  const accentLight = t.colors.primary_light;
 
   const [errors, setErrors] = useState<{ birth?: string; weight?: string }>({});
   const [iosPickerOpen, setIosPickerOpen] = useState(false);
@@ -183,8 +183,13 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
   }, [client, draft, resetDraft, router, validate]);
 
   return (
-    <View style={[styles.root, { backgroundColor: t.colors.background }]}>
-      <AddPetFlowHeader step={2} totalSteps={TOTAL_STEPS} onBack={onBackToStep1} paddingTop={insets.top} />
+    <View style={[styles.root, { backgroundColor: t.colors.solid_white }]}>
+      <AddPetFlowHeader
+        step={2}
+        totalSteps={TOTAL_STEPS}
+        onBack={onBackToStep1}
+        paddingTop={insets.top}
+      />
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -197,8 +202,10 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.sectionTitle, { color: t.colors.foreground }]}>Age &amp; weight</Text>
-          <Text style={[styles.sectionSubtitle, { color: t.colors.muted }]}>
+          <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>
+            Age &amp; weight
+          </Text>
+          <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
             Help us track {draft.name.trim() || 'your pet'}&apos;s health
           </Text>
 
@@ -207,24 +214,36 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
             style={[
               styles.dateRow,
               {
-                borderColor: errors.birth ? t.colors.error : t.colors.border,
+                borderColor: errors.birth ? t.colors.warning : t.colors.inactive_bg_alpha,
               },
             ]}
             onPress={openBirthPicker}
             activeOpacity={0.85}
           >
-            <View style={[styles.dateCell, { borderColor: t.colors.border }]}>
-              <Text style={[styles.dateCellText, { color: draft.birthDateIso ? t.colors.foreground : t.colors.muted }]}>
+            <View style={[styles.dateCell, { borderColor: t.colors.inactive_bg_alpha }]}>
+              <Text
+                style={[
+                  styles.dateCellText,
+                  { color: draft.birthDateIso ? t.colors.text_primary : t.colors.text_secondary },
+                ]}
+              >
                 {monthDayLabel.left}
               </Text>
             </View>
-            <View style={[styles.dateCell, { borderColor: t.colors.border }]}>
-              <Text style={[styles.dateCellText, { color: draft.birthDateIso ? t.colors.foreground : t.colors.muted }]}>
+            <View style={[styles.dateCell, { borderColor: t.colors.inactive_bg_alpha }]}>
+              <Text
+                style={[
+                  styles.dateCellText,
+                  { color: draft.birthDateIso ? t.colors.text_primary : t.colors.text_secondary },
+                ]}
+              >
                 {monthDayLabel.right}
               </Text>
             </View>
           </TouchableOpacity>
-          {errors.birth ? <Text style={[styles.errorText, { color: t.colors.error }]}>{errors.birth}</Text> : null}
+          {errors.birth ? (
+            <Text style={[styles.errorText, { color: t.colors.warning }]}>{errors.birth}</Text>
+          ) : null}
 
           <FieldLabel required>Current weight</FieldLabel>
           <View style={styles.weightRow}>
@@ -232,13 +251,13 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
               style={[
                 styles.weightInput,
                 {
-                  color: t.colors.foreground,
-                  borderColor: errors.weight ? t.colors.error : t.colors.border,
-                  backgroundColor: t.colors.background,
+                  color: t.colors.text_primary,
+                  borderColor: errors.weight ? t.colors.warning : t.colors.inactive_bg_alpha,
+                  backgroundColor: t.colors.solid_white,
                 },
               ]}
               placeholder="0"
-              placeholderTextColor={t.colors.muted}
+              placeholderTextColor={t.colors.text_secondary}
               keyboardType="decimal-pad"
               value={draft.weightValue}
               onChangeText={(weightValue: string) => updateDraft({ weightValue })}
@@ -252,8 +271,8 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
                     style={[
                       styles.unitChip,
                       {
-                        borderColor: selected ? accent : t.colors.border,
-                        backgroundColor: selected ? accentLight : t.colors.background,
+                        borderColor: selected ? accent : t.colors.inactive_bg_alpha,
+                        backgroundColor: selected ? accentLight : t.colors.solid_white,
                       },
                     ]}
                     onPress={() => updateDraft({ weightUnit: u })}
@@ -262,7 +281,10 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
                     <Text
                       style={[
                         styles.unitChipText,
-                        { color: selected ? accent : t.colors.foreground, fontWeight: selected ? '700' : '500' },
+                        {
+                          color: selected ? accent : t.colors.text_primary,
+                          fontWeight: selected ? '700' : '500',
+                        },
                       ]}
                     >
                       {u}
@@ -272,19 +294,24 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
               })}
             </View>
           </View>
-          {errors.weight ? <Text style={[styles.errorText, { color: t.colors.error }]}>{errors.weight}</Text> : null}
+          {errors.weight ? (
+            <Text style={[styles.errorText, { color: t.colors.warning }]}>{errors.weight}</Text>
+          ) : null}
 
           <View style={[styles.tipBox, { backgroundColor: '#e0f2fe' }]}>
             <Ionicons name="bulb-outline" size={22} color="#0369a1" style={styles.tipIcon} />
             <Text style={[styles.tipText, { color: '#0c4a6e' }]}>
-              Tip: Regular weight tracking helps monitor your pet&apos;s health and ensures proper nutrition.
+              Tip: Regular weight tracking helps monitor your pet&apos;s health and ensures proper
+              nutrition.
             </Text>
           </View>
 
           <View style={styles.sectionSpacer} />
 
-          <Text style={[styles.sectionTitle, { color: t.colors.foreground }]}>Additional details</Text>
-          <Text style={[styles.sectionSubtitle, { color: t.colors.muted }]}>
+          <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>
+            Additional details
+          </Text>
+          <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
             Optional information to complete the profile
           </Text>
 
@@ -292,10 +319,14 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
           <TextInput
             style={[
               styles.input,
-              { color: t.colors.foreground, borderColor: t.colors.border, backgroundColor: t.colors.background },
+              {
+                color: t.colors.text_primary,
+                borderColor: t.colors.inactive_bg_alpha,
+                backgroundColor: t.colors.solid_white,
+              },
             ]}
             placeholder="Enter microchip number"
-            placeholderTextColor={t.colors.muted}
+            placeholderTextColor={t.colors.text_secondary}
             value={draft.microchipId}
             onChangeText={(microchipId: string) => updateDraft({ microchipId })}
             autoCapitalize="characters"
@@ -305,30 +336,44 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
           <TextInput
             style={[
               styles.textArea,
-              { color: t.colors.foreground, borderColor: t.colors.border, backgroundColor: t.colors.background },
+              {
+                color: t.colors.text_primary,
+                borderColor: t.colors.inactive_bg_alpha,
+                backgroundColor: t.colors.solid_white,
+              },
             ]}
             placeholder="e.g., Allergies, medications, dietary restrictions…"
-            placeholderTextColor={t.colors.muted}
+            placeholderTextColor={t.colors.text_secondary}
             value={draft.medicalNotes}
             onChangeText={(medicalNotes: string) => updateDraft({ medicalNotes })}
             multiline
             textAlignVertical="top"
           />
 
-          <View style={[styles.reviewCard, { backgroundColor: t.colors.background, borderColor: t.colors.border }]}>
-            <Text style={[styles.reviewName, { color: t.colors.foreground }]}>
+          <View
+            style={[
+              styles.reviewCard,
+              { backgroundColor: t.colors.solid_white, borderColor: t.colors.inactive_bg_alpha },
+            ]}
+          >
+            <Text style={[styles.reviewName, { color: t.colors.text_primary }]}>
               {draft.name.trim() || 'Your pet'}
             </Text>
-            <Text style={[styles.reviewLine, { color: t.colors.muted }]}>
+            <Text style={[styles.reviewLine, { color: t.colors.text_secondary }]}>
               {draft.breed || '—'} • {genderLabel} • {weightSummary}
             </Text>
-            <Text style={[styles.reviewHint, { color: t.colors.muted }]}>
+            <Text style={[styles.reviewHint, { color: t.colors.text_secondary }]}>
               Review your pet&apos;s information before submitting.
             </Text>
           </View>
         </ScrollView>
 
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16), backgroundColor: t.colors.background }]}>
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: Math.max(insets.bottom, 16), backgroundColor: t.colors.solid_white },
+          ]}
+        >
           <TouchableOpacity
             style={[styles.confirmBtn, { backgroundColor: accentLight }]}
             onPress={submit}
@@ -345,14 +390,26 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
       </KeyboardAvoidingView>
 
       {Platform.OS === 'ios' ? (
-        <Modal visible={iosPickerOpen} animationType="slide" transparent onRequestClose={() => setIosPickerOpen(false)}>
+        <Modal
+          visible={iosPickerOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setIosPickerOpen(false)}
+        >
           <Pressable style={styles.modalBackdrop} onPress={() => setIosPickerOpen(false)}>
-            <Pressable style={[styles.iosSheet, { backgroundColor: t.colors.background }]} onPress={() => {}}>
-              <View style={[styles.iosSheetHeader, { borderBottomColor: t.colors.border }]}>
+            <Pressable
+              style={[styles.iosSheet, { backgroundColor: t.colors.solid_white }]}
+              onPress={() => {}}
+            >
+              <View
+                style={[styles.iosSheetHeader, { borderBottomColor: t.colors.inactive_bg_alpha }]}
+              >
                 <TouchableOpacity onPress={() => setIosPickerOpen(false)}>
-                  <Text style={{ color: t.colors.muted, fontSize: 16 }}>Cancel</Text>
+                  <Text style={{ color: t.colors.text_secondary, fontSize: 16 }}>Cancel</Text>
                 </TouchableOpacity>
-                <Text style={[styles.iosSheetTitle, { color: t.colors.foreground }]}>Birth date</Text>
+                <Text style={[styles.iosSheetTitle, { color: t.colors.text_primary }]}>
+                  Birth date
+                </Text>
                 <TouchableOpacity onPress={confirmIosBirth}>
                   <Text style={{ color: accent, fontSize: 16, fontWeight: '700' }}>Done</Text>
                 </TouchableOpacity>

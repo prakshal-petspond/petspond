@@ -13,8 +13,8 @@ export function ProfilePage() {
   const { client, setToken } = useApi();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent ?? t.colors.primary;
-  const cream = t.colors.cardBg ?? '#f5f0e8';
+  const accent = t.colors.accent;
+  const cream = t.colors.primary_bg;
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,30 +45,39 @@ export function ProfilePage() {
   return (
     <View style={[styles.fill, { backgroundColor: cream, paddingTop: insets.top }]}>
       <View style={[styles.header, { paddingHorizontal: H_PAD }]}>
-        <Text style={[styles.title, { color: t.colors.foreground }]}>Profile</Text>
+        <Text style={[styles.title, { color: t.colors.text_primary }]}>Profile</Text>
       </View>
 
       <View style={{ paddingHorizontal: H_PAD, paddingTop: 8 }}>
         {loading ? (
           <ActivityIndicator size="large" color={accent} style={{ marginTop: 24 }} />
         ) : user ? (
-          <View style={[styles.card, { backgroundColor: t.colors.background, borderColor: t.colors.border }]}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: t.colors.solid_white, borderColor: t.colors.inactive_bg_alpha },
+            ]}
+          >
             {user.name ? (
-              <Text style={[styles.name, { color: t.colors.foreground }]}>{user.name}</Text>
+              <Text style={[styles.name, { color: t.colors.text_primary }]}>{user.name}</Text>
             ) : null}
-            <Text style={[styles.meta, { color: t.colors.muted }]}>{user.mobile}</Text>
-            {user.email ? <Text style={[styles.meta, { color: t.colors.muted, marginTop: 4 }]}>{user.email}</Text> : null}
+            <Text style={[styles.meta, { color: t.colors.text_secondary }]}>{user.mobile}</Text>
+            {user.email ? (
+              <Text style={[styles.meta, { color: t.colors.text_secondary, marginTop: 4 }]}>
+                {user.email}
+              </Text>
+            ) : null}
           </View>
         ) : (
-          <Text style={{ color: t.colors.muted }}>Could not load profile.</Text>
+          <Text style={{ color: t.colors.text_secondary }}>Could not load profile.</Text>
         )}
 
         <TouchableOpacity
-          style={[styles.signOut, { borderColor: t.colors.border }]}
+          style={[styles.signOut, { borderColor: t.colors.inactive_bg_alpha }]}
           onPress={signOut}
           activeOpacity={0.85}
         >
-          <Text style={[styles.signOutText, { color: t.colors.error }]}>Sign out</Text>
+          <Text style={[styles.signOutText, { color: t.colors.warning }]}>Sign out</Text>
         </TouchableOpacity>
       </View>
     </View>
