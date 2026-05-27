@@ -21,6 +21,7 @@ import { useTheme, useApi, getNetworkErrorHelp } from '@/contexts';
 import { AddPetFlowHeader } from './AddPetFlowHeader';
 import { useAddPetDraft } from './AddPetDraftContext';
 import { createPet } from '@/services/pets';
+import { uploadPetPhoto } from '@/services/uploads';
 import type { CreatePetDto } from '@petspond/types';
 
 const H_PAD = 20;
@@ -77,7 +78,7 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
   const router = useRouter();
   const t = useTheme();
   const insets = useSafeAreaInsets();
-  const { client } = useApi();
+  const { client, token } = useApi();
   const { draft, updateDraft, resetDraft } = useAddPetDraft();
   const accent = t.colors.accent;
   const accentLight = t.colors.primary_light;
@@ -152,20 +153,26 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
     const weightKg = draft.weightUnit === 'kg' ? w : w * LBS_TO_KG;
     const roundedKg = Math.round(weightKg * 100) / 100;
 
-    const body: CreatePetDto = {
-      name: draft.name.trim(),
-      species: draft.species,
-      breed: draft.breed.trim(),
-      gender: draft.gender,
-      dateOfBirth: draft.birthDateIso ?? undefined,
-      weight: roundedKg,
-      servicesNeeded: [],
-      microchipId: draft.microchipId.trim() || undefined,
-      medicalNotes: buildMedicalNotesForApi(draft),
-    };
-
     setSubmitting(true);
     try {
+      let photoUrl: string | undefined;
+      if (draft.localPhotoUri) {
+        photoUrl = await uploadPetPhoto(token, draft.localPhotoUri);
+      }
+
+      const body: CreatePetDto = {
+        name: draft.name.trim(),
+        species: draft.species,
+        breed: draft.breed.trim(),
+        gender: draft.gender,
+        dateOfBirth: draft.birthDateIso ?? undefined,
+        weight: roundedKg,
+        servicesNeeded: [],
+        microchipId: draft.microchipId.trim() || undefined,
+        medicalNotes: buildMedicalNotesForApi(draft),
+        photoUrl,
+      };
+
       await createPet(client, body);
       resetDraft();
       router.replace('/(tabs)');
@@ -180,7 +187,7 @@ export function AddPetStep2Screen({ onBackToStep1 }: AddPetStep2Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [client, draft, resetDraft, router, validate]);
+  }, [client, draft, resetDraft, router, token, validate]);
 
   return (
     <View style={[styles.root, { backgroundColor: t.colors.solid_white }]}>
