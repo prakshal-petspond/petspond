@@ -1,8 +1,10 @@
 import type {
   Vet,
   Clinic,
+  ClinicTeamResponse,
   VetVerifyOtpResponse,
   VetCompleteOnboardingDto,
+  VetCompleteClinicSetupDto,
 } from '@petspond/types';
 import type { ApiClient } from '@petspond/api-client';
 
@@ -31,8 +33,12 @@ export const vetAuthApi = {
     return client.post<Vet>(`${VET_AUTH_PREFIX}/complete-onboarding`, data);
   },
 
+  completeClinicSetup(client: ApiClient, data: VetCompleteClinicSetupDto) {
+    return client.post<{ vet: Vet; clinic: Clinic }>(`${VET_AUTH_PREFIX}/complete-clinic-setup`, data);
+  },
+
   getTeam(client: ApiClient, clinicId: string) {
-    return client.get<Vet[]>(`${VET_AUTH_PREFIX}/clinic/${clinicId}/team`);
+    return client.get<ClinicTeamResponse>(`${VET_AUTH_PREFIX}/clinic/${clinicId}/team`);
   },
 
   approveVet(client: ApiClient, vetId: string) {

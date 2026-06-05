@@ -11,6 +11,7 @@ import { VetJwtStrategy } from './vet-jwt.strategy';
 import { VetJwtAuthGuard } from './vet-jwt-auth.guard';
 import { BookingsModule } from '@/bookings/bookings.module';
 import { UploadsModule } from '@/uploads/uploads.module';
+import { ClinicStaffModule } from '@/clinic-staff/clinic-staff.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UploadsModule } from '@/uploads/uploads.module';
     ClinicsModule,
     BookingsModule,
     UploadsModule,
+    ClinicStaffModule,
     PassportModule.register({ defaultStrategy: 'vet-jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

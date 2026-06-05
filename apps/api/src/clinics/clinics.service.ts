@@ -59,6 +59,7 @@ export class ClinicsService {
   async create(
     data: CreateClinicDto & {
       adminVetId: string;
+      servicesOffered?: { id: string; name: string; icon: string }[];
     },
   ): Promise<Clinic> {
     const doc = await this.clinicModel.create({
@@ -84,10 +85,12 @@ export class ClinicsService {
         { day: 'Sunday', hours: '10:00 AM - 4:00 PM' },
       ],
       facilities: ['Consultation', 'Pharmacy', 'Vaccination'],
-      servicesOffered: [
-        { id: 'checkup', name: 'General Checkup', icon: 'medical' },
-        { id: 'vax', name: 'Vaccination', icon: 'bandage' },
-      ],
+      servicesOffered: data.servicesOffered?.length
+        ? data.servicesOffered
+        : [
+            { id: 'checkup', name: 'General Checkup', icon: 'medical' },
+            { id: 'vax', name: 'Vaccination', icon: 'bandage' },
+          ],
       vaccinesOffered: [
         { id: 'rabies', name: 'Rabies', pricePaise: 50000 },
         { id: 'dhpp', name: 'DHPP', pricePaise: 45000 },

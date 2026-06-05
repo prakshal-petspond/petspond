@@ -69,7 +69,78 @@ export const VET_SPECIALIZATIONS = [
 ] as const;
 export type VetSpecialization = (typeof VET_SPECIALIZATIONS)[number];
 
-/** One recurring weekly window (JS weekday: 0=Sun … 6=Sat). Minutes from midnight, end exclusive. */
+/** Areas of expertise shown in vet-crm team onboarding (step 3). */
+export const VET_EXPERTISE_AREAS = [
+  'General Practice',
+  'Surgery',
+  'Internal Medicine',
+  'Dentistry',
+  'Dermatology',
+  'Cardiology',
+  'Oncology',
+  'Ophthalmology',
+  'Orthopedics',
+  'Emergency Care',
+  'Exotic Animals',
+  'Neurology',
+] as const;
+export type VetExpertiseArea = (typeof VET_EXPERTISE_AREAS)[number];
+
+export type ClinicStaffRole = 'front_office' | 'veterinarian';
+
+export interface ClinicStaffMember {
+  id: string;
+  clinicId: string;
+  role: ClinicStaffRole;
+  fullName: string;
+  email?: string;
+  mobile?: string;
+  veterinaryRegistrationNumber?: string;
+  specializations: string[];
+  linkedVetId?: string;
+  createdByVetId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingTeamVetInput {
+  fullName: string;
+  email?: string;
+  mobile?: string;
+  veterinaryRegistrationNumber?: string;
+  specializations?: string[];
+}
+
+export interface OnboardingFrontStaffInput {
+  fullName: string;
+  email?: string;
+  mobile?: string;
+}
+
+export interface VetCompleteClinicSetupDto {
+  fullName: string;
+  clinicName: string;
+  phone: string;
+  email?: string;
+  address: string;
+  pincode: string;
+  city?: string;
+  state?: string;
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
+  weeklyAvailability: VetWeeklyAvailabilityBlock[];
+  servicesOffered: ClinicServiceItem[];
+  additionalVeterinarians?: OnboardingTeamVetInput[];
+  frontOfficeStaff?: OnboardingFrontStaffInput[];
+}
+
+export interface ClinicTeamResponse {
+  veterinarians: Vet[];
+  frontOfficeStaff: ClinicStaffMember[];
+  pendingVeterinarians: ClinicStaffMember[];
+}
+
 export interface VetWeeklyAvailabilityBlock {
   dayOfWeek: number;
   startMinute: number;

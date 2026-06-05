@@ -18,6 +18,12 @@
   --color-warning-muted: #FFF0E0;
   --color-tag: #FEF3C7;
   --color-error: #DC2626;
+  --color-brand-blue: #1f8fff;
+  --color-brand-blue-hover: #1878e6;
+  --color-onboarding-accent: #fc6e2a;
+  --color-input-border: #ebcb8b;
+  --color-step-muted: #9b5100;
+  --color-sidebar-tip-bg: #fff3e0;
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;

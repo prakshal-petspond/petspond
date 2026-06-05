@@ -22,6 +22,7 @@ import type { Vet } from '@petspond/types';
 import { SendOtpDto } from '@/auth/dto/send-otp.dto';
 import { VetVerifyOtpDto } from './dto/verify-otp.dto';
 import { VetCompleteOnboardingDto } from './dto/complete-onboarding.dto';
+import { VetCompleteClinicSetupDto } from './dto/complete-clinic-setup.dto';
 import { VetsService } from '@/vets/vets.service';
 import { ClinicsService } from '@/clinics/clinics.service';
 import { R2StorageService } from '@/storage/r2-storage.service';
@@ -67,7 +68,7 @@ export class VetAuthController {
     if (vet.clinicId !== clinicId || !vet.isClinicAdmin) {
       throw new ForbiddenException('Only the clinic admin can view the team');
     }
-    return this.vetsService.findByClinicId(clinicId);
+    return this.vetAuthService.getClinicTeam(clinicId);
   }
 
   @Patch('vets/:id/approve')
@@ -83,6 +84,13 @@ export class VetAuthController {
       await this.clinicsService.syncDoctorCount(updated.clinicId);
     }
     return updated;
+  }
+
+  @Post('complete-clinic-setup')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(VetJwtAuthGuard)
+  async completeClinicSetup(@CurrentVet() vet: Vet, @Body() dto: VetCompleteClinicSetupDto) {
+    return this.vetAuthService.completeClinicSetup(vet.id, dto);
   }
 
   @Post('complete-onboarding')

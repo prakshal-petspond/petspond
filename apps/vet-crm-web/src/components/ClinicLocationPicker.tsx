@@ -48,11 +48,29 @@ type InnerProps = {
   initialLat?: number | null;
   initialLng?: number | null;
   onLocationResolved: (p: ClinicLocationResolved) => void;
+  showSearch: boolean;
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
+  searchClassName?: string;
+  searchPlaceholder?: string;
+  hideSearchLabel?: boolean;
+  hideSearchHint?: boolean;
 };
 
-function ClinicLocationMapInner({ apiKey, initialLat, initialLng, onLocationResolved }: InnerProps) {
+function ClinicLocationMapInner({
+  apiKey,
+  initialLat,
+  initialLng,
+  onLocationResolved,
+  showSearch,
+  searchInputRef,
+  searchClassName,
+  searchPlaceholder,
+  hideSearchLabel,
+  hideSearchHint,
+}: InnerProps) {
   const mapDivRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const internalInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = searchInputRef ?? internalInputRef;
   const mapRef = useRef<google.maps.Map | null>(null);
   const markerRef = useRef<google.maps.Marker | null>(null);
   const acRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -60,6 +78,7 @@ function ClinicLocationMapInner({ apiKey, initialLat, initialLng, onLocationReso
   const onLocationRef = useRef(onLocationResolved);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const usesExternalInput = Boolean(searchInputRef);
 
   useEffect(() => {
     onLocationRef.current = onLocationResolved;
@@ -67,78 +86,92 @@ function ClinicLocationMapInner({ apiKey, initialLat, initialLng, onLocationReso
 
   useEffect(() => {
     const el = mapDivRef.current;
-    const input = inputRef.current;
-    if (!el || !input) return;
+    if (!el) return;
 
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    setOptions({ key: apiKey, v: 'weekly' });
+    const initMap = () => {
+      const input = inputRef.current;
+      if (!input || !mapDivRef.current) return false;
 
-    Promise.all([importLibrary('maps'), importLibrary('places')])
-      .then(() => {
-        if (cancelled || !mapDivRef.current || !inputRef.current) return;
+      setOptions({ key: apiKey, v: 'weekly' });
 
-        const center = DEFAULT_CENTER;
+      Promise.all([importLibrary('maps'), importLibrary('places')])
+        .then(() => {
+          if (cancelled || !mapDivRef.current || !inputRef.current) return;
 
-        const map = new google.maps.Map(mapDivRef.current, {
-          center,
-          zoom: 12,
-          streetViewControl: false,
-          mapTypeControl: false,
-          fullscreenControl: true,
-        });
-        mapRef.current = map;
+          const center = DEFAULT_CENTER;
 
-        const marker = new google.maps.Marker({
-          map,
-          position: center,
-          draggable: true,
-        });
-        markerRef.current = marker;
-
-        const ac = new google.maps.places.Autocomplete(inputRef.current, {
-          componentRestrictions: { country: 'in' },
-          fields: ['place_id', 'geometry', 'formatted_address', 'address_components'],
-        });
-        acRef.current = ac;
-
-        const onPlaceChanged = () => {
-          const place = ac.getPlace();
-          const loc = place.geometry?.location;
-          if (!loc) return;
-          const lat = loc.lat();
-          const lng = loc.lng();
-          marker.setPosition({ lat, lng });
-          map.panTo({ lat, lng });
-          map.setZoom(16);
-          const parsed = parseAddressComponents(place.address_components, place.formatted_address);
-          onLocationRef.current({
-            latitude: lat,
-            longitude: lng,
-            placeId: place.place_id,
-            ...parsed,
+          const map = new google.maps.Map(mapDivRef.current, {
+            center,
+            zoom: 12,
+            streetViewControl: false,
+            mapTypeControl: false,
+            fullscreenControl: true,
           });
-        };
+          mapRef.current = map;
 
-        const onDragEnd = () => {
-          const pos = marker.getPosition();
-          if (!pos) return;
-          onLocationRef.current({ latitude: pos.lat(), longitude: pos.lng(), placeId: '' });
-        };
+          const marker = new google.maps.Marker({
+            map,
+            position: center,
+            draggable: true,
+          });
+          markerRef.current = marker;
 
-        listenersRef.current.push(ac.addListener('place_changed', onPlaceChanged));
-        listenersRef.current.push(marker.addListener('dragend', onDragEnd));
+          const ac = new google.maps.places.Autocomplete(inputRef.current, {
+            componentRestrictions: { country: 'in' },
+            fields: ['place_id', 'geometry', 'formatted_address', 'address_components'],
+          });
+          acRef.current = ac;
 
-        setLoaded(true);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          setLoadError(e instanceof Error ? e.message : 'Failed to load Google Maps');
-        }
-      });
+          const onPlaceChanged = () => {
+            const place = ac.getPlace();
+            const loc = place.geometry?.location;
+            if (!loc) return;
+            const lat = loc.lat();
+            const lng = loc.lng();
+            marker.setPosition({ lat, lng });
+            map.panTo({ lat, lng });
+            map.setZoom(16);
+            const parsed = parseAddressComponents(place.address_components, place.formatted_address);
+            onLocationRef.current({
+              latitude: lat,
+              longitude: lng,
+              placeId: place.place_id,
+              ...parsed,
+            });
+          };
+
+          const onDragEnd = () => {
+            const pos = marker.getPosition();
+            if (!pos) return;
+            onLocationRef.current({ latitude: pos.lat(), longitude: pos.lng(), placeId: '' });
+          };
+
+          listenersRef.current.push(ac.addListener('place_changed', onPlaceChanged));
+          listenersRef.current.push(marker.addListener('dragend', onDragEnd));
+
+          setLoaded(true);
+        })
+        .catch((e: unknown) => {
+          if (!cancelled) {
+            setLoadError(e instanceof Error ? e.message : 'Failed to load Google Maps');
+          }
+        });
+
+      return true;
+    };
+
+    if (!initMap() && usesExternalInput) {
+      retryTimer = setTimeout(() => {
+        if (!cancelled) initMap();
+      }, 0);
+    }
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
       listenersRef.current.forEach((l) => {
         l.remove();
       });
@@ -149,7 +182,7 @@ function ClinicLocationMapInner({ apiKey, initialLat, initialLng, onLocationReso
       mapRef.current = null;
       setLoaded(false);
     };
-  }, [apiKey]);
+  }, [apiKey, inputRef, usesExternalInput]);
 
   useEffect(() => {
     if (!loaded || !markerRef.current || !mapRef.current) return;
@@ -176,22 +209,31 @@ function ClinicLocationMapInner({ apiKey, initialLat, initialLng, onLocationReso
     );
   }
 
+  const defaultSearchClass =
+    'w-full border border-border rounded-lg px-3 py-2.5 bg-background text-foreground text-sm';
+
   return (
     <div className="space-y-3">
-      <div>
-        <label className="block text-sm text-muted mb-1">Search clinic address</label>
-        <input
-          ref={inputRef}
-          type="text"
-          placeholder="Start typing your clinic name or address…"
-          className="w-full border border-border rounded-lg px-3 py-2.5 bg-background text-foreground text-sm"
-          autoComplete="off"
-        />
-        <p className="text-xs text-muted mt-1.5">
-          Pick a result to place the pin. Drag the marker to fine-tune. Coordinates are saved when you click Save (not
-          shown here).
-        </p>
-      </div>
+      {showSearch && !usesExternalInput ? (
+        <div>
+          {!hideSearchLabel ? (
+            <label className="block text-sm text-muted mb-1">Search clinic address</label>
+          ) : null}
+          <input
+            ref={internalInputRef}
+            type="text"
+            placeholder={searchPlaceholder ?? 'Start typing your clinic name or address…'}
+            className={searchClassName ?? defaultSearchClass}
+            autoComplete="off"
+          />
+          {!hideSearchHint ? (
+            <p className="text-xs text-muted mt-1.5">
+              Pick a result to place the pin. Drag the marker to fine-tune. Coordinates are saved when you click Save
+              (not shown here).
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="relative w-full h-[280px] rounded-xl overflow-hidden border border-border bg-muted/30">
         <div ref={mapDivRef} className="absolute inset-0" />
         {!loaded && !loadError && (
@@ -207,9 +249,28 @@ type ClinicLocationPickerProps = {
   initialLat?: number | null;
   initialLng?: number | null;
   onLocationResolved: (p: ClinicLocationResolved) => void;
+  /** When false, only the map is shown unless `searchInputRef` is provided. */
+  showSearch?: boolean;
+  /** Bind Places Autocomplete to an external input (e.g. onboarding styled field). */
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
+  searchClassName?: string;
+  searchPlaceholder?: string;
+  hideSearchLabel?: boolean;
+  hideSearchHint?: boolean;
 };
 
-export function ClinicLocationPicker({ apiKey, initialLat, initialLng, onLocationResolved }: ClinicLocationPickerProps) {
+export function ClinicLocationPicker({
+  apiKey,
+  initialLat,
+  initialLng,
+  onLocationResolved,
+  showSearch = true,
+  searchInputRef,
+  searchClassName,
+  searchPlaceholder,
+  hideSearchLabel,
+  hideSearchHint,
+}: ClinicLocationPickerProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -239,6 +300,12 @@ export function ClinicLocationPicker({ apiKey, initialLat, initialLng, onLocatio
       initialLat={initialLat}
       initialLng={initialLng}
       onLocationResolved={onLocationResolved}
+      showSearch={showSearch}
+      searchInputRef={searchInputRef}
+      searchClassName={searchClassName}
+      searchPlaceholder={searchPlaceholder}
+      hideSearchLabel={hideSearchLabel}
+      hideSearchHint={hideSearchHint}
     />
   );
 }

@@ -4,6 +4,7 @@ const config: Config = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/features/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
@@ -24,6 +25,15 @@ const config: Config = {
         'warning-muted': 'var(--color-warning-muted)',
         tag: 'var(--color-tag)',
         error: 'var(--color-error)',
+        'brand-blue': 'var(--color-brand-blue)',
+        'brand-blue-hover': 'var(--color-brand-blue-hover)',
+        'onboarding-accent': 'var(--color-onboarding-accent)',
+        'input-border': 'var(--color-input-border)',
+        'step-muted': 'var(--color-step-muted)',
+        'sidebar-tip-bg': 'var(--color-sidebar-tip-bg)',
+      },
+      fontFamily: {
+        serif: ['var(--font-playfair)', 'ui-serif', 'Georgia', 'serif'],
       },
       borderRadius: {
         sm: 'var(--radius-sm)',

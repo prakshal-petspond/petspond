@@ -1,14 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { getAndDeleteOtp } from '../auth/otp.store';
 import { shouldAcceptOtpBypass } from '../auth/otp-bypass';
-import type { Vet } from '@petspond/types';
+import type { Clinic, ClinicTeamResponse, Vet, VetCompleteClinicSetupDto } from '@petspond/types';
 import type { CreateClinicDto } from '@petspond/types';
 import { VetsService } from '@/vets/vets.service';
 import { ClinicsService } from '@/clinics/clinics.service';
 import { AuthService } from '@/auth/auth.service';
 import { ClinicInvitesService } from '@/bookings/clinic-invites.service';
+import { ClinicStaffService } from '@/clinic-staff/clinic-staff.service';
 
 function normalizeMobile(mobile: string): string {
   return mobile.replace(/\D/g, '').slice(-10);
@@ -23,6 +24,7 @@ export class VetAuthService {
     private readonly clinicsService: ClinicsService,
     private readonly jwtService: JwtService,
     private readonly clinicInvites: ClinicInvitesService,
+    private readonly clinicStaff: ClinicStaffService,
   ) {}
 
   async sendOtp(mobile: string, countryCode?: string): Promise<{ success: boolean; message?: string }> {
@@ -114,5 +116,94 @@ export class VetAuthService {
     }
 
     return updated;
+  }
+
+  async completeClinicSetup(vetId: string, dto: VetCompleteClinicSetupDto): Promise<{ vet: Vet; clinic: Clinic }> {
+    const existing = await this.vetsService.findById(vetId);
+    if (!existing) throw new BadRequestException('Vet not found');
+    if (existing.onboardingCompleted) {
+      throw new BadRequestException('Onboarding already completed');
+    }
+
+    const additionalVets = dto.additionalVeterinarians ?? [];
+    const frontStaff = dto.frontOfficeStaff ?? [];
+
+    const clinic = await this.clinicsService.create({
+      name: dto.clinicName.trim(),
+      totalDoctors: 1 + additionalVets.length,
+      address: dto.address.trim(),
+      pincode: dto.pincode.trim(),
+      city: dto.city?.trim(),
+      state: dto.state?.trim(),
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      placeId: dto.placeId,
+      adminVetId: vetId,
+      servicesOffered: dto.servicesOffered,
+    });
+
+    const updatedVet = await this.vetsService.updateOnboarding(vetId, {
+      fullName: dto.fullName.trim(),
+      email: dto.email?.trim(),
+      veterinaryRegistrationNumber: 'PENDING',
+      yearOfRegistration: new Date().getFullYear(),
+      qualifications: [],
+      specializations: [],
+      clinicId: clinic.id,
+      isClinicAdmin: true,
+      approvalStatus: 'approved',
+    });
+
+    await this.vetsService.setWeeklyAvailability(vetId, dto.weeklyAvailability ?? []);
+
+    const staffToCreate = [
+      ...additionalVets.map((v) => ({
+        clinicId: clinic.id,
+        role: 'veterinarian' as const,
+        fullName: v.fullName,
+        email: v.email,
+        mobile: v.mobile,
+        veterinaryRegistrationNumber: v.veterinaryRegistrationNumber,
+        specializations: v.specializations ?? [],
+        createdByVetId: vetId,
+      })),
+      ...frontStaff.map((s) => ({
+        clinicId: clinic.id,
+        role: 'front_office' as const,
+        fullName: s.fullName,
+        email: s.email,
+        mobile: s.mobile,
+        createdByVetId: vetId,
+      })),
+    ];
+
+    if (staffToCreate.length) {
+      await this.clinicStaff.createMany(staffToCreate);
+    }
+
+    for (const v of additionalVets) {
+      const mobile = v.mobile?.replace(/\D/g, '').slice(-10);
+      if (mobile?.length === 10) {
+        try {
+          await this.clinicInvites.createInvite(clinic.id, mobile, vetId);
+        } catch {
+          // Invite may already exist — ignore during onboarding
+        }
+      }
+    }
+
+    await this.clinicsService.syncDoctorCount(clinic.id);
+
+    return { vet: updatedVet, clinic };
+  }
+
+  async getClinicTeam(clinicId: string): Promise<ClinicTeamResponse> {
+    const veterinarians = await this.vetsService.findByClinicId(clinicId);
+    const staff = await this.clinicStaff.findByClinicId(clinicId);
+    const pendingVeterinarians = staff.filter(
+      (s) => s.role === 'veterinarian' && !s.linkedVetId,
+    );
+    const frontOfficeStaff = staff.filter((s) => s.role === 'front_office');
+    return { veterinarians, frontOfficeStaff, pendingVeterinarians };
   }
 }

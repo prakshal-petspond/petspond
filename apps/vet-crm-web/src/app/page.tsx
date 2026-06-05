@@ -41,7 +41,7 @@ export default function HomePage() {
     );
   }
   if (!vet.onboardingCompleted) {
-    router.replace('/onboarding');
+    router.replace('/onboarding/about-you');
     return (
       <main className="min-h-screen flex items-center justify-center bg-background">
         <p className="text-muted">Redirecting to onboarding...</p>

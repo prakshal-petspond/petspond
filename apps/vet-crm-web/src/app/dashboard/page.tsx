@@ -95,7 +95,7 @@ export default function DashboardPage() {
       .then((v) => {
         setVet(v);
         if (v.clinicId && v.isClinicAdmin) {
-          return vetAuthApi.getTeam(client, v.clinicId).then(setTeam);
+          return vetAuthApi.getTeam(client, v.clinicId).then((res) => setTeam(res.veterinarians));
         }
       })
       .catch(() => router.replace('/login'))

@@ -73,7 +73,7 @@ export default function LoginPage() {
       if (res.vet?.onboardingCompleted) {
         router.replace('/dashboard');
       } else {
-        router.replace('/onboarding');
+        router.replace('/onboarding/about-you');
       }
     } catch (err: unknown) {
       setError((err as { message?: string })?.message ?? 'Verification failed');
