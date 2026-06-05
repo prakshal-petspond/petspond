@@ -1,5 +1,5 @@
 import React, { type RefObject } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import type { PetPillAnchorRef } from '../types';
 import { Ionicons } from '@expo/vector-icons';
 import EvilIcons from '@expo/vector-icons/EvilIcons';
@@ -7,6 +7,7 @@ import Entypo from '@expo/vector-icons/Entypo';
 import type { Pet } from '@petspond/types';
 import { useTheme } from '@/contexts';
 import { FALLBACK_PET_IMG, H_PAD } from '../constants';
+import { PetAvatar } from '@/components/PetAvatar';
 
 export type LandingHeaderProps = {
   locationAddress: string | null;
@@ -61,8 +62,9 @@ export function LandingHeader({
                 {selectedPet.name.toUpperCase()}
               </Text>
               <Entypo name="triangle-down" size={16} color={t.colors.primary} />
-              <Image
-                source={{ uri: selectedPet.photoUrl ?? FALLBACK_PET_IMG }}
+              <PetAvatar
+                photoUrl={selectedPet.photoUrl}
+                fallbackUri={FALLBACK_PET_IMG}
                 style={styles.petAvatar}
               />
             </>

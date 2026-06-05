@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, type Href } from 'expo-router';
-import { useTheme } from '@/contexts';
+import { useTheme, useApi, useLocation } from '@/contexts';
 import { Ionicons } from '@expo/vector-icons';
-import { getWalkerProfile, getWalkerStartingPrice, type WalkerCertification } from './walkersData';
+import {
+  getWalkerProfile,
+  getWalkerStartingPrice,
+  type WalkerCertification,
+  type WalkerProfile,
+} from './walkersData';
+import { fetchPublicVendorDetail } from '@/services/vendors';
+import { vendorDetailToWalkerProfile } from '@/lib/vendorMappers';
 
 const H_PAD = 16;
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -32,9 +39,47 @@ export function WalkerTrainerDetailPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const accent = t.colors.accent;
+  const { client } = useApi();
+  const { coords } = useLocation();
   const [tab, setTab] = useState<TabId>('about');
+  const [profile, setProfile] = useState<WalkerProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const profile = id ? getWalkerProfile(String(id)) : null;
+  useEffect(() => {
+    if (!id) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+    const vendorId = String(id);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const detail = await fetchPublicVendorDetail(client, vendorId, {
+          lat: coords?.latitude,
+          lng: coords?.longitude,
+        });
+        if (!cancelled) setProfile(vendorDetailToWalkerProfile(detail));
+      } catch {
+        const fallback = getWalkerProfile(vendorId);
+        if (!cancelled) setProfile(fallback);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, client, coords?.latitude, coords?.longitude]);
+
+  if (loading) {
+    return (
+      <View style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}>
+        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>Loading…</Text>
+      </View>
+    );
+  }
 
   if (!profile) {
     return (

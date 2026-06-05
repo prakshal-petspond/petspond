@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, type Href } from 'expo-router';
-import { useTheme, useLocation } from '@/contexts';
+import { useTheme, useLocation, useApi } from '@/contexts';
 import { Ionicons } from '@expo/vector-icons';
-import { WALKER_PROFESSIONALS, type WalkerRole } from './walkersData';
+import { type WalkerProfessional, type WalkerRole } from './walkersData';
+import { fetchPublicVendors } from '@/services/vendors';
+import { vendorToWalkerProfessional } from '@/lib/vendorMappers';
 
 const H_PAD = 16;
 
@@ -39,11 +41,42 @@ function roleBadgeStyle(role: WalkerRole): { bg: string; text: string; label: st
 export function WalkersTrainersPage() {
   const t = useTheme();
   const router = useRouter();
+  const { client } = useApi();
   const {
     addressLine: locationAddress,
     loading: locationLoading,
     refresh: refreshLocation,
+    coords,
   } = useLocation();
+  const [professionals, setProfessionals] = useState<WalkerProfessional[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+
+  const loadVendors = useCallback(async () => {
+    if (!coords) {
+      setProfessionals([]);
+      return;
+    }
+    setListLoading(true);
+    try {
+      const list = await fetchPublicVendors(client, {
+        lat: coords.latitude,
+        lng: coords.longitude,
+      });
+      setProfessionals(
+        list
+          .filter((v) => v.serviceTypes.includes('walking') || v.serviceTypes.includes('training'))
+          .map(vendorToWalkerProfessional),
+      );
+    } catch {
+      setProfessionals([]);
+    } finally {
+      setListLoading(false);
+    }
+  }, [client, coords]);
+
+  useEffect(() => {
+    loadVendors();
+  }, [loadVendors]);
   const insets = useSafeAreaInsets();
   const accent = t.colors.accent;
   const headerBg = '#f5f0e8';
@@ -57,7 +90,7 @@ export function WalkersTrainersPage() {
       'Vasundhara sec 5';
 
   const filtered = useMemo(() => {
-    let list = WALKER_PROFESSIONALS;
+    let list = professionals;
     if (filter !== 'all') {
       list = list.filter((p) => p.role === filter);
     }
@@ -71,7 +104,7 @@ export function WalkersTrainersPage() {
       );
     }
     return list;
-  }, [filter, searchQuery]);
+  }, [professionals, filter, searchQuery]);
 
   return (
     <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
@@ -102,7 +135,9 @@ export function WalkersTrainersPage() {
           </View>
           <TouchableOpacity
             style={[styles.locationWrap, { backgroundColor: t.colors.solid_white }]}
-            onPress={() => refreshLocation()}
+            onPress={() => {
+              refreshLocation().then(() => loadVendors());
+            }}
             activeOpacity={0.8}
           >
             <Ionicons name="location" size={18} color={accent} />
@@ -161,6 +196,13 @@ export function WalkersTrainersPage() {
         </View>
 
         <View style={{ paddingHorizontal: H_PAD, gap: 14 }}>
+          {listLoading ? (
+            <Text style={{ color: t.colors.text_secondary }}>Loading professionals…</Text>
+          ) : filtered.length === 0 ? (
+            <Text style={{ color: t.colors.text_secondary }}>
+              No walkers or trainers in your area yet. Try again after vendors go live nearby.
+            </Text>
+          ) : null}
           {filtered.map((p) => {
             const badge = roleBadgeStyle(p.role);
             return (

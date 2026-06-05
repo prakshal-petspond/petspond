@@ -9,6 +9,7 @@
     "dev:api": "pnpm --filter @petspond/api dev",
     "dev:web": "pnpm --filter @petspond/vet-crm-web dev",
     "dev:user-app": "pnpm --filter @petspond/user-app start",
+    "dev:vendor-app": "pnpm --filter @petspond/vendor-app start",
     "dev:vet-mobile": "pnpm --filter @petspond/vet-crm-mobile start",
     "lint": "turbo run lint",
     "clean": "turbo run clean && rm -rf node_modules",

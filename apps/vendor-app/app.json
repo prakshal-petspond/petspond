@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Petspond Vendor",
+    "slug": "petspond-vendor-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "petspond-vendor",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#FFF9EE"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.petspond.vendorapp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFF9EE"
+      },
+      "package": "com.petspond.vendorapp"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "platforms": ["ios", "android"]
+  }
+}

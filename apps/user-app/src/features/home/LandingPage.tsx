@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme, useLocation } from '@/contexts';
-import { GROOMERS, WALKERS } from './constants';
+import { useHomeVendorListings } from '@/hooks/useHomeVendorListings';
 import { useLandingPets } from './hooks/useLandingPets';
 import { usePetSelectorModal } from './hooks/usePetSelectorModal';
 import {
@@ -23,7 +23,9 @@ export function LandingPage() {
     addressLine: locationAddress,
     loading: locationLoading,
     refresh: refreshLocation,
+    coords,
   } = useLocation();
+  const { walkers, groomers } = useHomeVendorListings(coords);
   const {
     pets,
     loading: petsLoading,
@@ -73,10 +75,17 @@ export function LandingPage() {
         <ServiceListingSection
           eyebrow="Top Rated"
           title="Walkers & Trainers"
-          items={WALKERS}
+          items={walkers}
           onHeaderPress={() => router.push('/walkers-trainers')}
+          onItemPress={(item) => router.push(`/walkers-trainers/${item.id}` as const)}
         />
-        <ServiceListingSection eyebrow="Top Rated" title="Groomers" items={GROOMERS} />
+        <ServiceListingSection
+          eyebrow="Top Rated"
+          title="Groomers"
+          items={groomers}
+          onHeaderPress={() => router.push('/groomers')}
+          onItemPress={(item) => router.push(`/groomers/${item.id}` as const)}
+        />
         <View style={styles.footerSpacer} />
       </ScrollView>
     </View>

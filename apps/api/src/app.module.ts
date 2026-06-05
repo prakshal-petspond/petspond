@@ -10,6 +10,9 @@ import { PetsModule } from './pets/pets.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { VetPortalModule } from './vet-portal/vet-portal.module';
+import { VendorsModule } from './vendors/vendors.module';
+import { VendorAuthModule } from './vendor-auth/vendor-auth.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -23,6 +26,9 @@ import { VetPortalModule } from './vet-portal/vet-portal.module';
     ClinicsModule,
     PaymentsModule,
     PetsModule,
+    VendorsModule,
+    VendorAuthModule,
+    UploadsModule,
     BookingsModule,
     CatalogModule,
     VetPortalModule,

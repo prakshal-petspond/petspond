@@ -1,0 +1,12 @@
+{
+  "extends": "../../node_modules/expo/tsconfig.base.json",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["react", "node"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

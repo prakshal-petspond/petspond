@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { Pet } from '@petspond/types';
 import { useTheme } from '@/contexts';
+import { PetAvatar } from '@/components/PetAvatar';
 import { FALLBACK_PET_IMG, SCREEN_WIDTH } from '../constants';
 import type { PetPillLayout } from '../types';
 
@@ -64,7 +65,6 @@ export function PetSelectorModal({
             ) : (
               pets.map((pet) => {
                 const isSelected = pet.id === selectedPetId;
-                const img = pet.photoUrl ?? FALLBACK_PET_IMG;
                 return (
                   <TouchableOpacity
                     key={pet.id}
@@ -75,7 +75,11 @@ export function PetSelectorModal({
                     }}
                     activeOpacity={0.8}
                   >
-                    <Image source={{ uri: img }} style={styles.petModalAvatar} />
+                    <PetAvatar
+                      photoUrl={pet.photoUrl}
+                      fallbackUri={FALLBACK_PET_IMG}
+                      style={styles.petModalAvatar}
+                    />
                     <View style={styles.petModalTextWrap}>
                       <Text style={[styles.petModalName, { color: t.colors.text_primary }]}>
                         {pet.name}

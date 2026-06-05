@@ -450,6 +450,103 @@ export interface VerifyOtpResponse {
   message?: string;
 }
 
+// ----- Vendor (walkers, trainers, groomers) -----
+export type VendorServiceType = 'grooming' | 'training' | 'walking';
+export type VendorServiceMode = 'on_site' | 'doorstep';
+
+export interface VendorWeeklyAvailabilityBlock {
+  dayOfWeek: number;
+  startMinute: number;
+  endMinute: number;
+}
+
+export interface Vendor {
+  id: string;
+  mobile: string;
+  businessName: string;
+  displayTitle?: string;
+  bio?: string;
+  photoUrl?: string;
+  serviceTypes: VendorServiceType[];
+  serviceModes: VendorServiceMode[];
+  latitude: number;
+  longitude: number;
+  address: string;
+  city?: string;
+  serviceRadiusKm: number;
+  weeklyAvailability: VendorWeeklyAvailabilityBlock[];
+  rating: number;
+  reviewCount: number;
+  promo?: string;
+  onboardingCompleted: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VendorVerifyOtpResponse {
+  verified: boolean;
+  token?: string;
+  vendor?: Vendor;
+  message?: string;
+}
+
+export interface VendorCompleteOnboardingDto {
+  businessName: string;
+  displayTitle?: string;
+  bio?: string;
+  photoUrl?: string;
+  serviceTypes: VendorServiceType[];
+  serviceModes: VendorServiceMode[];
+  latitude: number;
+  longitude: number;
+  address: string;
+  city?: string;
+  serviceRadiusKm: number;
+  weeklyAvailability: VendorWeeklyAvailabilityBlock[];
+  promo?: string;
+}
+
+export interface VendorUpdateProfileDto {
+  businessName?: string;
+  displayTitle?: string;
+  bio?: string;
+  photoUrl?: string;
+  serviceTypes?: VendorServiceType[];
+  serviceModes?: VendorServiceMode[];
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  city?: string;
+  serviceRadiusKm?: number;
+  weeklyAvailability?: VendorWeeklyAvailabilityBlock[];
+  promo?: string;
+  isActive?: boolean;
+}
+
+export interface PublicVendorListItem {
+  id: string;
+  businessName: string;
+  displayTitle?: string;
+  photoUrl?: string;
+  serviceTypes: VendorServiceType[];
+  serviceModes: VendorServiceMode[];
+  rating: number;
+  reviewCount: number;
+  distanceKm?: number;
+  promo?: string;
+  image?: string;
+}
+
+export interface PublicVendorDetail extends PublicVendorListItem {
+  bio?: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  serviceRadiusKm: number;
+  weeklyAvailability: VendorWeeklyAvailabilityBlock[];
+}
+
 // ----- Common -----
 export interface ApiError {
   statusCode: number;

@@ -19,57 +19,9 @@ export const PROMO_BANNER = {
 export const REMINDER_CTA = 'Book now';
 
 export const CATEGORIES: HomeCategory[] = [
-  { id: '1', label: 'Grooming', icon: 'cut-outline' },
+  { id: '1', label: 'Grooming', icon: 'cut-outline', route: '/groomers' },
   { id: '2', label: 'Walker & Trainer', icon: 'paw-outline', route: '/walkers-trainers' },
   { id: '3', label: 'Find A Vet', icon: 'medkit-outline', route: '/find-vet' },
   { id: '4', label: 'Vaccine', icon: 'medical-outline', route: '/vaccination' },
 ];
 
-const SERVICE_IMAGE =
-  'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400&h=240&fit=crop';
-
-export const WALKERS: ServiceListingItem[] = [
-  {
-    id: '1',
-    name: 'Happy paws studio',
-    rating: 4.7,
-    distance: '1.2 kms',
-    promo: '50% Off on your first booking',
-    image: SERVICE_IMAGE,
-  },
-  {
-    id: '2',
-    name: 'Pawfect walks',
-    rating: 4.9,
-    distance: '2.1 kms',
-    promo: 'First walk free',
-    image: SERVICE_IMAGE,
-  },
-  {
-    id: '3',
-    name: 'Tail wagers',
-    rating: 4.5,
-    distance: '0.8 kms',
-    promo: '20% Off',
-    image: SERVICE_IMAGE,
-  },
-];
-
-export const GROOMERS: ServiceListingItem[] = [
-  {
-    id: '1',
-    name: 'Happy paws studio',
-    rating: 4.7,
-    distance: '1.2 kms',
-    promo: '50% Off on your first booking',
-    image: SERVICE_IMAGE,
-  },
-  {
-    id: '2',
-    name: 'Fluffy & clean',
-    rating: 4.8,
-    distance: '1.5 kms',
-    promo: 'Free nail trim',
-    image: SERVICE_IMAGE,
-  },
-];

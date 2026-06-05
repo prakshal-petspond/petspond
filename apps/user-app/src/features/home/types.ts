@@ -4,7 +4,7 @@ export type HomeCategory = {
   id: string;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  route?: '/walkers-trainers' | '/find-vet' | '/vaccination';
+  route?: '/walkers-trainers' | '/groomers' | '/find-vet' | '/vaccination';
 };
 
 export type ServiceListingItem = {

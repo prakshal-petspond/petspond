@@ -10,6 +10,7 @@ export type ServiceListingSectionProps = {
   title: string;
   items: ServiceListingItem[];
   onHeaderPress?: () => void;
+  onItemPress?: (item: ServiceListingItem) => void;
 };
 
 export function ServiceListingSection({
@@ -17,6 +18,7 @@ export function ServiceListingSection({
   title,
   items,
   onHeaderPress,
+  onItemPress,
 }: ServiceListingSectionProps) {
   const t = useTheme();
   const accent = t.colors.accent;
@@ -48,7 +50,7 @@ export function ServiceListingSection({
       >
         {items.map((item) => (
           <View style={styles.serviceCardWrap} key={item.id}>
-            <ServiceCard item={item} />
+            <ServiceCard item={item} onPress={onItemPress ? () => onItemPress(item) : undefined} />
           </View>
         ))}
       </ScrollView>

@@ -7,8 +7,13 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
   InternalServerErrorException,
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { VetAuthService } from './vet-auth.service';
 import { VetJwtAuthGuard } from './vet-jwt-auth.guard';
@@ -19,7 +24,8 @@ import { VetVerifyOtpDto } from './dto/verify-otp.dto';
 import { VetCompleteOnboardingDto } from './dto/complete-onboarding.dto';
 import { VetsService } from '@/vets/vets.service';
 import { ClinicsService } from '@/clinics/clinics.service';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { R2StorageService } from '@/storage/r2-storage.service';
+import { imageUploadInterceptor } from '@/uploads/image-upload.interceptor';
 
 @Controller('vet-auth')
 export class VetAuthController {
@@ -27,6 +33,7 @@ export class VetAuthController {
     private readonly vetAuthService: VetAuthService,
     private readonly vetsService: VetsService,
     private readonly clinicsService: ClinicsService,
+    private readonly storage: R2StorageService,
   ) {}
 
   @Post('send-otp')
@@ -97,5 +104,13 @@ export class VetAuthController {
       photoUrl: dto.photoUrl,
       displayTitle: dto.displayTitle,
     });
+  }
+
+  @Post('upload-photo')
+  @UseGuards(VetJwtAuthGuard)
+  @UseInterceptors(imageUploadInterceptor)
+  uploadPhoto(@CurrentVet() vet: Vet, @UploadedFile() file?: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No image file provided');
+    return this.storage.uploadImage(file, `vets/${vet.id}`);
   }
 }
