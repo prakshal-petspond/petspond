@@ -62,6 +62,20 @@ export class VetAuthController {
     return vet;
   }
 
+  @Get('pending-clinic-invite')
+  @UseGuards(VetJwtAuthGuard)
+  async pendingClinicInvite(@CurrentVet() vet: Vet) {
+    const invite = await this.vetAuthService.getPendingClinicInvite(vet);
+    return invite ?? null;
+  }
+
+  @Post('accept-clinic-invite')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(VetJwtAuthGuard)
+  async acceptClinicInvite(@CurrentVet() vet: Vet) {
+    return this.vetAuthService.acceptClinicInvite(vet.id, vet.mobile);
+  }
+
   @Get('clinic/:clinicId/team')
   @UseGuards(VetJwtAuthGuard)
   async getTeam(@CurrentVet() vet: Vet, @Param('clinicId') clinicId: string) {

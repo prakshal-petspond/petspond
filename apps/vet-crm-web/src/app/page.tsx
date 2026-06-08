@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useApi, getStoredVetToken } from '@/contexts';
 import { vetAuthApi } from '@/services/vet-auth.service';
+import { getVetPostAuthPath } from '@/lib/vetRouting';
 import type { Vet } from '@petspond/types';
 
 export default function HomePage() {
@@ -20,7 +20,11 @@ export default function HomePage() {
     }
     vetAuthApi
       .me(client)
-      .then(setVet)
+      .then(async (v) => {
+        const pending = await vetAuthApi.getPendingClinicInvite(client).catch(() => null);
+        router.replace(getVetPostAuthPath(v, pending));
+        setVet(v);
+      })
       .catch(() => {
         setVet(null);
       });
@@ -40,26 +44,10 @@ export default function HomePage() {
       </main>
     );
   }
-  if (!vet.onboardingCompleted) {
-    router.replace('/onboarding/about-you');
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-background">
-        <p className="text-muted">Redirecting to onboarding...</p>
-      </main>
-    );
-  }
 
-  router.replace('/dashboard');
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-8 bg-background">
-      <h1 className="text-3xl font-bold text-primary mb-4">Petspond Vet CRM</h1>
-      <p className="text-muted mb-8">Redirecting to dashboard...</p>
-      <Link
-        href="/dashboard"
-        className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover"
-      >
-        Go to Dashboard
-      </Link>
+    <main className="min-h-screen flex items-center justify-center bg-background">
+      <p className="text-muted">Redirecting…</p>
     </main>
   );
 }

@@ -86,7 +86,7 @@ export const VET_EXPERTISE_AREAS = [
 ] as const;
 export type VetExpertiseArea = (typeof VET_EXPERTISE_AREAS)[number];
 
-export type ClinicStaffRole = 'front_office' | 'veterinarian';
+export type ClinicStaffRole = 'front_office';
 
 export interface ClinicStaffMember {
   id: string;
@@ -95,9 +95,6 @@ export interface ClinicStaffMember {
   fullName: string;
   email?: string;
   mobile?: string;
-  veterinaryRegistrationNumber?: string;
-  specializations: string[];
-  linkedVetId?: string;
   createdByVetId: string;
   createdAt: string;
   updatedAt: string;
@@ -138,7 +135,6 @@ export interface VetCompleteClinicSetupDto {
 export interface ClinicTeamResponse {
   veterinarians: Vet[];
   frontOfficeStaff: ClinicStaffMember[];
-  pendingVeterinarians: ClinicStaffMember[];
 }
 
 export interface VetWeeklyAvailabilityBlock {
@@ -326,10 +322,16 @@ export interface PublicClinicDetail extends PublicClinicListItem {
   doctors: PublicClinicDoctorPreview[];
 }
 
+export interface VetPendingClinicInvite {
+  clinicId: string;
+  clinicName: string;
+}
+
 export interface VetVerifyOtpResponse {
   verified: boolean;
   token?: string;
   vet?: Vet;
+  pendingClinicInvite?: VetPendingClinicInvite;
   message?: string;
 }
 

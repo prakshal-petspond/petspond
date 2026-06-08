@@ -17,7 +17,7 @@ import {
   VeterinarianForm,
 } from '../components/TeamMemberForms';
 import { ONBOARDING_DRAFT_KEY } from '../constants';
-import { useOnboardingDraft } from '../useOnboardingDraft';
+import { getOnboardingDraft, useOnboardingDraft } from '../useOnboardingDraft';
 import {
   buildStandardWeeklyBlocks,
   EMPTY_FRONT_STAFF,
@@ -133,7 +133,7 @@ export function Step3PracticeDetails() {
     setError('');
     setSubmitting(true);
     try {
-      await vetAuthApi.completeClinicSetup(client, buildSetupPayload(draft));
+      await vetAuthApi.completeClinicSetup(client, buildSetupPayload(getOnboardingDraft()));
       sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
       router.replace('/dashboard');
     } catch (err: unknown) {

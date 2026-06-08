@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useApi } from '@/contexts';
 import { vetAuthApi } from '@/services/vet-auth.service';
+import { getVetPostAuthPath } from '@/lib/vetRouting';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -70,8 +71,8 @@ export default function LoginPage() {
           setToken(jwt);
         });
       }
-      if (res.vet?.onboardingCompleted) {
-        router.replace('/dashboard');
+      if (res.vet) {
+        router.replace(getVetPostAuthPath(res.vet, res.pendingClinicInvite));
       } else {
         router.replace('/onboarding/about-you');
       }

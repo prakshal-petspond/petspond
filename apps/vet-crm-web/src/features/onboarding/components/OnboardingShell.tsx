@@ -2,7 +2,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ONBOARDING_STEPS } from '../constants';
+import { useRouter } from 'next/navigation';
+import { useApi } from '@/contexts';
+import { ONBOARDING_STEPS, ONBOARDING_DRAFT_KEY } from '../constants';
 import { OnboardingLogo } from './OnboardingLogo';
 
 type OnboardingShellProps = {
@@ -53,11 +55,36 @@ function StepDot({ active }: { active: boolean }) {
   );
 }
 
+export function OnboardingLogoutButton() {
+  const router = useRouter();
+  const { setToken } = useApi();
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
+    setToken(null);
+    router.replace('/login');
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleLogout}
+      className="rounded-lg px-3 py-1.5 text-sm font-semibold text-muted transition hover:bg-background-muted hover:text-foreground"
+    >
+      Log out
+    </button>
+  );
+}
+
 export function OnboardingShell({ currentStep, children, wide }: OnboardingShellProps) {
   const progressPct = Math.round((currentStep / ONBOARDING_STEPS.length) * 100);
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
+      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-5">
+        <OnboardingLogoutButton />
+      </div>
+
       {/* Sidebar — fixed, does not scroll */}
       <aside className="hidden h-full w-[300px] shrink-0 flex-col overflow-hidden border-r border-input-border/40 bg-background px-8 py-10 lg:flex">
         <OnboardingLogo />

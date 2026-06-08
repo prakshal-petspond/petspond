@@ -47,6 +47,28 @@ export class VetsService {
     return doc ? toVet(doc) : null;
   }
 
+  /** Pending team vet pre-added by a clinic admin (awaiting first login). */
+  async findPendingClinicVeterinarian(clinicId: string): Promise<Vet | null> {
+    const doc = await this.vetModel
+      .findOne({
+        clinicId,
+        onboardingCompleted: false,
+        isClinicAdmin: false,
+      })
+      .sort({ createdAt: 1 })
+      .exec();
+    return doc ? toVet(doc) : null;
+  }
+
+  async assignMobileToVet(vetId: string, mobile: string): Promise<Vet> {
+    const normalized = mobile.replace(/\D/g, '').slice(-10);
+    const doc = await this.vetModel
+      .findByIdAndUpdate(vetId, { $set: { mobile: normalized } }, { new: true, runValidators: true })
+      .exec();
+    if (!doc) throw new BadRequestException('Vet not found');
+    return toVet(doc);
+  }
+
   async createOrFindByMobile(mobile: string): Promise<Vet> {
     const normalized = mobile.replace(/\D/g, '').slice(-10);
     let doc = await this.vetModel.findOne({ mobile: normalized }).exec();
@@ -63,6 +85,97 @@ export class VetsService {
         onboardingCompleted: false,
       });
     }
+    return toVet(doc);
+  }
+
+  /** Adds a veterinarian to a clinic during admin onboarding (not front-office staff). */
+  async createClinicVeterinarian(data: {
+    clinicId: string;
+    fullName: string;
+    email?: string;
+    mobile?: string;
+    veterinaryRegistrationNumber?: string;
+    specializations?: string[];
+  }): Promise<Vet> {
+    const normalizedMobile = data.mobile?.replace(/\D/g, '').slice(-10);
+    const trimmedName = data.fullName.trim();
+
+    if (normalizedMobile?.length === 10) {
+      const existing = await this.vetModel.findOne({ mobile: normalizedMobile }).exec();
+      if (existing) {
+        if (existing.clinicId && existing.clinicId !== data.clinicId) {
+          throw new BadRequestException(`${trimmedName} is already linked to another clinic`);
+        }
+        const doc = await this.vetModel
+          .findByIdAndUpdate(
+            existing._id,
+            {
+              $set: {
+                fullName: trimmedName,
+                ...(data.email?.trim() && { email: data.email.trim() }),
+                clinicId: data.clinicId,
+                veterinaryRegistrationNumber:
+                  data.veterinaryRegistrationNumber?.trim() ||
+                  existing.veterinaryRegistrationNumber ||
+                  'PENDING',
+                specializations: data.specializations ?? existing.specializations ?? [],
+                approvalStatus: 'pending',
+                isClinicAdmin: false,
+                onboardingCompleted: false,
+              },
+            },
+            { new: true, runValidators: true },
+          )
+          .exec();
+        if (!doc) throw new BadRequestException('Vet not found');
+        return toVet(doc);
+      }
+    }
+
+    const mobile =
+      normalizedMobile?.length === 10 ? normalizedMobile : await this.generateUniquePlaceholderMobile();
+
+    const doc = await this.vetModel.create({
+      fullName: trimmedName,
+      mobile,
+      ...(data.email?.trim() && { email: data.email.trim() }),
+      veterinaryRegistrationNumber: data.veterinaryRegistrationNumber?.trim() || 'PENDING',
+      yearOfRegistration: new Date().getFullYear(),
+      qualifications: [],
+      specializations: data.specializations ?? [],
+      clinicId: data.clinicId,
+      isClinicAdmin: false,
+      approvalStatus: 'pending',
+      onboardingCompleted: false,
+    });
+    return toVet(doc);
+  }
+
+  private async generateUniquePlaceholderMobile(): Promise<string> {
+    for (let attempt = 0; attempt < 25; attempt++) {
+      const candidate = `8${String(Math.floor(Math.random() * 1e9)).padStart(9, '0')}`;
+      const exists = await this.vetModel.exists({ mobile: candidate });
+      if (!exists) return candidate;
+    }
+    throw new BadRequestException('Could not create veterinarian record');
+  }
+
+  async acceptClinicMembership(vetId: string, clinicId: string): Promise<Vet> {
+    const doc = await this.vetModel
+      .findByIdAndUpdate(
+        vetId,
+        {
+          $set: {
+            clinicId,
+            onboardingCompleted: true,
+            approvalStatus: 'approved',
+            isClinicAdmin: false,
+          },
+        },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!doc) throw new BadRequestException('Vet not found');
     return toVet(doc);
   }
 

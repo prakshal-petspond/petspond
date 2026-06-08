@@ -42,6 +42,13 @@ export class ClinicInvitesService {
     return docs.map(toDto);
   }
 
+  /** Returns clinicId if an invite exists for this mobile (does not consume). */
+  async findPendingMobile(mobileRaw: string): Promise<string | null> {
+    const mobile = normalizeMobile(mobileRaw);
+    const doc = await this.inviteModel.findOne({ mobile }).exec();
+    return doc ? doc.clinicId : null;
+  }
+
   /** Returns clinicId if an invite existed and was consumed, else null */
   async consumePendingMobile(mobileRaw: string): Promise<string | null> {
     const mobile = normalizeMobile(mobileRaw);

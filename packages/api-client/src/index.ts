@@ -35,7 +35,15 @@ export class ApiClient {
     if (res.status === 401 && this.config.onUnauthorized) {
       this.config.onUnauthorized();
     }
-    const data = await res.json().catch(() => ({}));
+    const text = await res.text();
+    let data: unknown = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        data = {};
+      }
+    }
     if (!res.ok) {
       const err: ApiError = {
         statusCode: res.status,

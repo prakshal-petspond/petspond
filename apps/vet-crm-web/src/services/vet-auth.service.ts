@@ -5,6 +5,7 @@ import type {
   VetVerifyOtpResponse,
   VetCompleteOnboardingDto,
   VetCompleteClinicSetupDto,
+  VetPendingClinicInvite,
 } from '@petspond/types';
 import type { ApiClient } from '@petspond/api-client';
 
@@ -27,6 +28,14 @@ export const vetAuthApi = {
 
   me(client: ApiClient) {
     return client.get<Vet>(`${VET_AUTH_PREFIX}/me`);
+  },
+
+  getPendingClinicInvite(client: ApiClient) {
+    return client.get<VetPendingClinicInvite | null>(`${VET_AUTH_PREFIX}/pending-clinic-invite`);
+  },
+
+  acceptClinicInvite(client: ApiClient) {
+    return client.post<Vet>(`${VET_AUTH_PREFIX}/accept-clinic-invite`, {});
   },
 
   completeOnboarding(client: ApiClient, data: VetCompleteOnboardingDto) {
