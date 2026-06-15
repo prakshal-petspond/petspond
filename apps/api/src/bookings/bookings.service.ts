@@ -244,18 +244,22 @@ export class BookingsService {
     return this.enrichVaccination(doc);
   }
 
+  async enrichConsultationPublic(doc: ConsultationBookingDocument): Promise<ConsultationBooking> {
+    return this.enrichConsultation(doc);
+  }
+
   private async enrichConsultation(doc: ConsultationBookingDocument): Promise<ConsultationBooking> {
     const [user, clinic, v] = await Promise.all([
-      this.usersService.findById(doc.userId),
+      doc.userId ? this.usersService.findById(doc.userId) : Promise.resolve(null),
       this.clinicsService.findById(doc.clinicId),
       this.vetsService.findById(doc.vetId),
     ]);
     return {
       id: doc._id.toString(),
-      userId: doc.userId,
+      ...(doc.userId && { userId: doc.userId }),
       clinicId: doc.clinicId,
       vetId: doc.vetId,
-      petId: doc.petId,
+      ...(doc.petId && { petId: doc.petId }),
       petName: doc.petName,
       petSpecies: doc.petSpecies,
       petBreed: doc.petBreed,
@@ -272,10 +276,24 @@ export class BookingsService {
       promoCode: doc.promoCode,
       paymentMethodLabel: doc.paymentMethodLabel,
       stripeCheckoutSessionId: doc.stripeCheckoutSessionId,
-      userName: user?.name,
-      userMobile: user?.mobile,
+      userName: user?.name ?? doc.ownerNameSnapshot,
+      userMobile: user?.mobile ?? doc.ownerMobileSnapshot,
       clinicName: clinic?.name,
       vetName: v?.fullName,
+      queueStatus: doc.queueStatus ?? 'expected',
+      isWalkIn: doc.isWalkIn ?? false,
+      ...(doc.ownerNameSnapshot && { ownerNameSnapshot: doc.ownerNameSnapshot }),
+      ...(doc.ownerMobileSnapshot && { ownerMobileSnapshot: doc.ownerMobileSnapshot }),
+      ...(doc.checkedInAt && { checkedInAt: doc.checkedInAt.toISOString() }),
+      ...(doc.consultationStartedAt && {
+        consultationStartedAt: doc.consultationStartedAt.toISOString(),
+      }),
+      ...(doc.checkoutReadyAt && { checkoutReadyAt: doc.checkoutReadyAt.toISOString() }),
+      ...(doc.roomLabel && { roomLabel: doc.roomLabel }),
+      ...(doc.invoiceNumber && { invoiceNumber: doc.invoiceNumber }),
+      ...(doc.collectedAt && { collectedAt: doc.collectedAt.toISOString() }),
+      ...(doc.collectedByVetId && { collectedByVetId: doc.collectedByVetId }),
+      ...(doc.refundedAt && { refundedAt: doc.refundedAt.toISOString() }),
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
     };

@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import type { Clinic, ClinicStaffMember, ConsultationBooking, Vet } from '@petspond/types';
 import { useApi, getStoredVetToken } from '@/contexts';
 import { vetAuthApi } from '@/services/vet-auth.service';
+import { signOutVet } from '@/features/auth/sign-out';
 import { vetPortalApi } from '@/services/vet-portal.service';
+import { frontDeskApi } from '@/services/front-desk.service';
 import { getVetPostAuthPath } from '@/lib/vetRouting';
 
 type DashboardContextValue = {
@@ -14,6 +16,7 @@ type DashboardContextValue = {
   team: Vet[];
   frontOfficeStaff: ClinicStaffMember[];
   consultations: ConsultationBooking[];
+  frontDeskBadges: { checkIn: number; queue: number };
   loading: boolean;
   refresh: () => Promise<void>;
   signOut: () => void;
@@ -23,12 +26,13 @@ const DashboardContext = createContext<DashboardContextValue | null>(null);
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { client, token, setToken } = useApi();
+  const { client, token, clearAuth } = useApi();
   const [vet, setVet] = useState<Vet | null>(null);
   const [clinic, setClinic] = useState<Clinic | null>(null);
   const [team, setTeam] = useState<Vet[]>([]);
   const [frontOfficeStaff, setFrontOfficeStaff] = useState<ClinicStaffMember[]>([]);
   const [consultations, setConsultations] = useState<ConsultationBooking[]>([]);
+  const [frontDeskBadges, setFrontDeskBadges] = useState({ checkIn: 0, queue: 0 });
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -50,12 +54,18 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       setVet(me);
 
       if (me.approvalStatus === 'approved' && me.clinicId) {
-        const [clinicPayload, cons] = await Promise.all([
+        const [clinicPayload, cons, checkInBoard, queueBoard] = await Promise.all([
           vetPortalApi.getClinic(client).catch(() => null),
           vetPortalApi.listConsultations(client).catch(() => [] as ConsultationBooking[]),
+          frontDeskApi.getCheckIn(client).catch(() => null),
+          frontDeskApi.getQueue(client).catch(() => null),
         ]);
         if (clinicPayload) setClinic(clinicPayload.clinic);
         setConsultations(cons);
+        setFrontDeskBadges({
+          checkIn: checkInBoard?.summary.waitingToCheckIn ?? 0,
+          queue: queueBoard?.stats.petsInClinic ?? 0,
+        });
 
         if (me.isClinicAdmin) {
           const teamRes = await vetAuthApi.getTeam(client, me.clinicId).catch(() => null);
@@ -86,14 +96,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       team,
       frontOfficeStaff,
       consultations,
+      frontDeskBadges,
       loading,
       refresh: load,
       signOut: () => {
-        setToken(null);
-        router.replace('/login');
+        void signOutVet(client, clearAuth, router);
       },
     }),
-    [vet, clinic, team, frontOfficeStaff, consultations, loading, setToken, router],
+    [vet, clinic, team, frontOfficeStaff, consultations, frontDeskBadges, loading, client, clearAuth, router],
   );
 
   return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;

@@ -10,6 +10,7 @@ import {
   OnboardingShell,
 } from '../components/OnboardingShell';
 import { OnboardingField, OnboardingInput } from '../components/OnboardingField';
+import { PhoneVerifySection } from '../components/PhoneVerifySection';
 import { useOnboardingDraft, getOnboardingDraft } from '../useOnboardingDraft';
 
 function formatPhoneDisplay(mobile: string): string {
@@ -27,6 +28,7 @@ export function Step1AboutYou() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [prefilled, setPrefilled] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
 
   useEffect(() => {
     if (!ready || prefilled) return;
@@ -40,6 +42,7 @@ export function Step1AboutYou() {
           phone: stored.phone || formatPhoneDisplay(vet.mobile),
           email: stored.email || vet.email || '',
         });
+        setPhoneVerified(vet.phoneVerified ?? false);
         setPrefilled(true);
       })
       .catch(() => setPrefilled(true));
@@ -65,6 +68,10 @@ export function Step1AboutYou() {
     }
     if (!phone.replace(/\D/g, '')) {
       setError('Please enter a phone number.');
+      return;
+    }
+    if (!phoneVerified) {
+      setError('Please verify your phone number before continuing.');
       return;
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -116,31 +123,30 @@ export function Step1AboutYou() {
           />
         </OnboardingField>
 
-        <div className="grid gap-6 sm:grid-cols-2">
-          <OnboardingField label="Phone">
-            <OnboardingInput
-              type="tel"
-              value={draft.phone}
-              onChange={(e) => setDraft({ phone: e.target.value })}
-              placeholder="+91 98765 43210"
-              autoComplete="tel"
-            />
-          </OnboardingField>
-          <OnboardingField label="Email">
-            <OnboardingInput
-              type="email"
-              value={draft.email}
-              onChange={(e) => setDraft({ email: e.target.value })}
-              placeholder="anita@happytails.in"
-              autoComplete="email"
-            />
-          </OnboardingField>
-        </div>
+        <PhoneVerifySection
+          phone={draft.phone}
+          onPhoneChange={(phone) => {
+            setDraft({ phone });
+            setPhoneVerified(false);
+          }}
+          verified={phoneVerified}
+          onVerified={() => setPhoneVerified(true)}
+        />
+
+        <OnboardingField label="Email">
+          <OnboardingInput
+            type="email"
+            value={draft.email}
+            onChange={(e) => setDraft({ email: e.target.value })}
+            placeholder="anita@happytails.in"
+            autoComplete="email"
+          />
+        </OnboardingField>
 
         {error ? <p className="text-sm text-error">{error}</p> : null}
 
         <div className="flex flex-wrap items-center gap-5 pt-2">
-          <OnboardingContinueButton loading={loading} />
+          <OnboardingContinueButton loading={loading} disabled={!phoneVerified} />
           <OnboardingLoginLink />
         </div>
       </form>

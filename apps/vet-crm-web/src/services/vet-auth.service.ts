@@ -3,6 +3,9 @@ import type {
   Clinic,
   ClinicTeamResponse,
   VetVerifyOtpResponse,
+  VetAuthResponse,
+  VetRefreshTokenResponse,
+  VetRegisterVerifyEmailResponse,
   VetCompleteOnboardingDto,
   VetCompleteClinicSetupDto,
   VetPendingClinicInvite,
@@ -21,6 +24,61 @@ export const vetAuthApi = {
 
   verifyOtp(client: ApiClient, mobile: string, otp: string) {
     return client.post<VetVerifyOtpResponse>(`${VET_AUTH_PREFIX}/verify-otp`, {
+      mobile: mobile.replace(/\D/g, '').slice(-10),
+      otp: otp.trim(),
+    });
+  },
+
+  login(client: ApiClient, email: string, password: string) {
+    return client.post<VetAuthResponse>(`${VET_AUTH_PREFIX}/login`, { email, password });
+  },
+
+  registerSendEmailOtp(client: ApiClient, email: string) {
+    return client.post<{ success: boolean; message?: string }>(
+      `${VET_AUTH_PREFIX}/register/send-email-otp`,
+      { email },
+    );
+  },
+
+  registerVerifyEmailOtp(client: ApiClient, email: string, otp: string) {
+    return client.post<VetRegisterVerifyEmailResponse>(
+      `${VET_AUTH_PREFIX}/register/verify-email-otp`,
+      { email, otp },
+    );
+  },
+
+  registerSetPassword(client: ApiClient, registrationToken: string, password: string) {
+    return client.post<VetAuthResponse>(`${VET_AUTH_PREFIX}/register/set-password`, {
+      registrationToken,
+      password,
+    });
+  },
+
+  googleAuth(client: ApiClient, idToken: string) {
+    return client.post<VetAuthResponse>(`${VET_AUTH_PREFIX}/google`, { idToken });
+  },
+
+  refresh(client: ApiClient, refreshToken: string) {
+    return client.post<VetRefreshTokenResponse>(`${VET_AUTH_PREFIX}/refresh`, { refreshToken });
+  },
+
+  logout(client: ApiClient, refreshToken: string) {
+    return client.post<{ success: boolean }>(`${VET_AUTH_PREFIX}/logout`, { refreshToken });
+  },
+
+  logoutAll(client: ApiClient) {
+    return client.post<{ success: boolean }>(`${VET_AUTH_PREFIX}/logout-all`, {});
+  },
+
+  onboardingSendPhoneOtp(client: ApiClient, mobile: string) {
+    return client.post<{ success: boolean; message?: string }>(
+      `${VET_AUTH_PREFIX}/onboarding/send-phone-otp`,
+      { mobile: mobile.replace(/\D/g, '').slice(-10) },
+    );
+  },
+
+  onboardingVerifyPhoneOtp(client: ApiClient, mobile: string, otp: string) {
+    return client.post<Vet>(`${VET_AUTH_PREFIX}/onboarding/verify-phone-otp`, {
       mobile: mobile.replace(/\D/g, '').slice(-10),
       otp: otp.trim(),
     });

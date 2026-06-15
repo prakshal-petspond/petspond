@@ -7,6 +7,7 @@ import { VetsService } from '@/vets/vets.service';
 
 export interface VetJwtPayload {
   sub: string;
+  type?: 'access';
 }
 
 @Injectable()
@@ -23,6 +24,9 @@ export class VetJwtStrategy extends PassportStrategy(Strategy, 'vet-jwt') {
   }
 
   async validate(payload: VetJwtPayload): Promise<Vet> {
+    if (payload.type && payload.type !== 'access') {
+      throw new UnauthorizedException('Invalid token type');
+    }
     const vet = await this.vetsService.findById(payload.sub);
     if (!vet) throw new UnauthorizedException('Vet not found');
     return vet;

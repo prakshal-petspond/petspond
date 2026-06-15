@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { EmailService } from './email.service';
 import { OTP_SENDER } from './auth.tokens';
 import { MockOtpSender } from './mock-otp.sender';
 import { TwilioOtpSender } from './twilio-otp.sender';
@@ -33,6 +34,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
   controllers: [AuthController],
   providers: [
     AuthService,
+    EmailService,
     JwtStrategy,
     JwtAuthGuard,
     {
@@ -67,6 +69,6 @@ import { JwtAuthGuard } from './jwt-auth.guard';
       },
     },
   ],
-  exports: [AuthService, JwtStrategy, JwtAuthGuard],
+  exports: [AuthService, EmailService, JwtStrategy, JwtAuthGuard],
 })
 export class AuthModule {}

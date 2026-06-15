@@ -8,17 +8,20 @@ import type { ApiError } from '@petspond/types';
 export interface ApiClientConfig {
   baseUrl: string;
   getAccessToken?: () => string | null;
+  refreshAccessToken?: () => Promise<string | null>;
   onUnauthorized?: () => void;
 }
+
+type RequestOptions = RequestInit & {
+  params?: Record<string, string>;
+  _retried?: boolean;
+};
 
 export class ApiClient {
   constructor(private readonly config: ApiClientConfig) {}
 
-  private async request<T>(
-    path: string,
-    options: RequestInit & { params?: Record<string, string> } = {},
-  ): Promise<T> {
-    const { params, ...init } = options;
+  private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const { params, _retried, ...init } = options;
     const url = new URL(path, this.config.baseUrl);
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -32,6 +35,12 @@ export class ApiClient {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
     }
     const res = await fetch(url.toString(), { ...init, headers });
+    if (res.status === 401 && !_retried && this.config.refreshAccessToken) {
+      const newToken = await this.config.refreshAccessToken();
+      if (newToken) {
+        return this.request<T>(path, { ...options, _retried: true });
+      }
+    }
     if (res.status === 401 && this.config.onUnauthorized) {
       this.config.onUnauthorized();
     }

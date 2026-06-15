@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useApi } from '@/contexts';
+import { signOutVet } from '@/features/auth/sign-out';
 import { ONBOARDING_STEPS, ONBOARDING_DRAFT_KEY } from '../constants';
 import { OnboardingLogo } from './OnboardingLogo';
 
@@ -57,12 +58,11 @@ function StepDot({ active }: { active: boolean }) {
 
 export function OnboardingLogoutButton() {
   const router = useRouter();
-  const { setToken } = useApi();
+  const { client, clearAuth } = useApi();
 
   const handleLogout = () => {
     sessionStorage.removeItem(ONBOARDING_DRAFT_KEY);
-    setToken(null);
-    router.replace('/login');
+    void signOutVet(client, clearAuth, router);
   };
 
   return (

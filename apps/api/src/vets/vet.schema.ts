@@ -23,8 +23,20 @@ export class VetDocument extends Document {
   @Prop({ required: true, unique: true })
   mobile!: string;
 
-  @Prop()
+  @Prop({ sparse: true, unique: true })
   email?: string;
+
+  @Prop()
+  passwordHash?: string;
+
+  @Prop({ sparse: true, unique: true })
+  googleId?: string;
+
+  @Prop({ default: false })
+  emailVerified!: boolean;
+
+  @Prop({ default: false })
+  phoneVerified!: boolean;
 
   @Prop({ required: true })
   veterinaryRegistrationNumber!: string;
@@ -67,4 +79,6 @@ export class VetDocument extends Document {
 export const VetSchema = SchemaFactory.createForClass(VetDocument);
 
 VetSchema.index({ mobile: 1 }, { unique: true });
+VetSchema.index({ email: 1 }, { unique: true, sparse: true });
+VetSchema.index({ googleId: 1 }, { unique: true, sparse: true });
 VetSchema.index({ clinicId: 1 });

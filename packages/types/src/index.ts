@@ -148,6 +148,8 @@ export interface Vet {
   fullName: string;
   mobile: string;
   email?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
   veterinaryRegistrationNumber: string;
   yearOfRegistration: number;
   qualifications: string[];
@@ -329,10 +331,36 @@ export interface VetPendingClinicInvite {
 
 export interface VetVerifyOtpResponse {
   verified: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  /** @deprecated Use accessToken */
   token?: string;
   vet?: Vet;
   pendingClinicInvite?: VetPendingClinicInvite;
   message?: string;
+}
+
+export interface VetTokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface VetAuthResponse extends VetTokenPair {
+  /** @deprecated Use accessToken */
+  token?: string;
+  vet: Vet;
+  pendingClinicInvite?: VetPendingClinicInvite;
+}
+
+export interface VetRefreshTokenResponse extends VetTokenPair {
+  /** @deprecated Use accessToken */
+  token?: string;
+}
+
+export interface VetRegisterVerifyEmailResponse {
+  verified: boolean;
+  registrationToken: string;
+  email: string;
 }
 
 // ----- Pet -----
@@ -396,14 +424,16 @@ export type ConsultationBookingStatus =
   | 'cancelled'
   | 'no_show';
 
-export type BookingPaymentStatus = 'pending' | 'paid' | 'failed';
+export type BookingPaymentStatus = 'pending' | 'paid' | 'failed' | 'refunded';
+
+export type ConsultationQueueStatus = 'expected' | 'waiting' | 'in_consultation' | 'ready_checkout';
 
 export interface ConsultationBooking {
   id: string;
-  userId: string;
+  userId?: string;
   clinicId: string;
   vetId: string;
-  petId: string;
+  petId?: string;
   petName: string;
   petSpecies: string;
   petBreed: string;
@@ -424,8 +454,76 @@ export interface ConsultationBooking {
   userMobile?: string;
   clinicName?: string;
   vetName?: string;
+  queueStatus?: ConsultationQueueStatus;
+  isWalkIn?: boolean;
+  ownerNameSnapshot?: string;
+  ownerMobileSnapshot?: string;
+  checkedInAt?: string;
+  consultationStartedAt?: string;
+  checkoutReadyAt?: string;
+  roomLabel?: string;
+  invoiceNumber?: string;
+  collectedAt?: string;
+  collectedByVetId?: string;
+  refundedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CheckInBoardResponse {
+  expectedArrivals: ConsultationBooking[];
+  summary: {
+    bookedToday: number;
+    waitingToCheckIn: number;
+    arrived: number;
+    inWaitingRoom: number;
+    noShow: number;
+  };
+  recentlyCheckedIn: ConsultationBooking[];
+}
+
+export interface QueueBoardResponse {
+  waiting: ConsultationBooking[];
+  inConsultation: ConsultationBooking[];
+  readyCheckout: ConsultationBooking[];
+  stats: {
+    petsInClinic: number;
+    avgWaitMinutes: number;
+  };
+}
+
+export interface PaymentsBoardResponse {
+  summary: {
+    collectedTodayPaise: number;
+    collectedCount: number;
+    pendingPaise: number;
+    pendingCount: number;
+    refundsPaise: number;
+    refundsCount: number;
+  };
+  invoices: ConsultationBooking[];
+}
+
+export interface CreateWalkInDto {
+  petName: string;
+  petSpecies?: string;
+  petBreed?: string;
+  ownerName: string;
+  ownerMobile?: string;
+  vetId?: string;
+  reasonIds?: string[];
+  notes?: string;
+  totalPaise?: number;
+}
+
+export interface UpdateQueueStatusDto {
+  queueStatus: ConsultationQueueStatus;
+  roomLabel?: string;
+  vetId?: string;
+}
+
+export interface CollectPaymentDto {
+  paymentMethodLabel?: string;
 }
 
 export interface CreateConsultationBookingDto {

@@ -3,21 +3,21 @@
  * Single top-level theme; override here for rebrand or dark mode.
  */
 :root {
-  --color-primary: #EA580C;
-  --color-primary-hover: #C2410C;
-  --color-primary-muted: #FFEDD5;
-  --color-background: #FFFBEF;
-  --color-background-muted: #FEF3C7;
+  --color-primary: #ea580c;
+  --color-primary-hover: #c2410c;
+  --color-primary-muted: #ffedd5;
+  --color-background: #f6f8fe;
+  --color-background-muted: #fef3c7;
   --color-foreground: #333333;
-  --color-muted: #6B7280;
-  --color-border: #E5E7EB;
-  --color-card: #FFFFFF;
+  --color-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --color-card: #ffffff;
   --color-success: #059669;
-  --color-success-muted: #D1FAE5;
-  --color-warning: #DC2626;
-  --color-warning-muted: #FFF0E0;
-  --color-tag: #FEF3C7;
-  --color-error: #DC2626;
+  --color-success-muted: #d1fae5;
+  --color-warning: #dc2626;
+  --color-warning-muted: #fff0e0;
+  --color-tag: #fef3c7;
+  --color-error: #dc2626;
   --color-brand-blue: #1f8fff;
   --color-brand-blue-hover: #1878e6;
   --color-onboarding-accent: #fc6e2a;

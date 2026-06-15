@@ -3,8 +3,8 @@ import { Document } from 'mongoose';
 
 @Schema({ timestamps: true, _id: true })
 export class ConsultationBookingDocument extends Document {
-  @Prop({ required: true, index: true })
-  userId!: string;
+  @Prop({ index: true })
+  userId?: string;
 
   @Prop({ required: true, index: true })
   clinicId!: string;
@@ -12,8 +12,8 @@ export class ConsultationBookingDocument extends Document {
   @Prop({ required: true })
   vetId!: string;
 
-  @Prop({ required: true })
-  petId!: string;
+  @Prop()
+  petId?: string;
 
   @Prop({ required: true })
   petName!: string;
@@ -43,8 +43,47 @@ export class ConsultationBookingDocument extends Document {
   })
   status!: 'pending_payment' | 'scheduled' | 'completed' | 'cancelled' | 'no_show';
 
-  @Prop({ required: true, enum: ['pending', 'paid', 'failed'], default: 'pending' })
-  paymentStatus!: 'pending' | 'paid' | 'failed';
+  @Prop({ required: true, enum: ['pending', 'paid', 'failed', 'refunded'], default: 'pending' })
+  paymentStatus!: 'pending' | 'paid' | 'failed' | 'refunded';
+
+  @Prop({
+    enum: ['expected', 'waiting', 'in_consultation', 'ready_checkout'],
+    default: 'expected',
+  })
+  queueStatus!: 'expected' | 'waiting' | 'in_consultation' | 'ready_checkout';
+
+  @Prop({ default: false })
+  isWalkIn!: boolean;
+
+  @Prop()
+  ownerNameSnapshot?: string;
+
+  @Prop()
+  ownerMobileSnapshot?: string;
+
+  @Prop()
+  checkedInAt?: Date;
+
+  @Prop()
+  consultationStartedAt?: Date;
+
+  @Prop()
+  checkoutReadyAt?: Date;
+
+  @Prop()
+  roomLabel?: string;
+
+  @Prop()
+  invoiceNumber?: string;
+
+  @Prop()
+  collectedAt?: Date;
+
+  @Prop()
+  collectedByVetId?: string;
+
+  @Prop()
+  refundedAt?: Date;
 
   @Prop({ required: true })
   consultationFeePaise!: number;

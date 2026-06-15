@@ -1,31 +1,104 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { OAuth2Client } from 'google-auth-library';
+import * as bcrypt from 'bcryptjs';
 import { getAndDeleteOtp } from '../auth/otp.store';
+import { getAndDeleteOtpForKey, setOtpForKey } from '../auth/key-otp.store';
+import { createRegistrationToken, consumeRegistrationToken } from '../auth/registration-token.store';
 import { shouldAcceptOtpBypass } from '../auth/otp-bypass';
-import type { Clinic, ClinicTeamResponse, Vet, VetCompleteClinicSetupDto, VetPendingClinicInvite } from '@petspond/types';
+import type {
+  Clinic,
+  ClinicTeamResponse,
+  Vet,
+  VetCompleteClinicSetupDto,
+  VetPendingClinicInvite,
+  VetVerifyOtpResponse,
+} from '@petspond/types';
 import type { CreateClinicDto } from '@petspond/types';
 import { VetsService } from '@/vets/vets.service';
 import { ClinicsService } from '@/clinics/clinics.service';
 import { AuthService } from '@/auth/auth.service';
+import { EmailService } from '@/auth/email.service';
 import { ClinicInvitesService } from '@/bookings/clinic-invites.service';
 import { ClinicStaffService } from '@/clinic-staff/clinic-staff.service';
+import { VetTokenService } from './vet-token.service';
 
 function normalizeMobile(mobile: string): string {
   return mobile.replace(/\D/g, '').slice(-10);
 }
 
+function normalizeEmail(email: string): string {
+  return email.toLowerCase().trim();
+}
+
+function emailOtpKey(email: string): string {
+  return `email:${normalizeEmail(email)}`;
+}
+
+function onboardingPhoneKey(vetId: string, mobile: string): string {
+  return `vet-phone:${vetId}:${normalizeMobile(mobile)}`;
+}
+
 @Injectable()
 export class VetAuthService {
+  private googleClient: OAuth2Client | null = null;
+
   constructor(
     private readonly authService: AuthService,
+    private readonly emailService: EmailService,
     private readonly config: ConfigService,
     private readonly vetsService: VetsService,
     private readonly clinicsService: ClinicsService,
-    private readonly jwtService: JwtService,
     private readonly clinicInvites: ClinicInvitesService,
     private readonly clinicStaff: ClinicStaffService,
+    private readonly vetTokens: VetTokenService,
   ) {}
+
+  private getGoogleClient(): OAuth2Client {
+    if (!this.googleClient) {
+      const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+      if (!clientId) throw new BadRequestException('Google sign-in is not configured');
+      this.googleClient = new OAuth2Client(clientId);
+    }
+    return this.googleClient;
+  }
+
+  private async authResponse(vet: Vet) {
+    const { accessToken, refreshToken } = await this.vetTokens.createTokenPair(vet.id);
+    const pendingClinicInvite = await this.getPendingClinicInvite(vet);
+    return {
+      accessToken,
+      refreshToken,
+      token: accessToken,
+      vet,
+      ...(pendingClinicInvite && { pendingClinicInvite }),
+    };
+  }
+
+  async refreshSession(refreshToken: string) {
+    const rotated = await this.vetTokens.rotateRefreshToken(refreshToken);
+    const vet = await this.vetsService.findById(rotated.vetId);
+    if (!vet) throw new UnauthorizedException('Vet not found');
+    return {
+      accessToken: rotated.accessToken,
+      refreshToken: rotated.refreshToken,
+      token: rotated.accessToken,
+    };
+  }
+
+  async logout(refreshToken: string) {
+    await this.vetTokens.revokeRefreshToken(refreshToken);
+    return { success: true };
+  }
+
+  async logoutAll(vetId: string) {
+    await this.vetTokens.revokeAllForVet(vetId);
+    return { success: true };
+  }
 
   /** Prefer existing mobile profile, then pre-added clinic vet via invite, else create stub. */
   private async resolveVetForLogin(normalized: string): Promise<Vet> {
@@ -47,16 +120,7 @@ export class VetAuthService {
     return this.authService.sendOtp(mobile, countryCode);
   }
 
-  async verifyOtp(
-    mobile: string,
-    otp: string,
-  ): Promise<{
-    verified: boolean;
-    token?: string;
-    vet?: Vet;
-    pendingClinicInvite?: VetPendingClinicInvite;
-    message?: string;
-  }> {
+  async verifyOtp(mobile: string, otp: string): Promise<VetVerifyOtpResponse> {
     const normalized = normalizeMobile(mobile);
     if (normalized.length < 10) {
       return { verified: false, message: 'Invalid mobile number.' };
@@ -74,9 +138,115 @@ export class VetAuthService {
       }
       vet = await this.resolveVetForLogin(normalized);
     }
-    const token = this.jwtService.sign({ sub: vet.id });
+    const { accessToken, refreshToken } = await this.vetTokens.createTokenPair(vet.id);
     const pendingClinicInvite = await this.getPendingClinicInvite(vet);
-    return { verified: true, token, vet, ...(pendingClinicInvite && { pendingClinicInvite }) };
+    return {
+      verified: true,
+      accessToken,
+      refreshToken,
+      token: accessToken,
+      vet,
+      ...(pendingClinicInvite && { pendingClinicInvite }),
+    };
+  }
+
+  async loginWithEmail(email: string, password: string) {
+    const vet = await this.vetsService.findByEmail(normalizeEmail(email));
+    if (!vet) throw new UnauthorizedException('Invalid email or password');
+
+    const hash = await this.vetsService.getPasswordHash(vet.id);
+    if (!hash) throw new UnauthorizedException('This account uses Google sign-in');
+
+    const ok = await bcrypt.compare(password, hash);
+    if (!ok) throw new UnauthorizedException('Invalid email or password');
+
+    return this.authResponse(vet);
+  }
+
+  async sendRegisterEmailOtp(email: string) {
+    const normalized = normalizeEmail(email);
+    const existing = await this.vetsService.findByEmail(normalized);
+    if (existing) throw new BadRequestException('An account with this email already exists');
+
+    const otp = this.emailService.generateOtp();
+    setOtpForKey(emailOtpKey(normalized), otp);
+    const result = await this.emailService.sendOtp(normalized, otp);
+    if (!result.success) {
+      throw new BadRequestException(result.message ?? 'Failed to send verification email');
+    }
+    return result;
+  }
+
+  async verifyRegisterEmailOtp(email: string, otp: string) {
+    const normalized = normalizeEmail(email);
+    const existing = await this.vetsService.findByEmail(normalized);
+    if (existing) throw new BadRequestException('An account with this email already exists');
+
+    if (!shouldAcceptOtpBypass(this.config, otp)) {
+      const stored = getAndDeleteOtpForKey(emailOtpKey(normalized));
+      if (!stored) throw new BadRequestException('OTP expired or not found. Please request a new one.');
+      if (stored !== otp.trim()) throw new BadRequestException('Invalid OTP.');
+    }
+
+    const registrationToken = createRegistrationToken(normalized);
+    return { verified: true, registrationToken, email: normalized };
+  }
+
+  async completeRegistration(registrationToken: string, password: string) {
+    const email = consumeRegistrationToken(registrationToken);
+    if (!email) throw new BadRequestException('Registration session expired. Please start again.');
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const vet = await this.vetsService.createFromEmailRegistration(email, passwordHash);
+    return this.authResponse(vet);
+  }
+
+  async loginWithGoogle(idToken: string) {
+    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID');
+    if (!clientId) throw new BadRequestException('Google sign-in is not configured');
+
+    const ticket = await this.getGoogleClient().verifyIdToken({
+      idToken,
+      audience: clientId,
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.sub || !payload.email) {
+      throw new UnauthorizedException('Invalid Google token');
+    }
+
+    const vet = await this.vetsService.createFromGoogle({
+      googleId: payload.sub,
+      email: payload.email,
+      fullName: payload.name ?? 'Vet',
+    });
+
+    return this.authResponse(vet);
+  }
+
+  async sendOnboardingPhoneOtp(vetId: string, mobile: string) {
+    const normalized = normalizeMobile(mobile);
+    if (normalized.length < 10) throw new BadRequestException('Invalid mobile number');
+
+    const conflict = await this.vetsService.findByMobile(normalized);
+    if (conflict && conflict.id !== vetId && conflict.phoneVerified) {
+      throw new BadRequestException('This mobile number is already registered');
+    }
+
+    return this.authService.sendOtp(normalized);
+  }
+
+  async verifyOnboardingPhoneOtp(vetId: string, mobile: string, otp: string) {
+    const normalized = normalizeMobile(mobile);
+    if (normalized.length < 10) throw new BadRequestException('Invalid mobile number');
+
+    if (!shouldAcceptOtpBypass(this.config, otp)) {
+      const stored = getAndDeleteOtp(normalized);
+      if (!stored) throw new BadRequestException('OTP expired or not found. Please request a new one.');
+      if (stored !== otp.trim()) throw new BadRequestException('Invalid OTP.');
+    }
+
+    const vet = await this.vetsService.verifyPhone(vetId, normalized);
+    return vet;
   }
 
   async getPendingClinicInvite(vet: Vet): Promise<VetPendingClinicInvite | null> {
@@ -188,6 +358,9 @@ export class VetAuthService {
     if (!existing) throw new BadRequestException('Vet not found');
     if (existing.onboardingCompleted) {
       throw new BadRequestException('Onboarding already completed');
+    }
+    if (!existing.phoneVerified) {
+      throw new BadRequestException('Please verify your phone number before completing setup');
     }
 
     const additionalVets = dto.additionalVeterinarians ?? [];

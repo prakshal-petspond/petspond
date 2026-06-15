@@ -23,6 +23,16 @@ import { SendOtpDto } from '@/auth/dto/send-otp.dto';
 import { VetVerifyOtpDto } from './dto/verify-otp.dto';
 import { VetCompleteOnboardingDto } from './dto/complete-onboarding.dto';
 import { VetCompleteClinicSetupDto } from './dto/complete-clinic-setup.dto';
+import {
+  VetGoogleAuthDto,
+  VetLoginDto,
+  VetOnboardingPhoneOtpDto,
+  VetOnboardingSendPhoneOtpDto,
+  VetRegisterSendEmailOtpDto,
+  VetRegisterSetPasswordDto,
+  VetRegisterVerifyEmailOtpDto,
+} from './dto/vet-credentials.dto';
+import { VetRefreshTokenDto } from './dto/refresh-token.dto';
 import { VetsService } from '@/vets/vets.service';
 import { ClinicsService } from '@/clinics/clinics.service';
 import { R2StorageService } from '@/storage/r2-storage.service';
@@ -54,6 +64,69 @@ export class VetAuthController {
         process.env.NODE_ENV === 'production' ? 'Verification failed. Please try again.' : message,
       );
     }
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  async login(@Body() dto: VetLoginDto) {
+    return this.vetAuthService.loginWithEmail(dto.email, dto.password);
+  }
+
+  @Post('register/send-email-otp')
+  @HttpCode(HttpStatus.OK)
+  async registerSendEmailOtp(@Body() dto: VetRegisterSendEmailOtpDto) {
+    return this.vetAuthService.sendRegisterEmailOtp(dto.email);
+  }
+
+  @Post('register/verify-email-otp')
+  @HttpCode(HttpStatus.OK)
+  async registerVerifyEmailOtp(@Body() dto: VetRegisterVerifyEmailOtpDto) {
+    return this.vetAuthService.verifyRegisterEmailOtp(dto.email, dto.otp);
+  }
+
+  @Post('register/set-password')
+  @HttpCode(HttpStatus.OK)
+  async registerSetPassword(@Body() dto: VetRegisterSetPasswordDto) {
+    return this.vetAuthService.completeRegistration(dto.registrationToken, dto.password);
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async googleAuth(@Body() dto: VetGoogleAuthDto) {
+    return this.vetAuthService.loginWithGoogle(dto.idToken);
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body() dto: VetRefreshTokenDto) {
+    return this.vetAuthService.refreshSession(dto.refreshToken);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(@Body() dto: VetRefreshTokenDto) {
+    return this.vetAuthService.logout(dto.refreshToken);
+  }
+
+  @Post('logout-all')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(VetJwtAuthGuard)
+  async logoutAll(@CurrentVet() vet: Vet) {
+    return this.vetAuthService.logoutAll(vet.id);
+  }
+
+  @Post('onboarding/send-phone-otp')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(VetJwtAuthGuard)
+  async onboardingSendPhoneOtp(@CurrentVet() vet: Vet, @Body() dto: VetOnboardingSendPhoneOtpDto) {
+    return this.vetAuthService.sendOnboardingPhoneOtp(vet.id, dto.mobile);
+  }
+
+  @Post('onboarding/verify-phone-otp')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(VetJwtAuthGuard)
+  async onboardingVerifyPhoneOtp(@CurrentVet() vet: Vet, @Body() dto: VetOnboardingPhoneOtpDto) {
+    return this.vetAuthService.verifyOnboardingPhoneOtp(vet.id, dto.mobile, dto.otp);
   }
 
   @Get('me')

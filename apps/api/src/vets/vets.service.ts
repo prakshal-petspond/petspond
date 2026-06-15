@@ -10,6 +10,8 @@ function toVet(doc: VetDocument): Vet {
     fullName: doc.fullName ?? 'Vet',
     mobile: doc.mobile,
     ...(doc.email != null && doc.email !== '' && { email: doc.email }),
+    emailVerified: doc.emailVerified ?? false,
+    phoneVerified: doc.phoneVerified ?? false,
     veterinaryRegistrationNumber: doc.veterinaryRegistrationNumber ?? '',
     yearOfRegistration: doc.yearOfRegistration ?? 0,
     qualifications: doc.qualifications ?? [],
@@ -42,6 +44,17 @@ export class VetsService {
     return doc ? toVet(doc) : null;
   }
 
+  async findByEmail(email: string): Promise<Vet | null> {
+    const normalized = email.toLowerCase().trim();
+    const doc = await this.vetModel.findOne({ email: normalized }).exec();
+    return doc ? toVet(doc) : null;
+  }
+
+  async findByGoogleId(googleId: string): Promise<Vet | null> {
+    const doc = await this.vetModel.findOne({ googleId }).exec();
+    return doc ? toVet(doc) : null;
+  }
+
   async findById(id: string): Promise<Vet | null> {
     const doc = await this.vetModel.findById(id).exec();
     return doc ? toVet(doc) : null;
@@ -63,10 +76,113 @@ export class VetsService {
   async assignMobileToVet(vetId: string, mobile: string): Promise<Vet> {
     const normalized = mobile.replace(/\D/g, '').slice(-10);
     const doc = await this.vetModel
-      .findByIdAndUpdate(vetId, { $set: { mobile: normalized } }, { new: true, runValidators: true })
+      .findByIdAndUpdate(vetId, { $set: { mobile: normalized, phoneVerified: true } }, { new: true, runValidators: true })
       .exec();
     if (!doc) throw new BadRequestException('Vet not found');
     return toVet(doc);
+  }
+
+  async createFromEmailRegistration(email: string, passwordHash: string): Promise<Vet> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const existing = await this.vetModel.findOne({ email: normalizedEmail }).exec();
+    if (existing) throw new BadRequestException('An account with this email already exists');
+
+    const mobile = await this.generateUniquePlaceholderMobile();
+    const doc = await this.vetModel.create({
+      fullName: 'Vet',
+      mobile,
+      email: normalizedEmail,
+      passwordHash,
+      emailVerified: true,
+      phoneVerified: false,
+      veterinaryRegistrationNumber: 'PENDING',
+      yearOfRegistration: new Date().getFullYear(),
+      qualifications: [],
+      specializations: [],
+      approvalStatus: 'pending',
+      isClinicAdmin: false,
+      onboardingCompleted: false,
+    });
+    return toVet(doc);
+  }
+
+  async createFromGoogle(data: {
+    googleId: string;
+    email: string;
+    fullName: string;
+  }): Promise<Vet> {
+    const normalizedEmail = data.email.toLowerCase().trim();
+    const existingGoogle = await this.vetModel.findOne({ googleId: data.googleId }).exec();
+    if (existingGoogle) return toVet(existingGoogle);
+
+    const existingEmail = await this.vetModel.findOne({ email: normalizedEmail }).exec();
+    if (existingEmail) {
+      if (existingEmail.googleId && existingEmail.googleId !== data.googleId) {
+        throw new BadRequestException('Email is linked to another sign-in method');
+      }
+      const doc = await this.vetModel
+        .findByIdAndUpdate(
+          existingEmail._id,
+          {
+            $set: {
+              googleId: data.googleId,
+              emailVerified: true,
+              ...(data.fullName && existingEmail.fullName === 'Vet' && { fullName: data.fullName }),
+            },
+          },
+          { new: true },
+        )
+        .exec();
+      if (!doc) throw new BadRequestException('Vet not found');
+      return toVet(doc);
+    }
+
+    const mobile = await this.generateUniquePlaceholderMobile();
+    const doc = await this.vetModel.create({
+      fullName: data.fullName.trim() || 'Vet',
+      mobile,
+      email: normalizedEmail,
+      googleId: data.googleId,
+      emailVerified: true,
+      phoneVerified: false,
+      veterinaryRegistrationNumber: 'PENDING',
+      yearOfRegistration: new Date().getFullYear(),
+      qualifications: [],
+      specializations: [],
+      approvalStatus: 'pending',
+      isClinicAdmin: false,
+      onboardingCompleted: false,
+    });
+    return toVet(doc);
+  }
+
+  async setPasswordHash(vetId: string, passwordHash: string): Promise<void> {
+    await this.vetModel.findByIdAndUpdate(vetId, { $set: { passwordHash } }).exec();
+  }
+
+  async verifyPhone(vetId: string, mobile: string): Promise<Vet> {
+    const normalized = mobile.replace(/\D/g, '').slice(-10);
+    if (normalized.length < 10) throw new BadRequestException('Invalid mobile number');
+
+    const conflict = await this.vetModel
+      .findOne({ mobile: normalized, _id: { $ne: vetId } })
+      .exec();
+    if (conflict) throw new BadRequestException('This mobile number is already registered');
+
+    const doc = await this.vetModel
+      .findByIdAndUpdate(
+        vetId,
+        { $set: { mobile: normalized, phoneVerified: true } },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!doc) throw new BadRequestException('Vet not found');
+    return toVet(doc);
+  }
+
+  async getPasswordHash(vetId: string): Promise<string | null> {
+    const doc = await this.vetModel.findById(vetId).select('passwordHash').exec();
+    return doc?.passwordHash ?? null;
   }
 
   async createOrFindByMobile(mobile: string): Promise<Vet> {
@@ -76,6 +192,7 @@ export class VetsService {
       doc = await this.vetModel.create({
         fullName: 'Vet',
         mobile: normalized,
+        phoneVerified: true,
         veterinaryRegistrationNumber: 'PENDING',
         yearOfRegistration: 2000,
         qualifications: [],
@@ -84,6 +201,9 @@ export class VetsService {
         isClinicAdmin: false,
         onboardingCompleted: false,
       });
+    } else if (!doc.phoneVerified) {
+      doc.phoneVerified = true;
+      await doc.save();
     }
     return toVet(doc);
   }

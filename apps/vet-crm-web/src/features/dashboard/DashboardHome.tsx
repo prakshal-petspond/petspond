@@ -1,108 +1,34 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useCallback } from 'react';
 import Link from 'next/link';
+import { frontDeskApi } from '@/services/front-desk.service';
+import { PageHeader } from '@/features/front-desk/shared/PageHeader';
+import { useFrontDeskData } from '@/features/front-desk/shared/useFrontDeskData';
 import {
-  formatDashboardDate,
+  avatarColorFor,
   formatMoney,
   formatTime,
-  isToday,
+  ownerLabel,
   petInitials,
-  useDashboard,
-  vetInitials,
-} from './DashboardContext';
-import type { ConsultationBooking } from '@petspond/types';
-
-function StatCard({
-  label,
-  value,
-  hint,
-  hintPositive,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  hintPositive?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-foreground">{value}</p>
-      {hint ? (
-        <p className={`mt-1 text-xs ${hintPositive ? 'text-success' : 'text-muted'}`}>{hint}</p>
-      ) : null}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: ConsultationBooking['status'] }) {
-  const styles: Record<string, string> = {
-    scheduled: 'bg-success/15 text-success',
-    pending_payment: 'bg-brand-blue/10 text-brand-blue',
-    completed: 'bg-background-muted text-muted',
-    cancelled: 'bg-error/10 text-error',
-    no_show: 'bg-background-muted text-muted',
-  };
-  const labels: Record<string, string> = {
-    scheduled: 'Confirmed',
-    pending_payment: 'Pending',
-    completed: 'Completed',
-    cancelled: 'Cancelled',
-    no_show: 'No show',
-  };
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${styles[status] ?? styles.scheduled}`}>
-      {labels[status] ?? status}
-    </span>
-  );
-}
-
-const MOCK_SCHEDULE = [
-  { time: '09:00', duration: '30 min', pet: 'Bruno', breed: 'Labrador', reason: 'Vaccination', vet: 'Dr. Rao', status: 'scheduled' as const },
-  { time: '09:30', duration: '45 min', pet: 'Luna', breed: 'Persian cat', reason: 'Follow-up', vet: 'Dr. Patel', status: 'pending_payment' as const },
-  { time: '10:15', duration: '30 min', pet: 'Milo', breed: 'Beagle', reason: 'Check-up', vet: 'Dr. Singh', status: 'scheduled' as const },
-  { time: '11:30', duration: 'walk-in', pet: 'Pixel', breed: 'Indie cat', reason: 'Walk-in', vet: 'Dr. Patel', status: 'completed' as const },
-];
+  scheduledRelativeHint,
+} from '@/features/front-desk/shared/utils';
+import { formatDashboardDate, useDashboard } from './DashboardContext';
 
 export function DashboardHome() {
-  const { vet, clinic, team, consultations, loading } = useDashboard();
+  const { clinic, loading: ctxLoading } = useDashboard();
 
-  const todayBookings = useMemo(
-    () => consultations.filter((c) => isToday(c.scheduledAt)),
-    [consultations],
+  const { data: checkIn, loading: checkInLoading } = useFrontDeskData(
+    useCallback((c) => frontDeskApi.getCheckIn(c), []),
+  );
+  const { data: queue } = useFrontDeskData(useCallback((c) => frontDeskApi.getQueue(c), []));
+  const { data: payments } = useFrontDeskData(
+    useCallback((c) => frontDeskApi.getPayments(c, 'all'), []),
   );
 
-  const pendingRequests = useMemo(
-    () => consultations.filter((c) => c.status === 'pending_payment'),
-    [consultations],
-  );
+  const loading = ctxLoading || checkInLoading;
 
-  const revenueToday = useMemo(
-    () =>
-      todayBookings
-        .filter((c) => c.paymentStatus === 'paid' || c.status === 'scheduled')
-        .reduce((sum, c) => sum + c.totalPaise, 0),
-    [todayBookings],
-  );
-
-  const vetsOnDuty = team.filter((v) => v.approvalStatus === 'approved' || v.isClinicAdmin);
-  const vetCount = Math.max(vetsOnDuty.length, 1);
-
-  const scheduleRows =
-    todayBookings.length > 0
-      ? todayBookings.slice(0, 5).map((b) => ({
-          id: b.id,
-          time: formatTime(b.scheduledAt),
-          duration: '30 min',
-          pet: b.petName,
-          breed: b.petBreed || b.petSpecies,
-          reason: b.reasonIds?.[0] ?? 'Consultation',
-          vet: b.vetName ?? vet?.fullName ?? '—',
-          status: b.status,
-        }))
-      : MOCK_SCHEDULE.map((row, i) => ({ ...row, id: `mock-${i}` }));
-
-  if (loading) {
+  if (loading || !checkIn) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center p-8">
         <p className="text-muted">Loading dashboard…</p>
@@ -110,203 +36,201 @@ export function DashboardHome() {
     );
   }
 
+  const queuePreview = checkIn.expectedArrivals.slice(0, 6);
+  const activeConsultations = queue?.inConsultation ?? [];
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-[1400px]">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-            <p className="mt-1 text-sm text-muted">
-              {formatDashboardDate()} · {vetCount} vet{vetCount === 1 ? '' : 's'} on duty
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <select className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground outline-none">
-              <option>Today</option>
-            </select>
-            <button
-              type="button"
-              className="rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-background-muted"
-            >
-              Export
-            </button>
-            <Link
-              href="/dashboard/legacy?tab=bookings"
-              className="rounded-xl bg-brand-blue px-4 py-2 text-sm font-semibold text-white hover:bg-brand-blue-hover"
-            >
-              + New appointment
-            </Link>
-          </div>
-        </div>
+      <div className="mx-auto max-w-[1440px]">
+        <PageHeader
+          title="Front Office Dashboard"
+          subtitle={`${formatDashboardDate()} · Reception Desk`}
+          actions={
+            <>
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground"
+              >
+                <span aria-hidden>📅</span> Today <span className="text-muted">▾</span>
+              </button>
+              <Link
+                href="/dashboard/check-in"
+                className="rounded-xl bg-brand-blue px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-blue-hover"
+              >
+                + New Check-in
+              </Link>
+            </>
+          }
+        />
 
-        <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
-          <div className="space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label="Today's appointments"
-                value={String(todayBookings.length || 14)}
-                hint={todayBookings.length ? `${todayBookings.length} scheduled today` : '+3 from yesterday'}
-                hintPositive
-              />
-              <StatCard
-                label="Pending requests"
-                value={String(pendingRequests.length || 5)}
-                hint="Awaiting confirmation"
-              />
-              <StatCard label="Active patients" value="218" hint="+12 this month" hintPositive />
-              <StatCard
-                label="Revenue today"
-                value={revenueToday > 0 ? formatMoney(revenueToday) : '₹18,400'}
-                hint="8% above avg"
-                hintPositive
-              />
+        <div className="grid gap-5 xl:grid-cols-[200px_minmax(0,1fr)_280px]">
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-1">
+            <div className="rounded-2xl bg-brand-blue p-5 text-white shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/80">Arrivals Today</p>
+              <p className="mt-3 text-4xl font-bold">{checkIn.summary.bookedToday}</p>
+              <span className="mt-3 inline-block rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold">
+                {checkIn.summary.waitingToCheckIn} in waiting
+              </span>
             </div>
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Checked In</p>
+              <p className="mt-3 text-4xl font-bold text-foreground">{checkIn.summary.arrived}</p>
+              <p className="mt-1 text-xs text-muted">{queue?.inConsultation.length ?? 0} in consultation</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Payments Due</p>
+              <p className="mt-3 text-3xl font-bold text-foreground">
+                {payments ? formatMoney(payments.summary.pendingPaise) : '₹0'}
+              </p>
+              <span className="mt-2 inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                {payments?.summary.pendingCount ?? 0} pending
+              </span>
+            </div>
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">No-Shows</p>
+              <p className="mt-3 text-4xl font-bold text-foreground">{checkIn.summary.noShow}</p>
+              <p className="mt-1 text-xs text-muted">From {checkIn.summary.bookedToday} scheduled</p>
+            </div>
+          </div>
 
-            <section className="rounded-2xl border border-border bg-card shadow-sm">
-              <div className="flex items-center justify-between border-b border-border px-5 py-4">
-                <div>
-                  <h2 className="font-bold text-foreground">Today&apos;s schedule</h2>
-                  <p className="text-xs text-muted">
-                    {Math.min(scheduleRows.length, 5)} of {todayBookings.length || 14} appointments shown
-                  </p>
-                </div>
-                <Link href="/dashboard/legacy?tab=bookings" className="text-sm font-semibold text-brand-blue hover:underline">
-                  View all
-                </Link>
+          <section className="rounded-2xl border border-border bg-card shadow-sm">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <div>
+                <h2 className="font-bold text-foreground">Check-in Queue</h2>
+                <p className="text-xs text-muted">
+                  {checkIn.summary.waitingToCheckIn} pets waiting for check-in
+                </p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-background/50 text-left text-xs uppercase tracking-wide text-muted">
-                      <th className="px-5 py-3 font-semibold">Time</th>
-                      <th className="px-5 py-3 font-semibold">Pet</th>
-                      <th className="px-5 py-3 font-semibold">Vet</th>
-                      <th className="px-5 py-3 font-semibold">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scheduleRows.map((row) => (
+              <Link href="/dashboard/check-in" className="text-sm font-semibold text-brand-blue hover:underline">
+                View all
+              </Link>
+            </div>
+            {queuePreview.length === 0 ? (
+              <p className="px-5 py-10 text-center text-sm text-muted">No expected arrivals today.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-[10px] font-bold uppercase tracking-wider text-muted">
+                    <th className="px-5 py-3">Time</th>
+                    <th className="px-5 py-3">Pet &amp; Owner</th>
+                    <th className="px-5 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {queuePreview.map((row) => {
+                    const hint = scheduledRelativeHint(row.scheduledAt);
+                    return (
                       <tr key={row.id} className="border-b border-border/60 last:border-0">
-                        <td className="whitespace-nowrap px-5 py-4 text-foreground">
-                          <div className="font-semibold">{row.time}</div>
-                          <div className="text-xs text-muted">{row.duration}</div>
+                        <td className="px-5 py-4">
+                          <p className="font-semibold">{formatTime(row.scheduledAt)}</p>
+                          <p className="text-xs text-muted">{hint.label}</p>
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-3">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-xs font-bold text-brand-blue">
-                              {petInitials(row.pet)}
+                            <span
+                              className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold ${avatarColorFor(row.id)}`}
+                            >
+                              {petInitials(row.petName)}
                             </span>
                             <div>
-                              <p className="font-semibold text-foreground">{row.pet}</p>
+                              <p className="font-semibold text-foreground">{row.petName}</p>
                               <p className="text-xs text-muted">
-                                {row.breed} · {row.reason}
+                                {row.petBreed} · {ownerLabel(row)}
                               </p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full bg-success" />
-                            <span className="text-foreground">{row.vet}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4">
-                          <StatusBadge status={row.status} />
+                        <td className="px-5 py-4 text-right">
+                          <Link
+                            href="/dashboard/check-in"
+                            className="inline-flex rounded-lg bg-brand-blue px-4 py-2 text-xs font-semibold text-white hover:bg-brand-blue-hover"
+                          >
+                            Check-in
+                          </Link>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </section>
 
-          <aside className="space-y-5">
+          <aside className="space-y-4">
             <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="font-bold text-foreground">Incoming requests</h2>
-                  <p className="text-xs text-muted">{pendingRequests.length || 3} need attention</p>
-                </div>
-                <Link href="/dashboard/legacy?tab=bookings" className="text-xs font-semibold text-brand-blue hover:underline">
-                  All
-                </Link>
-              </div>
-              <ul className="space-y-3">
-                <li className="rounded-xl border border-border bg-background/50 p-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-brand-blue">New booking</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">Tofu · Vaccination</p>
-                  <p className="text-xs text-muted">Today · 4:30 PM</p>
-                  <div className="mt-3 flex gap-2">
-                    <button type="button" className="rounded-lg bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white">
-                      Accept
-                    </button>
-                    <button type="button" className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-muted">
-                      Decline
-                    </button>
-                  </div>
-                </li>
-                <li className="rounded-xl border border-border bg-background/50 p-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-onboarding-accent">Reschedule</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">Bella</p>
-                  <p className="text-xs text-muted">May 23 → May 24 · 11:00 AM</p>
-                </li>
-                <li className="rounded-xl border border-border bg-background/50 p-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-error">Cancelled</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">Coco</p>
-                  <p className="text-xs text-muted">Owner unwell</p>
-                </li>
-              </ul>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <h2 className="mb-4 font-bold text-foreground">Quick actions</h2>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: '+ Walk-in', href: '/dashboard/legacy?tab=bookings' },
-                  { label: 'New pet', href: '/dashboard/pets' },
-                  { label: 'Block slot', href: '/dashboard/legacy?tab=schedule' },
-                  { label: '+ Invite vet', href: '/dashboard/legacy?tab=invites' },
-                ].map((action) => (
-                  <Link
-                    key={action.label}
-                    href={action.href}
-                    className="rounded-xl border border-border bg-background px-3 py-3 text-center text-sm font-semibold text-foreground hover:border-brand-blue/40 hover:bg-brand-blue/5"
-                  >
-                    {action.label}
-                  </Link>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h2 className="font-bold text-foreground">Vets on duty</h2>
-                  <p className="text-xs text-muted">Live status</p>
-                </div>
-                <Link href="/dashboard/team" className="text-xs font-semibold text-brand-blue hover:underline">
-                  Manage
-                </Link>
-              </div>
-              <ul className="space-y-3">
-                {(vetsOnDuty.length ? vetsOnDuty : [{ id: 'self', fullName: vet?.fullName ?? 'Dr. Rao', approvalStatus: 'approved' as const, isClinicAdmin: true }]).slice(0, 4).map((v, i) => {
-                  const statuses = ['In consultation', 'Available', 'On break', 'Available'];
-                  const counts = [4, 3, 0, 2];
-                  return (
-                    <li key={v.id} className="flex items-center gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-blue/10 text-xs font-bold text-brand-blue">
-                        {vetInitials(v.fullName)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-foreground">{v.fullName}</p>
-                        <p className="text-xs text-muted">{statuses[i] ?? 'Available'}</p>
-                      </div>
-                      <span className="text-xs font-semibold text-muted">{counts[i] ?? 0} today</span>
+              <h2 className="mb-4 font-bold text-foreground">Active Consultations</h2>
+              {activeConsultations.length === 0 ? (
+                <p className="text-sm text-muted">No active consultations.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {activeConsultations.map((c) => (
+                    <li key={c.id} className="flex items-center gap-3">
+                      <span className="h-2.5 w-2.5 rounded-full bg-brand-blue" />
+                      <p className="text-sm text-foreground">
+                        <span className="font-semibold">{c.vetName ?? 'Doctor'}</span>
+                        <span className="text-muted"> · {c.petName}</span>
+                      </p>
                     </li>
-                  );
-                })}
-              </ul>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <h2 className="mb-4 font-bold text-foreground">Quick Actions</h2>
+              <div className="space-y-2">
+                <Link
+                  href="/dashboard/legacy?tab=bookings"
+                  className="flex w-full justify-center rounded-xl bg-brand-blue py-3 text-sm font-semibold text-white hover:bg-brand-blue-hover"
+                >
+                  + New Appointment
+                </Link>
+                <Link
+                  href="/dashboard/pets"
+                  className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-foreground hover:bg-background-muted"
+                >
+                  Add Pet/Owner
+                </Link>
+                <Link
+                  href="/dashboard/payments"
+                  className="flex w-full items-center gap-3 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-foreground hover:bg-background-muted"
+                >
+                  Collect payment
+                </Link>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="font-bold text-foreground">Pending Payments</h2>
+                <span className="rounded-full bg-error/10 px-2.5 py-1 text-xs font-bold text-error">
+                  {payments?.summary.pendingCount ?? 0} due
+                </span>
+              </div>
+              {!payments?.invoices.filter((i) => i.paymentStatus === 'pending').length ? (
+                <p className="text-sm text-muted">No pending payments today.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {payments.invoices
+                    .filter((i) => i.paymentStatus === 'pending')
+                    .slice(0, 3)
+                    .map((p) => (
+                      <li key={p.id} className="flex justify-between gap-2 text-sm">
+                        <div>
+                          <p className="font-semibold text-foreground">{p.petName}</p>
+                          <p className="text-xs capitalize text-muted">{p.reasonIds[0] ?? 'Visit'}</p>
+                        </div>
+                        <span className="font-bold">{formatMoney(p.totalPaise)}</span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+              <Link
+                href="/dashboard/payments"
+                className="mt-4 flex w-full justify-center rounded-xl bg-onboarding-accent py-3 text-sm font-semibold text-white hover:opacity-90"
+              >
+                View All Payments
+              </Link>
             </section>
           </aside>
         </div>
