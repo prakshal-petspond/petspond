@@ -143,7 +143,7 @@ Create **two sites** from the same repo.
 1. Netlify → **Add new site** → **Import from Git** → select `petspond`.
 2. Site name: e.g. **`petspond-vet-dev`**.
 3. **Build settings** (should auto-detect from `netlify.toml`):
-   - **Build command:** `pnpm install --frozen-lockfile && pnpm --filter @petspond/vet-crm-web build`
+   - **Build command:** `pnpm install --frozen-lockfile && pnpm --filter @petspond/vet-crm-web... build`
    - **Publish directory:** `apps/vet-crm-web/.next`
    - **Base directory:** leave empty (repo root)
 4. **Deploy contexts** → **Branch deploys** → set production branch to **`develop`** for this site  

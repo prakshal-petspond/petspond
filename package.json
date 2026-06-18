@@ -6,7 +6,7 @@
   "scripts": {
     "build": "turbo run build",
     "build:api": "pnpm --filter @petspond/types build && pnpm --filter @petspond/api build",
-    "build:web": "pnpm --filter @petspond/vet-crm-web build",
+    "build:web": "pnpm --filter @petspond/vet-crm-web... build",
     "dev": "turbo run dev",
     "dev:api": "pnpm --filter @petspond/api dev",
     "dev:web": "pnpm --filter @petspond/vet-crm-web dev",

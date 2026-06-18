@@ -6,7 +6,8 @@
 # Set environment variables per site (see docs/DEPLOYMENT.md).
 
 [build]
-  command = "pnpm install --frozen-lockfile && pnpm --filter @petspond/vet-crm-web build"
+  # Build workspace packages (@petspond/types, @petspond/api-client) before Next.js
+  command = "pnpm install --frozen-lockfile && pnpm --filter @petspond/vet-crm-web... build"
   publish = "apps/vet-crm-web/.next"
 
 [build.environment]
