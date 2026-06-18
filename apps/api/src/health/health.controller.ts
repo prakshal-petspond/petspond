@@ -1,9 +1,21 @@
 import { Controller, Get } from '@nestjs/common';
+import { InjectConnection } from '@nestjs/mongoose';
+import type { Connection } from 'mongoose';
 
 @Controller('health')
 export class HealthController {
+  constructor(@InjectConnection() private readonly connection: Connection) {}
+
   @Get()
   check() {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    const mongoState = this.connection.readyState;
+    const mongoStatus =
+      mongoState === 1 ? 'connected' : mongoState === 2 ? 'connecting' : 'disconnected';
+
+    return {
+      status: 'ok',
+      mongo: mongoStatus,
+      timestamp: new Date().toISOString(),
+    };
   }
 }

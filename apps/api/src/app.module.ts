@@ -19,6 +19,8 @@ import { UploadsModule } from './uploads/uploads.module';
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env.local', '.env'] }),
     MongooseModule.forRoot(process.env.MONGODB_URI ?? 'mongodb://localhost:27017/petspond', {
       retryWrites: true,
+      // Don't block HTTP server startup while Atlas connects (Railway health checks).
+      lazyConnection: true,
     }),
     HealthModule,
     AuthModule,
