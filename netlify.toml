@@ -1,0 +1,24 @@
+# Netlify config for Vet CRM Web (Next.js monorepo).
+# Create two Netlify sites from the same repo:
+#   - petspond-vet-dev   → branch: develop
+#   - petspond-vet-prod  → branch: main
+#
+# Set environment variables per site (see docs/DEPLOYMENT.md).
+
+[build]
+  command = "pnpm install --frozen-lockfile && pnpm --filter @petspond/vet-crm-web build"
+  publish = "apps/vet-crm-web/.next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  PNPM_VERSION = "9.14.2"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Optional: redirect www → apex (set your custom domain first)
+# [[redirects]]
+#   from = "https://www.yourdomain.com/*"
+#   to = "https://yourdomain.com/:splat"
+#   status = 301
+#   force = true

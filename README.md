@@ -80,3 +80,7 @@ pnpm build
 ```
 
 Builds all apps and packages (Turbo respects dependency order).
+
+## Deployment
+
+Vet CRM Web (Netlify) + API (Railway) + MongoDB Atlas — see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full development and production setup guide.

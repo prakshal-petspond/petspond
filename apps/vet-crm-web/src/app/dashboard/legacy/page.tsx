@@ -103,7 +103,7 @@ export default function LegacyDashboardPage() {
   }, [token, client, router]);
 
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
+    const tabParam = searchParams?.get('tab');
     if (tabParam === 'team') {
       router.replace('/dashboard/team');
       return;

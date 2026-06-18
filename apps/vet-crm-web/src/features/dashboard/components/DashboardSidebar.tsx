@@ -104,6 +104,7 @@ const ADMIN: NavItem[] = [
 
 function NavSection({ title, items }: { title: string; items: NavItem[] }) {
   const pathname = usePathname();
+  const path = pathname ?? '';
 
   return (
     <div className="mb-6">
@@ -111,7 +112,7 @@ function NavSection({ title, items }: { title: string; items: NavItem[] }) {
       <ul className="space-y-0.5">
         {items.map((item) => {
           const base = item.href.split('?')[0]!;
-          const active = item.match ? item.match(pathname) : pathname === base || pathname.startsWith(`${base}/`);
+          const active = item.match ? item.match(path) : path === base || path.startsWith(`${base}/`);
           return (
             <li key={`${title}-${item.label}`}>
               <Link
