@@ -9,6 +9,10 @@ import * as bcrypt from 'bcryptjs';
 import { getAndDeleteOtp } from '../auth/otp.store';
 import { getAndDeleteOtpForKey, setOtpForKey } from '../auth/key-otp.store';
 import { createRegistrationToken, consumeRegistrationToken } from '../auth/registration-token.store';
+import {
+  createPasswordResetToken,
+  consumePasswordResetToken,
+} from '../auth/password-reset-token.store';
 import { shouldAcceptOtpBypass } from '../auth/otp-bypass';
 import type {
   Clinic,
@@ -37,6 +41,10 @@ function normalizeEmail(email: string): string {
 
 function emailOtpKey(email: string): string {
   return `email:${normalizeEmail(email)}`;
+}
+
+function forgotPasswordOtpKey(email: string): string {
+  return `forgot-email:${normalizeEmail(email)}`;
 }
 
 function onboardingPhoneKey(vetId: string, mobile: string): string {
@@ -199,6 +207,59 @@ export class VetAuthService {
     const passwordHash = await bcrypt.hash(password, 12);
     const vet = await this.vetsService.createFromEmailRegistration(email, passwordHash);
     return this.authResponse(vet);
+  }
+
+  async sendForgotPasswordOtp(email: string) {
+    const normalized = normalizeEmail(email);
+    const vet = await this.vetsService.findByEmail(normalized);
+
+    if (vet) {
+      const otp = this.emailService.generateOtp();
+      setOtpForKey(forgotPasswordOtpKey(normalized), otp);
+      const result = await this.emailService.sendOtp(normalized, otp, {
+        subject: 'Your Petspond password reset code',
+        heading: 'Your Petspond password reset code is:',
+      });
+      if (!result.success) {
+        throw new BadRequestException(result.message ?? 'Failed to send verification email');
+      }
+    }
+
+    return {
+      success: true,
+      message: 'If an account with that email exists, we sent a verification code.',
+    };
+  }
+
+  async verifyForgotPasswordOtp(email: string, otp: string) {
+    const normalized = normalizeEmail(email);
+    const vet = await this.vetsService.findByEmail(normalized);
+    if (!vet) throw new BadRequestException('Invalid or expired verification code');
+
+    if (!shouldAcceptOtpBypass(this.config, otp)) {
+      const stored = getAndDeleteOtpForKey(forgotPasswordOtpKey(normalized));
+      if (!stored) throw new BadRequestException('OTP expired or not found. Please request a new one.');
+      if (stored !== otp.trim()) throw new BadRequestException('Invalid OTP.');
+    }
+
+    const resetToken = createPasswordResetToken(normalized);
+    return { verified: true, resetToken, email: normalized };
+  }
+
+  async resetPasswordWithToken(resetToken: string, password: string) {
+    const email = consumePasswordResetToken(resetToken);
+    if (!email) throw new BadRequestException('Reset session expired. Please start again.');
+
+    const vet = await this.vetsService.findByEmail(email);
+    if (!vet) throw new BadRequestException('Account not found');
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await this.vetsService.setPasswordHash(vet.id, passwordHash);
+    await this.vetTokens.revokeAllForVet(vet.id);
+
+    const updated = await this.vetsService.findById(vet.id);
+    if (!updated) throw new BadRequestException('Account not found');
+    return this.authResponse(updated);
   }
 
   async loginWithGoogle(idToken: string) {

@@ -106,7 +106,7 @@ export function RegisterForm() {
               placeholder="meera.shah@petspond.com"
               autoComplete="email"
               required
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
             />
           </div>
           {error ? <p className="text-sm text-error">{error}</p> : null}
@@ -128,7 +128,7 @@ export function RegisterForm() {
             value={otp}
             onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
             placeholder="6-digit code"
-            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-center text-lg tracking-[0.3em] text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-center text-lg tracking-[0.3em] text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
             maxLength={6}
             required
           />
@@ -163,7 +163,7 @@ export function RegisterForm() {
               autoComplete="new-password"
               required
               minLength={8}
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
             />
           </div>
           <div>
@@ -176,7 +176,7 @@ export function RegisterForm() {
               autoComplete="new-password"
               required
               minLength={8}
-              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
             />
           </div>
           {error ? <p className="text-sm text-error">{error}</p> : null}

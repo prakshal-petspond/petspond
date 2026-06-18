@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import { buildSpacingScale } from './src/theme/spacing';
 
 const config: Config = {
   content: [
@@ -33,7 +34,11 @@ const config: Config = {
         'sidebar-tip-bg': 'var(--color-sidebar-tip-bg)',
       },
       fontFamily: {
-        serif: ['var(--font-playfair)', 'ui-serif', 'Georgia', 'serif'],
+        sans: ['var(--font-dm-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        heading: ['var(--font-comfortaa)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        serif: ['var(--font-comfortaa)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        comfortaa: ['var(--font-comfortaa)', 'sans-serif'],
+        'dm-sans': ['var(--font-dm-sans)', 'sans-serif'],
       },
       borderRadius: {
         sm: 'var(--radius-sm)',
@@ -42,6 +47,10 @@ const config: Config = {
         xl: 'var(--radius-xl)',
         full: 'var(--radius-full)',
       },
+      fontSize: {
+        '4.5xl': ['2.5rem', { lineHeight: '1.2' }], // 40px
+      },
+      spacing: buildSpacingScale(),
     },
   },
   plugins: [],

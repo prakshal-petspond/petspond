@@ -1,18 +1,8 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
 import '@/theme/css-variables.css';
 import './globals.css';
 import { Providers } from './providers';
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+import { comfortaa, dmSans } from '@/theme/fonts';
 
 export const metadata: Metadata = {
   title: 'Petspond Vet CRM',
@@ -25,8 +15,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="antialiased min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)]">
+    <html lang="en" className={`${dmSans.variable} ${comfortaa.variable}`}>
+      <body
+        className={`${dmSans.className} font-sans antialiased min-h-screen bg-[var(--color-background)] text-[var(--color-foreground)]`}
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

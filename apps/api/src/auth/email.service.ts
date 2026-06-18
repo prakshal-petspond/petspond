@@ -39,12 +39,16 @@ export class EmailService {
     return 'onboarding@resend.dev';
   }
 
-  async sendOtp(email: string, otp: string): Promise<{ success: boolean; message?: string }> {
+  async sendOtp(
+    email: string,
+    otp: string,
+    options?: { subject?: string; heading?: string },
+  ): Promise<{ success: boolean; message?: string }> {
     const provider = this.resolveProvider();
     const normalized = email.toLowerCase().trim();
 
     if (provider === 'resend') {
-      return this.sendViaResend(normalized, otp);
+      return this.sendViaResend(normalized, otp, options);
     }
 
     this.logger.log(`[mock email] OTP for ${normalized}: ${otp}`);
@@ -87,7 +91,11 @@ export class EmailService {
     return detail || 'Failed to send verification email. Check RESEND_API_KEY and EMAIL_FROM.';
   }
 
-  private async sendViaResend(email: string, otp: string): Promise<{ success: boolean; message?: string }> {
+  private async sendViaResend(
+    email: string,
+    otp: string,
+    options?: { subject?: string; heading?: string },
+  ): Promise<{ success: boolean; message?: string }> {
     const apiKey = sanitizeEnv(this.config.get<string>('RESEND_API_KEY'));
     if (!apiKey) {
       throw new BadRequestException(
@@ -105,9 +113,9 @@ export class EmailService {
       body: JSON.stringify({
         from,
         to: [email],
-        subject: 'Your Petspond Vet CRM verification code',
+        subject: options?.subject ?? 'Your Petspond Vet CRM verification code',
         html: `
-          <p>Your Petspond verification code is:</p>
+          <p>${options?.heading ?? 'Your Petspond verification code is:'}</p>
           <p style="font-size:28px;font-weight:bold;letter-spacing:4px">${otp}</p>
           <p>This code expires in 5 minutes. If you did not request this, you can ignore this email.</p>
         `,

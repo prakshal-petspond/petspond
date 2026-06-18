@@ -6,6 +6,7 @@ import type {
   VetAuthResponse,
   VetRefreshTokenResponse,
   VetRegisterVerifyEmailResponse,
+  VetPasswordResetVerifyResponse,
   VetCompleteOnboardingDto,
   VetCompleteClinicSetupDto,
   VetPendingClinicInvite,
@@ -50,6 +51,27 @@ export const vetAuthApi = {
   registerSetPassword(client: ApiClient, registrationToken: string, password: string) {
     return client.post<VetAuthResponse>(`${VET_AUTH_PREFIX}/register/set-password`, {
       registrationToken,
+      password,
+    });
+  },
+
+  forgotPasswordSendOtp(client: ApiClient, email: string) {
+    return client.post<{ success: boolean; message?: string }>(
+      `${VET_AUTH_PREFIX}/forgot-password/send-otp`,
+      { email },
+    );
+  },
+
+  forgotPasswordVerifyOtp(client: ApiClient, email: string, otp: string) {
+    return client.post<VetPasswordResetVerifyResponse>(
+      `${VET_AUTH_PREFIX}/forgot-password/verify-otp`,
+      { email, otp },
+    );
+  },
+
+  forgotPasswordReset(client: ApiClient, resetToken: string, password: string) {
+    return client.post<VetAuthResponse>(`${VET_AUTH_PREFIX}/forgot-password/reset`, {
+      resetToken,
       password,
     });
   },

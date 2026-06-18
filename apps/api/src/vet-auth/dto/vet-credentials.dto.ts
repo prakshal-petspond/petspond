@@ -53,3 +53,27 @@ export class VetOnboardingPhoneOtpDto {
   @MinLength(4)
   otp!: string;
 }
+
+export class VetForgotPasswordSendOtpDto {
+  @IsEmail()
+  email!: string;
+}
+
+export class VetForgotPasswordVerifyOtpDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(4)
+  otp!: string;
+}
+
+export class VetForgotPasswordResetDto {
+  @IsString()
+  @MinLength(10)
+  resetToken!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+}

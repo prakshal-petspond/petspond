@@ -24,6 +24,9 @@ import { VetVerifyOtpDto } from './dto/verify-otp.dto';
 import { VetCompleteOnboardingDto } from './dto/complete-onboarding.dto';
 import { VetCompleteClinicSetupDto } from './dto/complete-clinic-setup.dto';
 import {
+  VetForgotPasswordResetDto,
+  VetForgotPasswordSendOtpDto,
+  VetForgotPasswordVerifyOtpDto,
   VetGoogleAuthDto,
   VetLoginDto,
   VetOnboardingPhoneOtpDto,
@@ -88,6 +91,24 @@ export class VetAuthController {
   @HttpCode(HttpStatus.OK)
   async registerSetPassword(@Body() dto: VetRegisterSetPasswordDto) {
     return this.vetAuthService.completeRegistration(dto.registrationToken, dto.password);
+  }
+
+  @Post('forgot-password/send-otp')
+  @HttpCode(HttpStatus.OK)
+  async forgotPasswordSendOtp(@Body() dto: VetForgotPasswordSendOtpDto) {
+    return this.vetAuthService.sendForgotPasswordOtp(dto.email);
+  }
+
+  @Post('forgot-password/verify-otp')
+  @HttpCode(HttpStatus.OK)
+  async forgotPasswordVerifyOtp(@Body() dto: VetForgotPasswordVerifyOtpDto) {
+    return this.vetAuthService.verifyForgotPasswordOtp(dto.email, dto.otp);
+  }
+
+  @Post('forgot-password/reset')
+  @HttpCode(HttpStatus.OK)
+  async forgotPasswordReset(@Body() dto: VetForgotPasswordResetDto) {
+    return this.vetAuthService.resetPasswordWithToken(dto.resetToken, dto.password);
   }
 
   @Post('google')

@@ -7,24 +7,8 @@ import { useApi } from '@/contexts';
 import { vetAuthApi } from '@/services/vet-auth.service';
 import { authErrorMessage, completeVetAuth } from './auth-utils';
 import { GoogleSignInButton } from './GoogleSignInButton';
-
-function IconMail() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className="text-muted">
-      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M3 7l9 6 9-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function IconLock() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden className="text-muted">
-      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M8 11V8a4 4 0 018 0v3" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
-  );
-}
+import { Eye, EyeOff } from 'lucide-react';
+import { IconLock, IconMail, authInputClassName } from './AuthFieldIcons';
 
 export function LoginForm() {
   const router = useRouter();
@@ -79,10 +63,10 @@ export function LoginForm() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="meera.shah@petspond.com"
+              placeholder="xyz@gmail.com"
               autoComplete="email"
               required
-              className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-4 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              className={`${authInputClassName} bg-card`}
             />
           </div>
         </div>
@@ -101,14 +85,19 @@ export function LoginForm() {
               autoComplete="current-password"
               required
               minLength={8}
-              className="w-full rounded-xl border border-border bg-card py-3 pl-10 pr-11 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-brand-blue/30"
+              className={`${authInputClassName} bg-card pr-11`}
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted hover:text-foreground"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
             >
-              {showPassword ? 'Hide' : 'Show'}
+              {showPassword ? (
+                <EyeOff className="h-[18px] w-[18px]" aria-hidden />
+              ) : (
+                <Eye className="h-[18px] w-[18px]" aria-hidden />
+              )}
             </button>
           </div>
         </div>
@@ -123,7 +112,9 @@ export function LoginForm() {
             />
             Remember me
           </label>
-          <span className="font-medium text-brand-blue">Forgot password?</span>
+          <Link href="/forgot-password" className="font-medium text-brand-blue hover:underline">
+            Forgot password?
+          </Link>
         </div>
 
         {error ? <p className="text-sm text-error">{error}</p> : null}

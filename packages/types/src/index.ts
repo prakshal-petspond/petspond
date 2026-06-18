@@ -363,6 +363,12 @@ export interface VetRegisterVerifyEmailResponse {
   email: string;
 }
 
+export interface VetPasswordResetVerifyResponse {
+  verified: boolean;
+  resetToken: string;
+  email: string;
+}
+
 // ----- Pet -----
 export type PetSpecies = 'dog' | 'cat' | 'bird' | 'other';
 export type PetGender = 'male' | 'female' | 'other';

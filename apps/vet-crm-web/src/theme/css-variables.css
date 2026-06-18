@@ -18,7 +18,7 @@
   --color-warning-muted: #fff0e0;
   --color-tag: #fef3c7;
   --color-error: #dc2626;
-  --color-brand-blue: #1f8fff;
+  --color-brand-blue: #0068ff;
   --color-brand-blue-hover: #1878e6;
   --color-onboarding-accent: #fc6e2a;
   --color-input-border: #ebcb8b;
@@ -29,4 +29,6 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-full: 9999px;
+  /* Spacing base unit — Tailwind p-/m-/gap- classes use multiplier × 4px */
+  --spacing-unit: 4px;
 }
