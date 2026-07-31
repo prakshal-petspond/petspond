@@ -1,29 +1,89 @@
 /**
  * CSS custom properties for theme. Used by Tailwind and global styles.
  * Single top-level theme; override here for rebrand or dark mode.
+ * Components must use Tailwind theme colors (e.g. bg-success), never raw palette classes.
  */
 :root {
+  /* Brand / primary actions */
   --color-primary: #ea580c;
   --color-primary-hover: #c2410c;
   --color-primary-muted: #ffedd5;
+  --color-brand-blue: #0068ff;
+  --color-brand-blue-hover: #1878e6;
+  --color-onboarding-accent: #fc6e2a;
+
+  /* Surfaces */
   --color-background: #f6f8fe;
   --color-background-muted: #fef3c7;
   --color-foreground: #333333;
   --color-muted: #6b7280;
   --color-border: #e5e7eb;
   --color-card: #ffffff;
+  --color-on-contrast: #ffffff;
+  --color-surface-active: #f5efe6;
+  --color-surface-board: #f7f8fb;
+  --color-surface-online: #f7faf7;
+
+  /* Status — success */
   --color-success: #059669;
+  --color-success-hover: #047857;
   --color-success-muted: #d1fae5;
+  --color-success-foreground: #047857;
+
+  /* Status — danger / emergency */
+  --color-error: #dc2626;
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-muted: #fef2f2;
+  --color-danger-foreground: #b91c1c;
+  --color-danger-border: #fecaca;
+  --color-emergency: #e16868;
+  --color-emergency-hover: #d45555;
+  --color-emergency-muted: #fce8e8;
+  --color-emergency-foreground: #b54545;
+
+  /* Status — caution / pending (amber) */
+  --color-caution: #d97706;
+  --color-caution-muted: #fef3c7;
+  --color-caution-foreground: #92400e;
+
+  /* Status — info / confirmed (sky) */
+  --color-info: #0284c7;
+  --color-info-muted: #e0f2fe;
+  --color-info-foreground: #0369a1;
+
+  /* Neutral / secondary badges */
+  --color-neutral: #64748b;
+  --color-neutral-muted: #f1f5f9;
+  --color-neutral-foreground: #475569;
+
+  /* Accent (card method, diagnostics) */
+  --color-accent: #7c3aed;
+  --color-accent-muted: #f5f3ff;
+  --color-accent-foreground: #6d28d9;
+
+  /* Legacy aliases kept for existing screens */
   --color-warning: #dc2626;
   --color-warning-muted: #fff0e0;
   --color-tag: #fef3c7;
-  --color-error: #dc2626;
-  --color-brand-blue: #0068ff;
-  --color-brand-blue-hover: #1878e6;
-  --color-onboarding-accent: #fc6e2a;
   --color-input-border: #ebcb8b;
   --color-step-muted: #9b5100;
   --color-sidebar-tip-bg: #fff3e0;
+
+  /* Avatar chips */
+  --color-avatar-1-bg: #fef3c7;
+  --color-avatar-1-fg: #92400e;
+  --color-avatar-2-bg: #ffedd5;
+  --color-avatar-2-fg: #9a3412;
+  --color-avatar-3-bg: #e0f2fe;
+  --color-avatar-3-fg: #0369a1;
+  --color-avatar-4-bg: #f5f3ff;
+  --color-avatar-4-fg: #6d28d9;
+  --color-avatar-5-bg: #ffe4e6;
+  --color-avatar-5-fg: #9f1239;
+  --color-avatar-6-bg: #d1fae5;
+  --color-avatar-6-fg: #047857;
+
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;

@@ -3,10 +3,10 @@ import type { ConsultationBooking } from '@petspond/types';
 
 export function PaymentStatusBadge({ status }: { status: ConsultationBooking['paymentStatus'] }) {
   const styles: Record<string, string> = {
-    pending: 'bg-amber-100 text-amber-800',
-    paid: 'bg-success/15 text-success',
-    refunded: 'bg-error/10 text-error',
-    failed: 'bg-background-muted text-muted',
+    pending: 'bg-caution-muted text-caution-foreground',
+    paid: 'bg-success-muted text-success-foreground',
+    refunded: 'bg-danger-muted text-danger-foreground',
+    failed: 'bg-neutral-muted text-neutral-foreground',
   };
   const labels: Record<string, string> = {
     pending: 'Pending',

@@ -1,7 +1,7 @@
 'use client';
 
-import { CheckInPage } from '@/features/front-desk/check-in/CheckInPage';
+import { FrontDeskPage } from '@/features/front-desk/FrontDeskPage';
 
 export default function DashboardCheckInPage() {
-  return <CheckInPage />;
+  return <FrontDeskPage />;
 }

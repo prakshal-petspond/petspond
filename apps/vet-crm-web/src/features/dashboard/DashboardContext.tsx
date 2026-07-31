@@ -2,13 +2,14 @@
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Clinic, ClinicStaffMember, ConsultationBooking, Vet } from '@petspond/types';
+import type { Clinic, ClinicStaffMember, ConsultationBooking, DashboardRole, Vet } from '@petspond/types';
 import { useApi, getStoredVetToken } from '@/contexts';
 import { vetAuthApi } from '@/services/vet-auth.service';
 import { signOutVet } from '@/features/auth/sign-out';
 import { vetPortalApi } from '@/services/vet-portal.service';
 import { frontDeskApi } from '@/services/front-desk.service';
 import { getVetPostAuthPath } from '@/lib/vetRouting';
+import { DASHBOARD_ROLE_LABEL, getDashboardRole } from './roles';
 
 type DashboardContextValue = {
   vet: Vet | null;
@@ -17,6 +18,8 @@ type DashboardContextValue = {
   frontOfficeStaff: ClinicStaffMember[];
   consultations: ConsultationBooking[];
   frontDeskBadges: { checkIn: number; queue: number };
+  role: DashboardRole;
+  roleLabel: string;
   loading: boolean;
   refresh: () => Promise<void>;
   signOut: () => void;
@@ -89,6 +92,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, client]);
 
+  const role = getDashboardRole(vet);
+
   const value = useMemo<DashboardContextValue>(
     () => ({
       vet,
@@ -97,13 +102,15 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       frontOfficeStaff,
       consultations,
       frontDeskBadges,
+      role,
+      roleLabel: DASHBOARD_ROLE_LABEL[role],
       loading,
       refresh: load,
       signOut: () => {
         void signOutVet(client, clearAuth, router);
       },
     }),
-    [vet, clinic, team, frontOfficeStaff, consultations, frontDeskBadges, loading, client, clearAuth, router],
+    [vet, clinic, team, frontOfficeStaff, consultations, frontDeskBadges, role, loading, client, clearAuth, router],
   );
 
   return <DashboardContext.Provider value={value}>{children}</DashboardContext.Provider>;

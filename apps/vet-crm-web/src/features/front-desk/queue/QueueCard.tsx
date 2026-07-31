@@ -56,8 +56,8 @@ export function QueueCard({ booking, variant, onAdvance, busy }: QueueCardProps)
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
               booking.paymentStatus === 'paid'
-                ? 'bg-success/15 text-success'
-                : 'bg-amber-100 text-amber-800'
+                ? 'bg-success-muted text-success-foreground'
+                : 'bg-caution-muted text-caution-foreground'
             }`}
           >
             {booking.paymentStatus === 'paid' ? 'Paid' : formatMoney(booking.totalPaise) + ' due'}

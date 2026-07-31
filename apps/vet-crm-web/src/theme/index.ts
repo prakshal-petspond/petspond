@@ -1,25 +1,53 @@
 /**
  * Vet CRM Web - Theme tokens (single source of truth).
- * Matches vaccination screen: warm off-white background, orange primary, status colors.
- * Change here to update app-wide; no hardcoded colors in components.
+ * Values mirror css-variables.css. Prefer Tailwind theme classes in UI
+ * (bg-brand-blue, text-success, etc.) — never hardcoded palette colors.
  */
 export const theme = {
   colors: {
     primary: '#EA580C',
     primaryHover: '#C2410C',
     primaryMuted: '#FFEDD5',
-    background: '#FFFBEF',
+    brandBlue: '#0068FF',
+    brandBlueHover: '#1878E6',
+    background: '#F6F8FE',
     backgroundMuted: '#FEF3C7',
     foreground: '#333333',
     foregroundMuted: '#6B7280',
     border: '#E5E7EB',
     card: '#FFFFFF',
+    onContrast: '#FFFFFF',
+    surfaceActive: '#F5EFE6',
+    surfaceBoard: '#F7F8FB',
+    surfaceOnline: '#F7FAF7',
     success: '#059669',
+    successHover: '#047857',
     successMuted: '#D1FAE5',
+    successForeground: '#047857',
+    error: '#DC2626',
+    danger: '#DC2626',
+    dangerHover: '#B91C1C',
+    dangerMuted: '#FEF2F2',
+    dangerForeground: '#B91C1C',
+    caution: '#D97706',
+    cautionMuted: '#FEF3C7',
+    cautionForeground: '#92400E',
+    info: '#0284C7',
+    infoMuted: '#E0F2FE',
+    infoForeground: '#0369A1',
+    neutral: '#64748B',
+    neutralMuted: '#F1F5F9',
+    neutralForeground: '#475569',
+    accent: '#7C3AED',
+    accentMuted: '#F5F3FF',
+    accentForeground: '#6D28D9',
     warning: '#DC2626',
     warningMuted: '#FFF0E0',
     tag: '#FEF3C7',
-    error: '#DC2626',
+    emergency: '#E16868',
+    emergencyHover: '#D45555',
+    emergencyMuted: '#FCE8E8',
+    emergencyForeground: '#B54545',
   },
   spacing: {
     /** Multiplier × 4px — matches Tailwind spacing (p-4 = 16px) */

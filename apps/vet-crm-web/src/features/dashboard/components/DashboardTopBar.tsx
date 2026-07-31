@@ -5,9 +5,8 @@ import { PetspondLogo } from '@/components/PetspondLogo';
 import { useDashboard, vetInitials } from '../DashboardContext';
 
 export function DashboardTopBar() {
-  const { vet, signOut } = useDashboard();
+  const { vet, roleLabel, signOut } = useDashboard();
   const name = vet?.fullName?.trim() || 'Doctor';
-  const role = vet?.isClinicAdmin ? 'Admin' : 'Veterinarian';
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-4 border-b border-border bg-card px-4 sm:px-6">
@@ -41,7 +40,7 @@ export function DashboardTopBar() {
           </span>
           <div className="hidden min-w-0 sm:block">
             <p className="truncate text-sm font-semibold text-foreground">{name}</p>
-            <p className="text-xs text-muted">{role}</p>
+            <p className="text-xs text-muted">{roleLabel}</p>
           </div>
           <button type="button" onClick={signOut} className="ml-1 text-xs text-muted hover:text-foreground sm:ml-2">
             Sign out

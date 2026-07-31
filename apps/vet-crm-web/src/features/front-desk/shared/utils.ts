@@ -1,12 +1,12 @@
 import type { ConsultationBooking } from '@petspond/types';
 
 export const AVATAR_COLORS = [
-  'bg-amber-100 text-amber-800',
-  'bg-orange-100 text-orange-800',
-  'bg-sky-100 text-sky-800',
-  'bg-violet-100 text-violet-800',
-  'bg-rose-100 text-rose-800',
-  'bg-emerald-100 text-emerald-800',
+  'bg-avatar-1-bg text-avatar-1-fg',
+  'bg-avatar-2-bg text-avatar-2-fg',
+  'bg-avatar-3-bg text-avatar-3-fg',
+  'bg-avatar-4-bg text-avatar-4-fg',
+  'bg-avatar-5-bg text-avatar-5-fg',
+  'bg-avatar-6-bg text-avatar-6-fg',
 ];
 
 export function petInitials(name: string): string {

@@ -86,6 +86,9 @@ export const VET_EXPERTISE_AREAS = [
 ] as const;
 export type VetExpertiseArea = (typeof VET_EXPERTISE_AREAS)[number];
 
+/** Roles that can access the Vet CRM dashboard. */
+export type DashboardRole = 'admin' | 'vet' | 'front_staff';
+
 export type ClinicStaffRole = 'front_office';
 
 export interface ClinicStaffMember {
