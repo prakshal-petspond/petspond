@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { AuthModule } from '@/auth/auth.module';
 import { VetsModule } from '@/vets/vets.module';
@@ -13,7 +12,6 @@ import { VetJwtAuthGuard } from './vet-jwt-auth.guard';
 import { BookingsModule } from '@/bookings/bookings.module';
 import { UploadsModule } from '@/uploads/uploads.module';
 import { ClinicStaffModule } from '@/clinic-staff/clinic-staff.module';
-import { VetRefreshTokenDocument, VetRefreshTokenSchema } from './vet-refresh-token.schema';
 import { VetTokenService } from './vet-token.service';
 
 @Module({
@@ -24,9 +22,6 @@ import { VetTokenService } from './vet-token.service';
     BookingsModule,
     UploadsModule,
     ClinicStaffModule,
-    MongooseModule.forFeature([
-      { name: VetRefreshTokenDocument.name, schema: VetRefreshTokenSchema },
-    ]),
     PassportModule.register({ defaultStrategy: 'vet-jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

@@ -2,7 +2,6 @@ import type {
   Vet,
   Clinic,
   ClinicTeamResponse,
-  VetVerifyOtpResponse,
   VetAuthResponse,
   VetRefreshTokenResponse,
   VetRegisterVerifyEmailResponse,
@@ -16,20 +15,6 @@ import type { ApiClient } from '@petspond/api-client';
 const VET_AUTH_PREFIX = '/vet-auth';
 
 export const vetAuthApi = {
-  sendOtp(client: ApiClient, mobile: string, countryCode?: string) {
-    return client.post<{ success: boolean; message?: string }>(
-      `${VET_AUTH_PREFIX}/send-otp`,
-      { mobile: mobile.replace(/\D/g, '').slice(-10), ...(countryCode && { countryCode }) },
-    );
-  },
-
-  verifyOtp(client: ApiClient, mobile: string, otp: string) {
-    return client.post<VetVerifyOtpResponse>(`${VET_AUTH_PREFIX}/verify-otp`, {
-      mobile: mobile.replace(/\D/g, '').slice(-10),
-      otp: otp.trim(),
-    });
-  },
-
   login(client: ApiClient, email: string, password: string) {
     return client.post<VetAuthResponse>(`${VET_AUTH_PREFIX}/login`, { email, password });
   },
@@ -132,11 +117,5 @@ export const vetAuthApi = {
 
   approveVet(client: ApiClient, vetId: string) {
     return client.patch<Vet>(`${VET_AUTH_PREFIX}/vets/${vetId}/approve`);
-  },
-};
-
-export const clinicsApi = {
-  list(client: ApiClient) {
-    return client.get<Clinic[]>('/clinics');
   },
 };

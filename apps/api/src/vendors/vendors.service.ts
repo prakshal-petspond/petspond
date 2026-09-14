@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import type { Vendor as VendorRow } from '@prisma/client';
 import type {
   PublicVendorDetail,
   PublicVendorListItem,
@@ -8,99 +7,134 @@ import type {
   VendorCompleteOnboardingDto,
   VendorServiceType,
   VendorUpdateProfileDto,
+  VendorWeeklyAvailabilityBlock,
 } from '@petspond/types';
-import { VendorDocument } from './vendor.schema';
+import { PrismaService } from '@/prisma/prisma.service';
 import { haversineKm } from './vendors.geo';
 
-function toVendor(doc: VendorDocument): Vendor {
+function toVendor(row: VendorRow): Vendor {
+  const weeklyAvailability =
+    (row.weeklyAvailability as VendorWeeklyAvailabilityBlock[] | null) ?? [];
   return {
-    id: String(doc._id),
-    mobile: doc.mobile,
-    businessName: doc.businessName,
-    displayTitle: doc.displayTitle,
-    bio: doc.bio,
-    photoUrl: doc.photoUrl,
-    serviceTypes: doc.serviceTypes ?? [],
-    serviceModes: doc.serviceModes ?? [],
-    latitude: doc.latitude,
-    longitude: doc.longitude,
-    address: doc.address,
-    city: doc.city,
-    serviceRadiusKm: doc.serviceRadiusKm,
-    weeklyAvailability: doc.weeklyAvailability ?? [],
-    rating: doc.rating,
-    reviewCount: doc.reviewCount,
-    promo: doc.promo,
-    onboardingCompleted: doc.onboardingCompleted,
-    isActive: doc.isActive,
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
+    id: row.id,
+    mobile: row.mobile,
+    businessName: row.businessName,
+    displayTitle: row.displayTitle ?? undefined,
+    bio: row.bio ?? undefined,
+    photoUrl: row.photoUrl ?? undefined,
+    serviceTypes: (row.serviceTypes ?? []) as Vendor['serviceTypes'],
+    serviceModes: (row.serviceModes ?? []) as Vendor['serviceModes'],
+    latitude: row.latitude,
+    longitude: row.longitude,
+    address: row.address,
+    city: row.city ?? undefined,
+    serviceRadiusKm: row.serviceRadiusKm,
+    weeklyAvailability,
+    rating: row.rating,
+    reviewCount: row.reviewCount,
+    promo: row.promo ?? undefined,
+    onboardingCompleted: row.onboardingCompleted,
+    isActive: row.isActive,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
-function toListItem(doc: VendorDocument, distanceKm?: number): PublicVendorListItem {
+function toListItem(row: VendorRow, distanceKm?: number): PublicVendorListItem {
   return {
-    id: String(doc._id),
-    businessName: doc.businessName,
-    displayTitle: doc.displayTitle,
-    photoUrl: doc.photoUrl,
-    serviceTypes: doc.serviceTypes ?? [],
-    serviceModes: doc.serviceModes ?? [],
-    rating: doc.rating,
-    reviewCount: doc.reviewCount,
-    promo: doc.promo,
-    image: doc.photoUrl,
+    id: row.id,
+    businessName: row.businessName,
+    displayTitle: row.displayTitle ?? undefined,
+    photoUrl: row.photoUrl ?? undefined,
+    serviceTypes: (row.serviceTypes ?? []) as PublicVendorListItem['serviceTypes'],
+    serviceModes: (row.serviceModes ?? []) as PublicVendorListItem['serviceModes'],
+    rating: row.rating,
+    reviewCount: row.reviewCount,
+    promo: row.promo ?? undefined,
+    image: row.photoUrl ?? undefined,
     distanceKm,
   };
 }
 
 @Injectable()
 export class VendorsService {
-  constructor(@InjectModel(VendorDocument.name) private readonly model: Model<VendorDocument>) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async createOrFindByMobile(mobile: string): Promise<Vendor> {
-    let doc = await this.model.findOne({ mobile });
-    if (!doc) {
-      doc = await this.model.create({ mobile });
+    let row = await this.prisma.vendor.findUnique({ where: { mobile } });
+    if (!row) {
+      row = await this.prisma.vendor.create({ data: { mobile } });
     }
-    return toVendor(doc);
+    return toVendor(row);
   }
 
   async findById(id: string): Promise<Vendor | null> {
-    const doc = await this.model.findById(id);
-    return doc ? toVendor(doc) : null;
+    const row = await this.prisma.vendor.findUnique({ where: { id } });
+    return row ? toVendor(row) : null;
   }
 
   async completeOnboarding(vendorId: string, dto: VendorCompleteOnboardingDto): Promise<Vendor> {
     const serviceModes = normalizeServiceModes(dto.serviceTypes, dto.serviceModes);
-    const doc = await this.model.findByIdAndUpdate(
-      vendorId,
-      {
-        ...dto,
-        serviceModes,
-        onboardingCompleted: true,
-        isActive: true,
-      },
-      { new: true },
-    );
-    if (!doc) throw new NotFoundException('Vendor not found');
-    return toVendor(doc);
+    try {
+      const row = await this.prisma.vendor.update({
+        where: { id: vendorId },
+        data: {
+          businessName: dto.businessName,
+          displayTitle: dto.displayTitle,
+          bio: dto.bio,
+          photoUrl: dto.photoUrl,
+          serviceTypes: dto.serviceTypes,
+          serviceModes,
+          latitude: dto.latitude,
+          longitude: dto.longitude,
+          address: dto.address,
+          city: dto.city,
+          serviceRadiusKm: dto.serviceRadiusKm,
+          weeklyAvailability: dto.weeklyAvailability as unknown as import('@prisma/client').Prisma.InputJsonValue,
+          promo: dto.promo,
+          onboardingCompleted: true,
+          isActive: true,
+        },
+      });
+      return toVendor(row);
+    } catch {
+      throw new NotFoundException('Vendor not found');
+    }
   }
 
   async updateProfile(vendorId: string, dto: VendorUpdateProfileDto): Promise<Vendor> {
-    const existing = await this.model.findById(vendorId);
+    const existing = await this.prisma.vendor.findUnique({ where: { id: vendorId } });
     if (!existing) throw new NotFoundException('Vendor not found');
-    const serviceTypes = dto.serviceTypes ?? existing.serviceTypes;
+    const serviceTypes = (dto.serviceTypes ?? existing.serviceTypes) as VendorServiceType[];
     const serviceModes = dto.serviceModes
       ? normalizeServiceModes(serviceTypes, dto.serviceModes)
-      : existing.serviceModes;
-    const doc = await this.model.findByIdAndUpdate(
-      vendorId,
-      { ...dto, serviceModes },
-      { new: true },
-    );
-    if (!doc) throw new NotFoundException('Vendor not found');
-    return toVendor(doc);
+      : ((existing.serviceModes ?? []) as VendorCompleteOnboardingDto['serviceModes']);
+    try {
+      const row = await this.prisma.vendor.update({
+        where: { id: vendorId },
+        data: {
+          ...(dto.businessName != null && { businessName: dto.businessName }),
+          ...(dto.displayTitle != null && { displayTitle: dto.displayTitle }),
+          ...(dto.bio != null && { bio: dto.bio }),
+          ...(dto.photoUrl != null && { photoUrl: dto.photoUrl }),
+          ...(dto.serviceTypes != null && { serviceTypes: dto.serviceTypes }),
+          serviceModes,
+          ...(dto.latitude != null && { latitude: dto.latitude }),
+          ...(dto.longitude != null && { longitude: dto.longitude }),
+          ...(dto.address != null && { address: dto.address }),
+          ...(dto.city != null && { city: dto.city }),
+          ...(dto.serviceRadiusKm != null && { serviceRadiusKm: dto.serviceRadiusKm }),
+          ...(dto.weeklyAvailability != null && {
+            weeklyAvailability: dto.weeklyAvailability as unknown as import('@prisma/client').Prisma.InputJsonValue,
+          }),
+          ...(dto.promo != null && { promo: dto.promo }),
+          ...(dto.isActive != null && { isActive: dto.isActive }),
+        },
+      });
+      return toVendor(row);
+    } catch {
+      throw new NotFoundException('Vendor not found');
+    }
   }
 
   async listPublic(params: {
@@ -109,67 +143,70 @@ export class VendorsService {
     lng?: number;
     q?: string;
   }): Promise<PublicVendorListItem[]> {
-    const filter: Record<string, unknown> = {
-      onboardingCompleted: true,
-      isActive: true,
-    };
-    if (params.type) filter.serviceTypes = params.type;
-
-    const docs = await this.model.find(filter).sort({ rating: -1 }).exec();
+    const rows = await this.prisma.vendor.findMany({
+      where: {
+        onboardingCompleted: true,
+        isActive: true,
+        ...(params.type ? { serviceTypes: { has: params.type } } : {}),
+      },
+      orderBy: { rating: 'desc' },
+    });
     const q = params.q?.trim().toLowerCase();
 
-    let items = docs.map((doc) => {
+    let items = rows.map((row) => {
       let distanceKm: number | undefined;
-      if (params.lat != null && params.lng != null && doc.latitude && doc.longitude) {
+      if (params.lat != null && params.lng != null && row.latitude && row.longitude) {
         distanceKm = haversineKm(
           { latitude: params.lat, longitude: params.lng },
-          { latitude: doc.latitude, longitude: doc.longitude },
+          { latitude: row.latitude, longitude: row.longitude },
         );
       }
-      return { doc, distanceKm };
+      return { row, distanceKm };
     });
 
     if (params.lat != null && params.lng != null) {
       items = items.filter(
-        ({ doc, distanceKm }) =>
-          distanceKm != null && distanceKm <= (doc.serviceRadiusKm || 10),
+        ({ row, distanceKm }) =>
+          distanceKm != null && distanceKm <= (row.serviceRadiusKm || 10),
       );
     }
 
     if (q) {
-      items = items.filter(({ doc }) => {
-        const hay = `${doc.businessName} ${doc.displayTitle ?? ''} ${doc.city ?? ''}`.toLowerCase();
+      items = items.filter(({ row }) => {
+        const hay = `${row.businessName} ${row.displayTitle ?? ''} ${row.city ?? ''}`.toLowerCase();
         return hay.includes(q);
       });
     }
 
     items.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
 
-    return items.map(({ doc, distanceKm }) => toListItem(doc, distanceKm));
+    return items.map(({ row, distanceKm }) => toListItem(row, distanceKm));
   }
 
   async getPublicDetail(id: string, lat?: number, lng?: number): Promise<PublicVendorDetail | null> {
-    const doc = await this.model.findById(id);
-    if (!doc || !doc.onboardingCompleted || !doc.isActive) return null;
+    const row = await this.prisma.vendor.findUnique({ where: { id } });
+    if (!row || !row.onboardingCompleted || !row.isActive) return null;
 
     let distanceKm: number | undefined;
-    if (lat != null && lng != null && doc.latitude && doc.longitude) {
+    if (lat != null && lng != null && row.latitude && row.longitude) {
       distanceKm = haversineKm(
         { latitude: lat, longitude: lng },
-        { latitude: doc.latitude, longitude: doc.longitude },
+        { latitude: row.latitude, longitude: row.longitude },
       );
-      if (distanceKm > (doc.serviceRadiusKm || 10)) return null;
+      if (distanceKm > (row.serviceRadiusKm || 10)) return null;
     }
 
-    const base = toListItem(doc, distanceKm);
+    const weeklyAvailability =
+      (row.weeklyAvailability as VendorWeeklyAvailabilityBlock[] | null) ?? [];
+    const base = toListItem(row, distanceKm);
     return {
       ...base,
-      bio: doc.bio,
-      address: doc.address,
-      latitude: doc.latitude,
-      longitude: doc.longitude,
-      serviceRadiusKm: doc.serviceRadiusKm,
-      weeklyAvailability: doc.weeklyAvailability ?? [],
+      bio: row.bio ?? undefined,
+      address: row.address,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      serviceRadiusKm: row.serviceRadiusKm,
+      weeklyAvailability,
     };
   }
 }

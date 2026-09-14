@@ -1,59 +1,71 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import type { Clinic, CreateClinicDto, PublicClinicDetail, PublicClinicListItem, UpdateClinicDto } from '@petspond/types';
-import { ClinicDocument } from './clinic.schema';
+import type { Clinic as ClinicRow, Prisma } from '@prisma/client';
+import type {
+  Clinic,
+  CreateClinicDto,
+  PublicClinicDetail,
+  PublicClinicListItem,
+  UpdateClinicDto,
+} from '@petspond/types';
+import { PrismaService } from '@/prisma/prisma.service';
 import { VetsService } from '@/vets/vets.service';
 
-function toClinic(doc: ClinicDocument): Clinic {
+type HourEntry = { day: string; hours: string };
+type ServiceOffered = { id: string; name: string; icon: string };
+type VaccineOffered = { id: string; name: string; pricePaise: number };
+
+function toClinic(row: ClinicRow): Clinic {
+  const hours = (row.hours as HourEntry[] | null) ?? [];
+  const servicesOffered = (row.servicesOffered as ServiceOffered[] | null) ?? [];
+  const vaccinesOffered = (row.vaccinesOffered as VaccineOffered[] | null) ?? [];
   return {
-    id: doc._id.toString(),
-    name: doc.name,
-    totalDoctors: doc.totalDoctors ?? 1,
-    address: doc.address,
-    pincode: doc.pincode,
-    city: doc.city,
-    state: doc.state,
-    country: doc.country,
-    latitude: doc.latitude,
-    longitude: doc.longitude,
-    placeId: doc.placeId,
-    adminVetId: doc.adminVetId,
-    listingImage: doc.listingImage,
-    heroImage: doc.heroImage,
-    tagline: doc.tagline,
-    rating: doc.rating ?? 4.5,
-    reviewCount: doc.reviewCount ?? 0,
-    is24_7: doc.is24_7 ?? false,
-    closingTimeLabel: doc.closingTimeLabel,
-    hours: doc.hours?.length ? doc.hours.map((h) => ({ day: h.day, hours: h.hours })) : [],
-    facilities: doc.facilities ?? [],
-    photoGallery: doc.photoGallery ?? [],
-    servicesOffered: doc.servicesOffered ?? [],
-    vaccinesOffered: doc.vaccinesOffered ?? [],
-    acceptsConsultations: doc.acceptsConsultations ?? true,
-    acceptsVaccinations: doc.acceptsVaccinations ?? true,
-    establishedYear: doc.establishedYear,
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
+    id: row.id,
+    name: row.name,
+    totalDoctors: row.totalDoctors ?? 1,
+    address: row.address,
+    pincode: row.pincode,
+    city: row.city ?? undefined,
+    state: row.state ?? undefined,
+    country: row.country ?? undefined,
+    latitude: row.latitude ?? undefined,
+    longitude: row.longitude ?? undefined,
+    placeId: row.placeId ?? undefined,
+    adminVetId: row.adminVetId,
+    listingImage: row.listingImage ?? undefined,
+    heroImage: row.heroImage ?? undefined,
+    tagline: row.tagline ?? undefined,
+    rating: row.rating ?? 4.5,
+    reviewCount: row.reviewCount ?? 0,
+    is24_7: row.is24_7 ?? false,
+    closingTimeLabel: row.closingTimeLabel ?? undefined,
+    hours: hours.map((h) => ({ day: h.day, hours: h.hours })),
+    facilities: row.facilities ?? [],
+    photoGallery: row.photoGallery ?? [],
+    servicesOffered,
+    vaccinesOffered,
+    acceptsConsultations: row.acceptsConsultations ?? true,
+    acceptsVaccinations: row.acceptsVaccinations ?? true,
+    establishedYear: row.establishedYear ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
 @Injectable()
 export class ClinicsService {
   constructor(
-    @InjectModel(ClinicDocument.name) private readonly clinicModel: Model<ClinicDocument>,
+    private readonly prisma: PrismaService,
     private readonly vetsService: VetsService,
   ) {}
 
   async findAll(): Promise<Clinic[]> {
-    const docs = await this.clinicModel.find().sort({ name: 1 }).exec();
-    return docs.map(toClinic);
+    const rows = await this.prisma.clinic.findMany({ orderBy: { name: 'asc' } });
+    return rows.map(toClinic);
   }
 
   async findById(id: string): Promise<Clinic | null> {
-    const doc = await this.clinicModel.findById(id).exec();
-    return doc ? toClinic(doc) : null;
+    const row = await this.prisma.clinic.findUnique({ where: { id } });
+    return row ? toClinic(row) : null;
   }
 
   async create(
@@ -62,94 +74,99 @@ export class ClinicsService {
       servicesOffered?: { id: string; name: string; icon: string }[];
     },
   ): Promise<Clinic> {
-    const doc = await this.clinicModel.create({
-      name: data.name,
-      totalDoctors: Math.max(1, data.totalDoctors),
-      address: data.address,
-      pincode: data.pincode,
-      city: data.city,
-      state: data.state,
-      country: data.country,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      placeId: data.placeId,
-      adminVetId: data.adminVetId,
-      tagline: data.tagline,
-      listingImage: data.listingImage,
-      heroImage: data.heroImage,
-      acceptsConsultations: data.acceptsConsultations ?? true,
-      acceptsVaccinations: data.acceptsVaccinations ?? true,
-      hours: [
-        { day: 'Mon - Fri', hours: '9:00 AM - 8:00 PM' },
-        { day: 'Saturday', hours: '10:00 AM - 6:00 PM' },
-        { day: 'Sunday', hours: '10:00 AM - 4:00 PM' },
-      ],
-      facilities: ['Consultation', 'Pharmacy', 'Vaccination'],
-      servicesOffered: data.servicesOffered?.length
-        ? data.servicesOffered
-        : [
-            { id: 'checkup', name: 'General Checkup', icon: 'medical' },
-            { id: 'vax', name: 'Vaccination', icon: 'bandage' },
-          ],
-      vaccinesOffered: [
-        { id: 'rabies', name: 'Rabies', pricePaise: 50000 },
-        { id: 'dhpp', name: 'DHPP', pricePaise: 45000 },
-      ],
+    const row = await this.prisma.clinic.create({
+      data: {
+        name: data.name,
+        totalDoctors: Math.max(1, data.totalDoctors),
+        address: data.address,
+        pincode: data.pincode,
+        city: data.city,
+        state: data.state,
+        country: data.country,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        placeId: data.placeId,
+        adminVetId: data.adminVetId,
+        tagline: data.tagline,
+        listingImage: data.listingImage,
+        heroImage: data.heroImage,
+        acceptsConsultations: data.acceptsConsultations ?? true,
+        acceptsVaccinations: data.acceptsVaccinations ?? true,
+        hours: [
+          { day: 'Mon - Fri', hours: '9:00 AM - 8:00 PM' },
+          { day: 'Saturday', hours: '10:00 AM - 6:00 PM' },
+          { day: 'Sunday', hours: '10:00 AM - 4:00 PM' },
+        ],
+        facilities: ['Consultation', 'Pharmacy', 'Vaccination'],
+        servicesOffered: data.servicesOffered?.length
+          ? data.servicesOffered
+          : [
+              { id: 'checkup', name: 'General Checkup', icon: 'medical' },
+              { id: 'vax', name: 'Vaccination', icon: 'bandage' },
+            ],
+        vaccinesOffered: [
+          { id: 'rabies', name: 'Rabies', pricePaise: 50000 },
+          { id: 'dhpp', name: 'DHPP', pricePaise: 45000 },
+        ],
+      },
     });
-    return toClinic(doc);
+    return toClinic(row);
   }
 
   async updateById(id: string, patch: UpdateClinicDto): Promise<Clinic> {
-    const doc = await this.clinicModel
-      .findByIdAndUpdate(
-        id,
-        { $set: { ...stripUndefined(patch as unknown as Record<string, unknown>) } },
-        { new: true, runValidators: true },
-      )
-      .exec();
-    if (!doc) throw new NotFoundException('Clinic not found');
-    return toClinic(doc);
+    const data = stripUndefined(patch as unknown as Record<string, unknown>) as Prisma.ClinicUpdateInput;
+    try {
+      const row = await this.prisma.clinic.update({ where: { id }, data });
+      return toClinic(row);
+    } catch {
+      throw new NotFoundException('Clinic not found');
+    }
   }
 
   async syncDoctorCount(clinicId: string): Promise<void> {
     const n = await this.vetsService.countApprovedInClinic(clinicId);
-    await this.clinicModel
-      .findByIdAndUpdate(clinicId, { $set: { totalDoctors: Math.max(1, n) } })
-      .exec();
+    await this.prisma.clinic.update({
+      where: { id: clinicId },
+      data: { totalDoctors: Math.max(1, n) },
+    });
   }
 
   async listPublicConsultation(): Promise<PublicClinicListItem[]> {
-    const docs = await this.clinicModel
-      .find({ acceptsConsultations: true })
-      .sort({ name: 1 })
-      .exec();
+    const rows = await this.prisma.clinic.findMany({
+      where: { acceptsConsultations: true },
+      orderBy: { name: 'asc' },
+    });
     const out: PublicClinicListItem[] = [];
-    for (const doc of docs) {
-      const item = await this.toPublicListItem(doc);
+    for (const row of rows) {
+      const item = await this.toPublicListItem(row);
       if (item) out.push(item);
     }
     return out;
   }
 
   async listPublicVaccination(): Promise<PublicClinicListItem[]> {
-    const docs = await this.clinicModel
-      .find({ acceptsVaccinations: true, 'vaccinesOffered.0': { $exists: true } })
-      .sort({ name: 1 })
-      .exec();
+    const rows = await this.prisma.clinic.findMany({
+      where: { acceptsVaccinations: true },
+      orderBy: { name: 'asc' },
+    });
+    const withVaccines = rows.filter((r) => {
+      const vaccines = (r.vaccinesOffered as VaccineOffered[] | null) ?? [];
+      return vaccines.length > 0;
+    });
     const out: PublicClinicListItem[] = [];
-    for (const doc of docs) {
-      const item = await this.toPublicListItem(doc);
+    for (const row of withVaccines) {
+      const item = await this.toPublicListItem(row);
       if (item) out.push(item);
     }
     return out;
   }
 
   async getPublicDetail(clinicId: string): Promise<PublicClinicDetail | null> {
-    const doc = await this.clinicModel.findById(clinicId).exec();
-    if (!doc) return null;
-    const base = await this.toPublicListItem(doc);
+    const row = await this.prisma.clinic.findUnique({ where: { id: clinicId } });
+    if (!row) return null;
+    const base = await this.toPublicListItem(row);
     if (!base) return null;
-    const vets = await this.vetsService.findVetsForPublicClinicView(clinicId, doc.adminVetId);
+    const vets = await this.vetsService.findVetsForPublicClinicView(clinicId, row.adminVetId);
     const doctors = vets.map((v) => ({
       id: v.id,
       fullName: v.fullName,
@@ -158,24 +175,26 @@ export class ClinicsService {
       displayTitle: v.displayTitle ?? (v.specializations[0] ?? 'Veterinarian'),
       weeklyAvailability: v.weeklyAvailability ?? [],
     }));
+    const hours = (row.hours as HourEntry[] | null) ?? [];
+    const servicesOffered = (row.servicesOffered as ServiceOffered[] | null) ?? [];
     return {
       ...base,
-      tagline: doc.tagline,
-      listingImage: doc.listingImage,
-      heroImage: doc.heroImage,
-      photoGallery: doc.photoGallery ?? [],
-      facilities: doc.facilities ?? [],
-      hours: doc.hours?.length ? doc.hours.map((h) => ({ day: h.day, hours: h.hours })) : [],
-      servicesOffered: doc.servicesOffered ?? [],
-      totalDoctors: doctors.length > 0 ? doctors.length : doc.totalDoctors ?? 1,
-      establishedYear: doc.establishedYear,
+      tagline: row.tagline ?? undefined,
+      listingImage: row.listingImage ?? undefined,
+      heroImage: row.heroImage ?? undefined,
+      photoGallery: row.photoGallery ?? [],
+      facilities: row.facilities ?? [],
+      hours: hours.map((h) => ({ day: h.day, hours: h.hours })),
+      servicesOffered,
+      totalDoctors: doctors.length > 0 ? doctors.length : row.totalDoctors ?? 1,
+      establishedYear: row.establishedYear ?? undefined,
       doctors,
     };
   }
 
-  private async toPublicListItem(doc: ClinicDocument): Promise<PublicClinicListItem | null> {
-    const clinic = toClinic(doc);
-    const vets = await this.vetsService.findVetsForPublicClinicView(doc._id.toString(), doc.adminVetId);
+  private async toPublicListItem(row: ClinicRow): Promise<PublicClinicListItem | null> {
+    const clinic = toClinic(row);
+    const vets = await this.vetsService.findVetsForPublicClinicView(row.id, row.adminVetId);
     if (vets.length === 0) return null;
     const adminFirst = [...vets].sort((a, b) => Number(b.isClinicAdmin) - Number(a.isClinicAdmin));
     const primary = adminFirst[0]!;

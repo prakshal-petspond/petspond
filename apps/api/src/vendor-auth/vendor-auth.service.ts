@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { Vendor, VendorCompleteOnboardingDto, VendorUpdateProfileDto } from '@petspond/types';
 import { AuthService } from '@/auth/auth.service';
-import { getAndDeleteOtp } from '@/auth/otp.store';
 import { shouldAcceptOtpBypass } from '@/auth/otp-bypass';
 import { VendorsService } from '@/vendors/vendors.service';
 
@@ -32,17 +31,11 @@ export class VendorAuthService {
     if (normalized.length < 10) {
       return { verified: false, message: 'Invalid mobile number.' };
     }
-    if (shouldAcceptOtpBypass(this.config, otp)) {
-      const vendor = await this.vendorsService.createOrFindByMobile(normalized);
-      const token = this.jwtService.sign({ sub: vendor.id, kind: 'vendor' });
-      return { verified: true, token, vendor };
-    }
-    const stored = getAndDeleteOtp(normalized);
-    if (!stored) {
-      return { verified: false, message: 'OTP expired or not found. Please request a new one.' };
-    }
-    if (stored !== otp.trim()) {
-      return { verified: false, message: 'Invalid OTP.' };
+    if (!shouldAcceptOtpBypass(this.config, otp)) {
+      const check = await this.authService.verifyMobileOtpCode(normalized, otp);
+      if (!check.ok) {
+        return { verified: false, message: check.message ?? 'Invalid OTP.' };
+      }
     }
     const vendor = await this.vendorsService.createOrFindByMobile(normalized);
     const token = this.jwtService.sign({ sub: vendor.id, kind: 'vendor' });

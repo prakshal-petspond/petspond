@@ -4,8 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import type {
+  ConsultationBooking as ConsultationRow,
+  VaccinationBooking as VaccinationRow,
+} from '@prisma/client';
 import type {
   ConsultationBooking,
   CreateConsultationBookingDto,
@@ -13,24 +15,20 @@ import type {
   VaccinationBooking,
   Vet,
 } from '@petspond/types';
-import { ConsultationBookingDocument } from './consultation-booking.schema';
-import { VaccinationBookingDocument } from './vaccination-booking.schema';
+import { PrismaService } from '@/prisma/prisma.service';
 import { PetsService } from '@/pets/pets.service';
 import { ClinicsService } from '@/clinics/clinics.service';
 import { VetsService } from '@/vets/vets.service';
-import { UsersService } from '@/users/users.service';
+
+type VaccineLine = { vaccineId: string; name: string; pricePaise: number };
 
 @Injectable()
 export class BookingsService {
   constructor(
-    @InjectModel(ConsultationBookingDocument.name)
-    private readonly consultationModel: Model<ConsultationBookingDocument>,
-    @InjectModel(VaccinationBookingDocument.name)
-    private readonly vaccinationModel: Model<VaccinationBookingDocument>,
+    private readonly prisma: PrismaService,
     private readonly petsService: PetsService,
     private readonly clinicsService: ClinicsService,
     private readonly vetsService: VetsService,
-    private readonly usersService: UsersService,
   ) {}
 
   private assertVetClinic(vet: Vet, clinicId: string) {
@@ -91,29 +89,31 @@ export class BookingsService {
     const discountPaise = dto.discountPaise ?? 0;
     const totalPaise = Math.max(0, consultationFeePaise + platformFeePaise - discountPaise);
 
-    const doc = await this.consultationModel.create({
-      userId,
-      clinicId: dto.clinicId,
-      vetId: dto.vetId,
-      petId: pet.id,
-      petName: pet.name,
-      petSpecies: pet.species,
-      petBreed: pet.breed,
-      petWeightLabel: pet.weight != null ? `${pet.weight} kg` : undefined,
-      reasonIds: dto.reasonIds ?? [],
-      notes: dto.notes,
-      scheduledAt: new Date(dto.scheduledAt),
-      status: 'pending_payment',
-      paymentStatus: 'pending',
-      consultationFeePaise,
-      platformFeePaise,
-      discountPaise,
-      totalPaise,
-      promoCode: dto.promoCode,
-      paymentMethodLabel: dto.paymentMethodLabel,
+    const row = await this.prisma.consultationBooking.create({
+      data: {
+        userId,
+        clinicId: dto.clinicId,
+        vetId: dto.vetId,
+        petId: pet.id,
+        petName: pet.name,
+        petSpecies: pet.species,
+        petBreed: pet.breed,
+        petWeightLabel: pet.weight != null ? `${pet.weight} kg` : undefined,
+        reasonIds: dto.reasonIds ?? [],
+        notes: dto.notes,
+        scheduledAt: new Date(dto.scheduledAt),
+        status: 'pending_payment',
+        paymentStatus: 'pending',
+        consultationFeePaise,
+        platformFeePaise,
+        discountPaise,
+        totalPaise,
+        promoCode: dto.promoCode,
+        paymentMethodLabel: dto.paymentMethodLabel,
+      },
     });
 
-    return this.enrichConsultation(doc);
+    return this.enrichConsultation(row);
   }
 
   async confirmConsultationPayment(
@@ -121,28 +121,37 @@ export class BookingsService {
     bookingId: string,
     stripeSessionId?: string,
   ): Promise<ConsultationBooking> {
-    const doc = await this.consultationModel.findById(bookingId).exec();
-    if (!doc || doc.userId !== userId) throw new NotFoundException('Booking not found');
-    doc.paymentStatus = 'paid';
-    doc.status = 'scheduled';
-    if (stripeSessionId) doc.stripeCheckoutSessionId = stripeSessionId;
-    await doc.save();
-    return this.enrichConsultation(doc);
+    const existing = await this.prisma.consultationBooking.findUnique({ where: { id: bookingId } });
+    if (!existing || existing.userId !== userId) throw new NotFoundException('Booking not found');
+    const row = await this.prisma.consultationBooking.update({
+      where: { id: bookingId },
+      data: {
+        paymentStatus: 'paid',
+        status: 'scheduled',
+        ...(stripeSessionId && { stripeCheckoutSessionId: stripeSessionId }),
+      },
+    });
+    return this.enrichConsultation(row);
   }
 
   async listConsultationsForUser(userId: string): Promise<ConsultationBooking[]> {
-    const docs = await this.consultationModel.find({ userId }).sort({ createdAt: -1 }).exec();
-    return Promise.all(docs.map((d) => this.enrichConsultation(d)));
+    const rows = await this.prisma.consultationBooking.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return this.enrichConsultationsBatch(rows);
   }
 
   async listConsultationsForVet(vet: Vet): Promise<ConsultationBooking[]> {
     if (!vet.clinicId) return [];
     this.assertVetClinic(vet, vet.clinicId);
-    const docs = await this.consultationModel
-      .find({ clinicId: vet.clinicId })
-      .sort({ scheduledAt: 1 })
-      .exec();
-    return Promise.all(docs.map((d) => this.enrichConsultation(d)));
+    const rows = await this.prisma.consultationBooking.findMany({
+      where: { clinicId: vet.clinicId },
+      orderBy: { scheduledAt: 'asc' },
+      take: 200,
+    });
+    return this.enrichConsultationsBatch(rows);
   }
 
   async updateConsultationStatus(
@@ -152,11 +161,13 @@ export class BookingsService {
   ): Promise<ConsultationBooking> {
     if (!vet.clinicId) throw new ForbiddenException('No clinic');
     this.assertVetClinic(vet, vet.clinicId);
-    const doc = await this.consultationModel.findById(bookingId).exec();
-    if (!doc || doc.clinicId !== vet.clinicId) throw new NotFoundException('Booking not found');
-    doc.status = status;
-    await doc.save();
-    return this.enrichConsultation(doc);
+    const existing = await this.prisma.consultationBooking.findUnique({ where: { id: bookingId } });
+    if (!existing || existing.clinicId !== vet.clinicId) throw new NotFoundException('Booking not found');
+    const row = await this.prisma.consultationBooking.update({
+      where: { id: bookingId },
+      data: { status },
+    });
+    return this.enrichConsultation(row);
   }
 
   async createVaccination(userId: string, dto: CreateVaccinationBookingDto): Promise<VaccinationBooking> {
@@ -178,27 +189,29 @@ export class BookingsService {
 
     await this.assertVaccinationSlotMatchesClinicAvailability(new Date(dto.scheduledAt), dto.clinicId);
 
-    const doc = await this.vaccinationModel.create({
-      userId,
-      clinicId: dto.clinicId,
-      petId: pet.id,
-      petName: pet.name,
-      petSpecies: pet.species,
-      petBreed: pet.breed,
-      vaccines: vaccines.map((v) => ({ vaccineId: v.id, name: v.name, pricePaise: v.pricePaise })),
-      notes: dto.notes,
-      scheduledAt: new Date(dto.scheduledAt),
-      status: 'pending_payment',
-      paymentStatus: 'pending',
-      platformFeePaise,
-      discountPaise,
-      vaccinesSubtotalPaise,
-      totalPaise,
-      promoCode: dto.promoCode,
-      paymentMethodLabel: dto.paymentMethodLabel,
+    const row = await this.prisma.vaccinationBooking.create({
+      data: {
+        userId,
+        clinicId: dto.clinicId,
+        petId: pet.id,
+        petName: pet.name,
+        petSpecies: pet.species,
+        petBreed: pet.breed,
+        vaccines: vaccines.map((v) => ({ vaccineId: v.id, name: v.name, pricePaise: v.pricePaise })),
+        notes: dto.notes,
+        scheduledAt: new Date(dto.scheduledAt),
+        status: 'pending_payment',
+        paymentStatus: 'pending',
+        platformFeePaise,
+        discountPaise,
+        vaccinesSubtotalPaise,
+        totalPaise,
+        promoCode: dto.promoCode,
+        paymentMethodLabel: dto.paymentMethodLabel,
+      },
     });
 
-    return this.enrichVaccination(doc);
+    return this.enrichVaccination(row);
   }
 
   async confirmVaccinationPayment(
@@ -206,28 +219,37 @@ export class BookingsService {
     bookingId: string,
     stripeSessionId?: string,
   ): Promise<VaccinationBooking> {
-    const doc = await this.vaccinationModel.findById(bookingId).exec();
-    if (!doc || doc.userId !== userId) throw new NotFoundException('Booking not found');
-    doc.paymentStatus = 'paid';
-    doc.status = 'scheduled';
-    if (stripeSessionId) doc.stripeCheckoutSessionId = stripeSessionId;
-    await doc.save();
-    return this.enrichVaccination(doc);
+    const existing = await this.prisma.vaccinationBooking.findUnique({ where: { id: bookingId } });
+    if (!existing || existing.userId !== userId) throw new NotFoundException('Booking not found');
+    const row = await this.prisma.vaccinationBooking.update({
+      where: { id: bookingId },
+      data: {
+        paymentStatus: 'paid',
+        status: 'scheduled',
+        ...(stripeSessionId && { stripeCheckoutSessionId: stripeSessionId }),
+      },
+    });
+    return this.enrichVaccination(row);
   }
 
   async listVaccinationsForUser(userId: string): Promise<VaccinationBooking[]> {
-    const docs = await this.vaccinationModel.find({ userId }).sort({ createdAt: -1 }).exec();
-    return Promise.all(docs.map((d) => this.enrichVaccination(d)));
+    const rows = await this.prisma.vaccinationBooking.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return this.enrichVaccinationsBatch(rows);
   }
 
   async listVaccinationsForVet(vet: Vet): Promise<VaccinationBooking[]> {
     if (!vet.clinicId) return [];
     this.assertVetClinic(vet, vet.clinicId);
-    const docs = await this.vaccinationModel
-      .find({ clinicId: vet.clinicId })
-      .sort({ scheduledAt: 1 })
-      .exec();
-    return Promise.all(docs.map((d) => this.enrichVaccination(d)));
+    const rows = await this.prisma.vaccinationBooking.findMany({
+      where: { clinicId: vet.clinicId },
+      orderBy: { scheduledAt: 'asc' },
+      take: 200,
+    });
+    return this.enrichVaccinationsBatch(rows);
   }
 
   async updateVaccinationStatus(
@@ -237,98 +259,146 @@ export class BookingsService {
   ): Promise<VaccinationBooking> {
     if (!vet.clinicId) throw new ForbiddenException('No clinic');
     this.assertVetClinic(vet, vet.clinicId);
-    const doc = await this.vaccinationModel.findById(bookingId).exec();
-    if (!doc || doc.clinicId !== vet.clinicId) throw new NotFoundException('Booking not found');
-    doc.status = status;
-    await doc.save();
-    return this.enrichVaccination(doc);
+    const existing = await this.prisma.vaccinationBooking.findUnique({ where: { id: bookingId } });
+    if (!existing || existing.clinicId !== vet.clinicId) throw new NotFoundException('Booking not found');
+    const row = await this.prisma.vaccinationBooking.update({
+      where: { id: bookingId },
+      data: { status },
+    });
+    return this.enrichVaccination(row);
   }
 
-  async enrichConsultationPublic(doc: ConsultationBookingDocument): Promise<ConsultationBooking> {
-    return this.enrichConsultation(doc);
+  async enrichConsultationPublic(row: ConsultationRow): Promise<ConsultationBooking> {
+    return this.enrichConsultation(row);
   }
 
-  private async enrichConsultation(doc: ConsultationBookingDocument): Promise<ConsultationBooking> {
-    const [user, clinic, v] = await Promise.all([
-      doc.userId ? this.usersService.findById(doc.userId) : Promise.resolve(null),
-      this.clinicsService.findById(doc.clinicId),
-      this.vetsService.findById(doc.vetId),
+  async enrichConsultationsBatch(rows: ConsultationRow[]): Promise<ConsultationBooking[]> {
+    if (!rows.length) return [];
+    const userIds = [...new Set(rows.map((r) => r.userId).filter((id): id is string => !!id))];
+    const clinicIds = [...new Set(rows.map((r) => r.clinicId))];
+    const vetIds = [...new Set(rows.map((r) => r.vetId))];
+
+    const [users, clinics, vets] = await Promise.all([
+      userIds.length
+        ? this.prisma.user.findMany({ where: { id: { in: userIds } } })
+        : Promise.resolve([]),
+      this.prisma.clinic.findMany({ where: { id: { in: clinicIds } } }),
+      this.prisma.vet.findMany({ where: { id: { in: vetIds } } }),
     ]);
+
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    const clinicMap = new Map(clinics.map((c) => [c.id, c]));
+    const vetMap = new Map(vets.map((v) => [v.id, v]));
+
+    return rows.map((row) => {
+      const user = row.userId ? userMap.get(row.userId) : undefined;
+      const clinic = clinicMap.get(row.clinicId);
+      const v = vetMap.get(row.vetId);
+      return this.mapConsultation(row, user?.name, user?.mobile, clinic?.name, v?.fullName);
+    });
+  }
+
+  private async enrichConsultation(row: ConsultationRow): Promise<ConsultationBooking> {
+    const [batch] = await this.enrichConsultationsBatch([row]);
+    return batch!;
+  }
+
+  private mapConsultation(
+    row: ConsultationRow,
+    userName?: string,
+    userMobile?: string,
+    clinicName?: string,
+    vetName?: string,
+  ): ConsultationBooking {
     return {
-      id: doc._id.toString(),
-      ...(doc.userId && { userId: doc.userId }),
-      clinicId: doc.clinicId,
-      vetId: doc.vetId,
-      ...(doc.petId && { petId: doc.petId }),
-      petName: doc.petName,
-      petSpecies: doc.petSpecies,
-      petBreed: doc.petBreed,
-      petWeightLabel: doc.petWeightLabel,
-      reasonIds: doc.reasonIds ?? [],
-      notes: doc.notes,
-      scheduledAt: doc.scheduledAt.toISOString(),
-      status: doc.status,
-      paymentStatus: doc.paymentStatus,
-      consultationFeePaise: doc.consultationFeePaise,
-      platformFeePaise: doc.platformFeePaise,
-      discountPaise: doc.discountPaise ?? 0,
-      totalPaise: doc.totalPaise,
-      promoCode: doc.promoCode,
-      paymentMethodLabel: doc.paymentMethodLabel,
-      stripeCheckoutSessionId: doc.stripeCheckoutSessionId,
-      userName: user?.name ?? doc.ownerNameSnapshot,
-      userMobile: user?.mobile ?? doc.ownerMobileSnapshot,
-      clinicName: clinic?.name,
-      vetName: v?.fullName,
-      queueStatus: doc.queueStatus ?? 'expected',
-      isWalkIn: doc.isWalkIn ?? false,
-      ...(doc.ownerNameSnapshot && { ownerNameSnapshot: doc.ownerNameSnapshot }),
-      ...(doc.ownerMobileSnapshot && { ownerMobileSnapshot: doc.ownerMobileSnapshot }),
-      ...(doc.checkedInAt && { checkedInAt: doc.checkedInAt.toISOString() }),
-      ...(doc.consultationStartedAt && {
-        consultationStartedAt: doc.consultationStartedAt.toISOString(),
+      id: row.id,
+      ...(row.userId && { userId: row.userId }),
+      clinicId: row.clinicId,
+      vetId: row.vetId,
+      ...(row.petId && { petId: row.petId }),
+      petName: row.petName,
+      petSpecies: row.petSpecies,
+      petBreed: row.petBreed,
+      petWeightLabel: row.petWeightLabel ?? undefined,
+      reasonIds: row.reasonIds ?? [],
+      notes: row.notes ?? undefined,
+      scheduledAt: row.scheduledAt.toISOString(),
+      status: row.status as ConsultationBooking['status'],
+      paymentStatus: row.paymentStatus as ConsultationBooking['paymentStatus'],
+      consultationFeePaise: row.consultationFeePaise,
+      platformFeePaise: row.platformFeePaise,
+      discountPaise: row.discountPaise ?? 0,
+      totalPaise: row.totalPaise,
+      promoCode: row.promoCode ?? undefined,
+      paymentMethodLabel: row.paymentMethodLabel ?? undefined,
+      stripeCheckoutSessionId: row.stripeCheckoutSessionId ?? undefined,
+      userName: userName ?? row.ownerNameSnapshot ?? undefined,
+      userMobile: userMobile ?? row.ownerMobileSnapshot ?? undefined,
+      clinicName,
+      vetName,
+      queueStatus: (row.queueStatus as ConsultationBooking['queueStatus']) ?? 'expected',
+      isWalkIn: row.isWalkIn ?? false,
+      ...(row.ownerNameSnapshot && { ownerNameSnapshot: row.ownerNameSnapshot }),
+      ...(row.ownerMobileSnapshot && { ownerMobileSnapshot: row.ownerMobileSnapshot }),
+      ...(row.checkedInAt && { checkedInAt: row.checkedInAt.toISOString() }),
+      ...(row.consultationStartedAt && {
+        consultationStartedAt: row.consultationStartedAt.toISOString(),
       }),
-      ...(doc.checkoutReadyAt && { checkoutReadyAt: doc.checkoutReadyAt.toISOString() }),
-      ...(doc.roomLabel && { roomLabel: doc.roomLabel }),
-      ...(doc.invoiceNumber && { invoiceNumber: doc.invoiceNumber }),
-      ...(doc.collectedAt && { collectedAt: doc.collectedAt.toISOString() }),
-      ...(doc.collectedByVetId && { collectedByVetId: doc.collectedByVetId }),
-      ...(doc.refundedAt && { refundedAt: doc.refundedAt.toISOString() }),
-      createdAt: doc.createdAt.toISOString(),
-      updatedAt: doc.updatedAt.toISOString(),
+      ...(row.checkoutReadyAt && { checkoutReadyAt: row.checkoutReadyAt.toISOString() }),
+      ...(row.roomLabel && { roomLabel: row.roomLabel }),
+      ...(row.invoiceNumber && { invoiceNumber: row.invoiceNumber }),
+      ...(row.collectedAt && { collectedAt: row.collectedAt.toISOString() }),
+      ...(row.collectedByVetId && { collectedByVetId: row.collectedByVetId }),
+      ...(row.refundedAt && { refundedAt: row.refundedAt.toISOString() }),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
     };
   }
 
-  private async enrichVaccination(doc: VaccinationBookingDocument): Promise<VaccinationBooking> {
-    const [user, clinic] = await Promise.all([
-      this.usersService.findById(doc.userId),
-      this.clinicsService.findById(doc.clinicId),
+  private async enrichVaccinationsBatch(rows: VaccinationRow[]): Promise<VaccinationBooking[]> {
+    if (!rows.length) return [];
+    const userIds = [...new Set(rows.map((r) => r.userId))];
+    const clinicIds = [...new Set(rows.map((r) => r.clinicId))];
+    const [users, clinics] = await Promise.all([
+      this.prisma.user.findMany({ where: { id: { in: userIds } } }),
+      this.prisma.clinic.findMany({ where: { id: { in: clinicIds } } }),
     ]);
-    return {
-      id: doc._id.toString(),
-      userId: doc.userId,
-      clinicId: doc.clinicId,
-      petId: doc.petId,
-      petName: doc.petName,
-      petSpecies: doc.petSpecies,
-      petBreed: doc.petBreed,
-      vaccines: doc.vaccines ?? [],
-      notes: doc.notes,
-      scheduledAt: doc.scheduledAt.toISOString(),
-      status: doc.status,
-      paymentStatus: doc.paymentStatus,
-      platformFeePaise: doc.platformFeePaise,
-      discountPaise: doc.discountPaise ?? 0,
-      vaccinesSubtotalPaise: doc.vaccinesSubtotalPaise,
-      totalPaise: doc.totalPaise,
-      promoCode: doc.promoCode,
-      paymentMethodLabel: doc.paymentMethodLabel,
-      stripeCheckoutSessionId: doc.stripeCheckoutSessionId,
-      userName: user?.name,
-      userMobile: user?.mobile,
-      clinicName: clinic?.name,
-      createdAt: doc.createdAt.toISOString(),
-      updatedAt: doc.updatedAt.toISOString(),
-    };
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    const clinicMap = new Map(clinics.map((c) => [c.id, c]));
+    return rows.map((row) => {
+      const user = userMap.get(row.userId);
+      const clinic = clinicMap.get(row.clinicId);
+      return {
+        id: row.id,
+        userId: row.userId,
+        clinicId: row.clinicId,
+        petId: row.petId,
+        petName: row.petName,
+        petSpecies: row.petSpecies,
+        petBreed: row.petBreed,
+        vaccines: ((row.vaccines as VaccineLine[] | null) ?? []),
+        notes: row.notes ?? undefined,
+        scheduledAt: row.scheduledAt.toISOString(),
+        status: row.status as VaccinationBooking['status'],
+        paymentStatus: row.paymentStatus as VaccinationBooking['paymentStatus'],
+        platformFeePaise: row.platformFeePaise,
+        discountPaise: row.discountPaise ?? 0,
+        vaccinesSubtotalPaise: row.vaccinesSubtotalPaise,
+        totalPaise: row.totalPaise,
+        promoCode: row.promoCode ?? undefined,
+        paymentMethodLabel: row.paymentMethodLabel ?? undefined,
+        stripeCheckoutSessionId: row.stripeCheckoutSessionId ?? undefined,
+        userName: user?.name,
+        userMobile: user?.mobile,
+        clinicName: clinic?.name,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      };
+    });
+  }
+
+  private async enrichVaccination(row: VaccinationRow): Promise<VaccinationBooking> {
+    const [batch] = await this.enrichVaccinationsBatch([row]);
+    return batch!;
   }
 }

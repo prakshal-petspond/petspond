@@ -4,8 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import type { ConsultationBooking as ConsultationRow, Prisma } from '@prisma/client';
 import type {
   CheckInBoardResponse,
   CollectPaymentDto,
@@ -16,7 +15,7 @@ import type {
   QueueBoardResponse,
   Vet,
 } from '@petspond/types';
-import { ConsultationBookingDocument } from '@/bookings/consultation-booking.schema';
+import { PrismaService } from '@/prisma/prisma.service';
 import { BookingsService } from '@/bookings/bookings.service';
 import { VetsService } from '@/vets/vets.service';
 
@@ -35,8 +34,7 @@ function endOfLocalDay(d = new Date()): Date {
 @Injectable()
 export class FrontDeskService {
   constructor(
-    @InjectModel(ConsultationBookingDocument.name)
-    private readonly consultationModel: Model<ConsultationBookingDocument>,
+    private readonly prisma: PrismaService,
     private readonly bookingsService: BookingsService,
     private readonly vetsService: VetsService,
   ) {}
@@ -48,24 +46,24 @@ export class FrontDeskService {
     return vet.clinicId;
   }
 
-  private async getClinicBooking(vet: Vet, bookingId: string): Promise<ConsultationBookingDocument> {
+  private async getClinicBooking(vet: Vet, bookingId: string): Promise<ConsultationRow> {
     const clinicId = this.assertClinic(vet);
-    const doc = await this.consultationModel.findById(bookingId).exec();
-    if (!doc || doc.clinicId !== clinicId) throw new NotFoundException('Booking not found');
-    return doc;
+    const row = await this.prisma.consultationBooking.findUnique({ where: { id: bookingId } });
+    if (!row || row.clinicId !== clinicId) throw new NotFoundException('Booking not found');
+    return row;
   }
 
-  private async todayBookings(clinicId: string): Promise<ConsultationBookingDocument[]> {
+  private async todayBookings(clinicId: string): Promise<ConsultationRow[]> {
     const start = startOfLocalDay();
     const end = endOfLocalDay();
-    return this.consultationModel
-      .find({
+    return this.prisma.consultationBooking.findMany({
+      where: {
         clinicId,
-        scheduledAt: { $gte: start, $lte: end },
-        status: { $nin: ['cancelled'] },
-      })
-      .sort({ scheduledAt: 1 })
-      .exec();
+        scheduledAt: { gte: start, lte: end },
+        status: { not: 'cancelled' },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
   }
 
   private nextInvoiceNumber(clinicId: string): string {
@@ -91,10 +89,13 @@ export class FrontDeskService {
       .sort((a, b) => (b.checkedInAt?.getTime() ?? 0) - (a.checkedInAt?.getTime() ?? 0))
       .slice(0, 8);
 
+    const [expectedArrivalsEnriched, recentlyCheckedInEnriched] = await Promise.all([
+      this.bookingsService.enrichConsultationsBatch(expectedArrivals),
+      this.bookingsService.enrichConsultationsBatch(recentlyCheckedIn),
+    ]);
+
     return {
-      expectedArrivals: await Promise.all(
-        expectedArrivals.map((d) => this.bookingsService.enrichConsultationPublic(d)),
-      ),
+      expectedArrivals: expectedArrivalsEnriched,
       summary: {
         bookedToday: docs.length,
         waitingToCheckIn: expectedArrivals.length,
@@ -102,9 +103,7 @@ export class FrontDeskService {
         inWaitingRoom: inWaitingRoom.length,
         noShow: noShow.length,
       },
-      recentlyCheckedIn: await Promise.all(
-        recentlyCheckedIn.map((d) => this.bookingsService.enrichConsultationPublic(d)),
-      ),
+      recentlyCheckedIn: recentlyCheckedInEnriched,
     };
   }
 
@@ -116,16 +115,16 @@ export class FrontDeskService {
     if (doc.queueStatus !== 'expected') {
       throw new BadRequestException('Already checked in');
     }
-    doc.queueStatus = 'waiting';
-    doc.checkedInAt = new Date();
-    if (doc.status === 'pending_payment') {
-      doc.status = 'scheduled';
-    }
-    if (!doc.invoiceNumber) {
-      doc.invoiceNumber = this.nextInvoiceNumber(doc.clinicId);
-    }
-    await doc.save();
-    return this.bookingsService.enrichConsultationPublic(doc);
+    const row = await this.prisma.consultationBooking.update({
+      where: { id: doc.id },
+      data: {
+        queueStatus: 'waiting',
+        checkedInAt: new Date(),
+        ...(doc.status === 'pending_payment' && { status: 'scheduled' }),
+        ...(!doc.invoiceNumber && { invoiceNumber: this.nextInvoiceNumber(doc.clinicId) }),
+      },
+    });
+    return this.bookingsService.enrichConsultationPublic(row);
   }
 
   async createWalkIn(vet: Vet, dto: CreateWalkInDto): Promise<ConsultationBooking> {
@@ -137,29 +136,31 @@ export class FrontDeskService {
     }
 
     const totalPaise = dto.totalPaise ?? 0;
-    const doc = await this.consultationModel.create({
-      clinicId,
-      vetId,
-      petName: dto.petName.trim(),
-      petSpecies: dto.petSpecies?.trim() || 'dog',
-      petBreed: dto.petBreed?.trim() || 'Unknown',
-      ownerNameSnapshot: dto.ownerName.trim(),
-      ownerMobileSnapshot: dto.ownerMobile?.replace(/\D/g, '').slice(-10),
-      reasonIds: dto.reasonIds ?? ['walk-in'],
-      notes: dto.notes,
-      scheduledAt: new Date(),
-      status: 'scheduled',
-      paymentStatus: totalPaise > 0 ? 'pending' : 'paid',
-      consultationFeePaise: totalPaise,
-      platformFeePaise: 0,
-      discountPaise: 0,
-      totalPaise,
-      isWalkIn: true,
-      queueStatus: 'waiting',
-      checkedInAt: new Date(),
-      invoiceNumber: this.nextInvoiceNumber(clinicId),
+    const row = await this.prisma.consultationBooking.create({
+      data: {
+        clinicId,
+        vetId,
+        petName: dto.petName.trim(),
+        petSpecies: dto.petSpecies?.trim() || 'dog',
+        petBreed: dto.petBreed?.trim() || 'Unknown',
+        ownerNameSnapshot: dto.ownerName.trim(),
+        ownerMobileSnapshot: dto.ownerMobile?.replace(/\D/g, '').slice(-10),
+        reasonIds: dto.reasonIds ?? ['walk-in'],
+        notes: dto.notes,
+        scheduledAt: new Date(),
+        status: 'scheduled',
+        paymentStatus: totalPaise > 0 ? 'pending' : 'paid',
+        consultationFeePaise: totalPaise,
+        platformFeePaise: 0,
+        discountPaise: 0,
+        totalPaise,
+        isWalkIn: true,
+        queueStatus: 'waiting',
+        checkedInAt: new Date(),
+        invoiceNumber: this.nextInvoiceNumber(clinicId),
+      },
     });
-    return this.bookingsService.enrichConsultationPublic(doc);
+    return this.bookingsService.enrichConsultationPublic(row);
   }
 
   async search(vet: Vet, query: string): Promise<ConsultationBooking[]> {
@@ -169,43 +170,45 @@ export class FrontDeskService {
 
     const start = startOfLocalDay();
     const end = endOfLocalDay();
-    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     const digits = q.replace(/\D/g, '').slice(-10);
 
-    const docs = await this.consultationModel
-      .find({
-        clinicId,
-        scheduledAt: { $gte: start, $lte: end },
-        status: { $nin: ['cancelled'] },
-        $or: [
-          { petName: regex },
-          { ownerNameSnapshot: regex },
-          { petBreed: regex },
-          ...(digits.length >= 4 ? [{ ownerMobileSnapshot: { $regex: digits } }] : []),
-          ...(q.startsWith('INV') ? [{ invoiceNumber: regex }] : []),
-        ],
-      })
-      .sort({ scheduledAt: 1 })
-      .limit(20)
-      .exec();
+    const or: Prisma.ConsultationBookingWhereInput[] = [
+      { petName: { contains: q, mode: 'insensitive' } },
+      { ownerNameSnapshot: { contains: q, mode: 'insensitive' } },
+      { petBreed: { contains: q, mode: 'insensitive' } },
+    ];
+    if (digits.length >= 4) {
+      or.push({ ownerMobileSnapshot: { contains: digits } });
+    }
+    if (q.toUpperCase().startsWith('INV')) {
+      or.push({ invoiceNumber: { contains: q, mode: 'insensitive' } });
+    }
 
-    return Promise.all(docs.map((d) => this.bookingsService.enrichConsultationPublic(d)));
+    const rows = await this.prisma.consultationBooking.findMany({
+      where: {
+        clinicId,
+        scheduledAt: { gte: start, lte: end },
+        status: { not: 'cancelled' },
+        OR: or,
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 20,
+    });
+
+    return this.bookingsService.enrichConsultationsBatch(rows);
   }
 
   async getQueue(vet: Vet): Promise<QueueBoardResponse> {
     const clinicId = this.assertClinic(vet);
     const start = startOfLocalDay();
-    const docs = await this.consultationModel
-      .find({
+    const docs = await this.prisma.consultationBooking.findMany({
+      where: {
         clinicId,
-        queueStatus: { $in: ['waiting', 'in_consultation', 'ready_checkout'] },
-        $or: [
-          { scheduledAt: { $gte: start } },
-          { checkedInAt: { $gte: start } },
-        ],
-      })
-      .sort({ checkedInAt: 1, scheduledAt: 1 })
-      .exec();
+        queueStatus: { in: ['waiting', 'in_consultation', 'ready_checkout'] },
+        OR: [{ scheduledAt: { gte: start } }, { checkedInAt: { gte: start } }],
+      },
+      orderBy: [{ checkedInAt: 'asc' }, { scheduledAt: 'asc' }],
+    });
 
     const waiting = docs.filter((d) => d.queueStatus === 'waiting');
     const inConsultation = docs.filter((d) => d.queueStatus === 'in_consultation');
@@ -220,14 +223,16 @@ export class FrontDeskService {
         ? Math.round(waitMinutes.reduce((a, b) => a + b, 0) / waitMinutes.length)
         : 0;
 
+    const [waitingE, inConsultationE, readyCheckoutE] = await Promise.all([
+      this.bookingsService.enrichConsultationsBatch(waiting),
+      this.bookingsService.enrichConsultationsBatch(inConsultation),
+      this.bookingsService.enrichConsultationsBatch(readyCheckout),
+    ]);
+
     return {
-      waiting: await Promise.all(waiting.map((d) => this.bookingsService.enrichConsultationPublic(d))),
-      inConsultation: await Promise.all(
-        inConsultation.map((d) => this.bookingsService.enrichConsultationPublic(d)),
-      ),
-      readyCheckout: await Promise.all(
-        readyCheckout.map((d) => this.bookingsService.enrichConsultationPublic(d)),
-      ),
+      waiting: waitingE,
+      inConsultation: inConsultationE,
+      readyCheckout: readyCheckoutE,
       stats: {
         petsInClinic: waiting.length + inConsultation.length + readyCheckout.length,
         avgWaitMinutes,
@@ -244,6 +249,7 @@ export class FrontDeskService {
   ): Promise<ConsultationBooking> {
     const doc = await this.getClinicBooking(vet, bookingId);
     const now = new Date();
+    const data: Prisma.ConsultationBookingUpdateInput = { queueStatus };
 
     if (queueStatus === 'waiting' && doc.queueStatus !== 'expected') {
       throw new BadRequestException('Invalid queue transition');
@@ -252,24 +258,26 @@ export class FrontDeskService {
       if (doc.queueStatus !== 'waiting') {
         throw new BadRequestException('Pet must be waiting before consultation');
       }
-      doc.consultationStartedAt = now;
+      data.consultationStartedAt = now;
       if (vetId) {
         const assigned = await this.vetsService.findById(vetId);
-        if (assigned?.clinicId === doc.clinicId) doc.vetId = vetId;
+        if (assigned?.clinicId === doc.clinicId) data.vetId = vetId;
       }
-      if (roomLabel) doc.roomLabel = roomLabel;
+      if (roomLabel) data.roomLabel = roomLabel;
     }
     if (queueStatus === 'ready_checkout') {
       if (doc.queueStatus !== 'in_consultation') {
         throw new BadRequestException('Pet must be in consultation first');
       }
-      doc.checkoutReadyAt = now;
-      doc.status = 'completed';
+      data.checkoutReadyAt = now;
+      data.status = 'completed';
     }
 
-    doc.queueStatus = queueStatus;
-    await doc.save();
-    return this.bookingsService.enrichConsultationPublic(doc);
+    const row = await this.prisma.consultationBooking.update({
+      where: { id: doc.id },
+      data,
+    });
+    return this.bookingsService.enrichConsultationPublic(row);
   }
 
   async getPayments(
@@ -280,14 +288,14 @@ export class FrontDeskService {
     const start = startOfLocalDay();
     const end = endOfLocalDay();
 
-    const docs = await this.consultationModel
-      .find({
+    const docs = await this.prisma.consultationBooking.findMany({
+      where: {
         clinicId,
-        scheduledAt: { $gte: start, $lte: end },
-        status: { $nin: ['cancelled'] },
-      })
-      .sort({ scheduledAt: -1 })
-      .exec();
+        scheduledAt: { gte: start, lte: end },
+        status: { not: 'cancelled' },
+      },
+      orderBy: { scheduledAt: 'desc' },
+    });
 
     const collected = docs.filter((d) => d.paymentStatus === 'paid');
     const pending = docs.filter((d) => d.paymentStatus === 'pending');
@@ -311,7 +319,7 @@ export class FrontDeskService {
         refundsPaise,
         refundsCount: refunded.length,
       },
-      invoices: await Promise.all(invoices.map((d) => this.bookingsService.enrichConsultationPublic(d))),
+      invoices: await this.bookingsService.enrichConsultationsBatch(invoices),
     };
   }
 
@@ -327,23 +335,25 @@ export class FrontDeskService {
     if (doc.paymentStatus === 'refunded') {
       throw new BadRequestException('Cannot collect on a refunded invoice');
     }
-    doc.paymentStatus = 'paid';
-    doc.collectedAt = new Date();
-    doc.collectedByVetId = vet.id;
-    if (dto.paymentMethodLabel) doc.paymentMethodLabel = dto.paymentMethodLabel;
-    if (!doc.invoiceNumber) doc.invoiceNumber = this.nextInvoiceNumber(doc.clinicId);
-    if (doc.queueStatus === 'ready_checkout') {
-      // stay on ready_checkout until manually cleared or end of day
-    }
-    await doc.save();
-    return this.bookingsService.enrichConsultationPublic(doc);
+    const row = await this.prisma.consultationBooking.update({
+      where: { id: doc.id },
+      data: {
+        paymentStatus: 'paid',
+        collectedAt: new Date(),
+        collectedByVetId: vet.id,
+        ...(dto.paymentMethodLabel && { paymentMethodLabel: dto.paymentMethodLabel }),
+        ...(!doc.invoiceNumber && { invoiceNumber: this.nextInvoiceNumber(doc.clinicId) }),
+      },
+    });
+    return this.bookingsService.enrichConsultationPublic(row);
   }
 
   async markNoShow(vet: Vet, bookingId: string): Promise<ConsultationBooking> {
     const doc = await this.getClinicBooking(vet, bookingId);
-    doc.status = 'no_show';
-    doc.queueStatus = 'expected';
-    await doc.save();
-    return this.bookingsService.enrichConsultationPublic(doc);
+    const row = await this.prisma.consultationBooking.update({
+      where: { id: doc.id },
+      data: { status: 'no_show', queueStatus: 'expected' },
+    });
+    return this.bookingsService.enrichConsultationPublic(row);
   }
 }

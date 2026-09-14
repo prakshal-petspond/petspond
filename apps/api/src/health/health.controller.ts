@@ -1,20 +1,16 @@
 import { Controller, Get } from '@nestjs/common';
-import { InjectConnection } from '@nestjs/mongoose';
-import type { Connection } from 'mongoose';
+import { PrismaService } from '@/prisma/prisma.service';
 
 @Controller('health')
 export class HealthController {
-  constructor(@InjectConnection() private readonly connection: Connection) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   @Get()
-  check() {
-    const mongoState = this.connection.readyState;
-    const mongoStatus =
-      mongoState === 1 ? 'connected' : mongoState === 2 ? 'connecting' : 'disconnected';
-
+  async check() {
+    const ok = await this.prisma.isHealthy();
     return {
       status: 'ok',
-      mongo: mongoStatus,
+      postgres: ok ? 'connected' : 'disconnected',
       timestamp: new Date().toISOString(),
     };
   }

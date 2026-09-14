@@ -1,12 +1,12 @@
 # Petspond deployment guide
 
-Deploy **Vet CRM Web** on Netlify, the **NestJS API** on Railway, and **MongoDB** on Atlas — with separate **development** and **production** environments (no staging).
+Deploy **Vet CRM Web** on Netlify, the **NestJS API** on Railway, and **PostgreSQL** on Railway (or any managed Postgres) — with separate **development** and **production** environments (no staging).
 
 | Component | Platform | Dev | Production |
 |-----------|----------|-----|------------|
 | Vet CRM Web | Netlify | `develop` branch | `main` branch |
 | API | Railway | `develop` branch service | `main` branch service |
-| Database | MongoDB Atlas | `petspond-dev` database | `petspond-prod` database |
+| Database | PostgreSQL (Railway) | `petspond-dev` | `petspond-prod` |
 
 ---
 
@@ -19,12 +19,11 @@ Deploy **Vet CRM Web** on Netlify, the **NestJS API** on Railway, and **MongoDB*
 │  (Next.js)          │                        │  (port from PORT)   │
 └─────────────────────┘                        └──────────┬──────────┘
                                                           │
-                                                          │ MONGODB_URI
+                                                          │ DATABASE_URL
                                                           ▼
                                                ┌─────────────────────┐
-                                               │  MongoDB Atlas      │
-                                               │  petspond-dev       │
-                                               │  petspond-prod      │
+                                               │  PostgreSQL         │
+                                               │  (Railway Postgres) │
                                                └─────────────────────┘
 ```
 
@@ -34,44 +33,39 @@ Deploy **Vet CRM Web** on Netlify, the **NestJS API** on Railway, and **MongoDB*
 
 - GitHub repo connected to Netlify and Railway
 - Two git branches: `main` (production) and `develop` (development)
-- Accounts: [MongoDB Atlas](https://www.mongodb.com/atlas), [Railway](https://railway.app), [Netlify](https://www.netlify.com)
+- Accounts: [Railway](https://railway.app), [Netlify](https://www.netlify.com)
 - Optional but recommended: [Resend](https://resend.com) (email OTP), [Cloudflare R2](apps/api/CLOUDFLARE_R2_SETUP.md) (uploads), Google Cloud (OAuth + Maps)
 
 ---
 
-## Step 1 — MongoDB Atlas
+## Step 1 — PostgreSQL
 
-### 1.1 Create a cluster
+### 1.1 Create databases on Railway
 
-1. Sign in to [MongoDB Atlas](https://cloud.mongodb.com).
-2. **Create** → choose **M0 Free** (fine for dev) or a paid tier for production load.
-3. Pick a region close to your Railway region (e.g. `us-east-1`).
+For each environment (dev and prod):
 
-### 1.2 Create database users
+1. In the Railway project → **New** → **Database** → **PostgreSQL**.
+2. Name them clearly (e.g. `petspond-pg-dev`, `petspond-pg-prod`).
+3. Open the Postgres service → **Variables** → copy `DATABASE_URL` (or `POSTGRES_URL`).
 
-1. **Database Access** → **Add New Database User**.
-2. Use **Password** auth; generate a strong password.
-3. Privilege: **Read and write to any database** (or restrict to `petspond-dev` / `petspond-prod`).
+Use a **separate** Postgres instance (or at least a separate database name) for development and production.
 
-### 1.3 Network access
+### 1.2 Local development
 
-Railway uses dynamic IPs, so allow access from anywhere:
+```bash
+# Example local URL — create a DB named petspond
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/petspond?schema=public
+```
 
-1. **Network Access** → **Add IP Address** → **Allow Access from Anywhere** (`0.0.0.0/0`).
+Then from `apps/api`:
 
-Use a strong DB password and never commit connection strings.
+```bash
+pnpm prisma:migrate:dev   # create/apply migrations in development
+# or
+pnpm prisma:migrate       # apply existing migrations (CI / prod-like)
+```
 
-### 1.4 Connection strings
-
-1. **Database** → **Connect** → **Drivers** → copy the `mongodb+srv://…` URI.
-2. Append the database name:
-
-| Environment | URI suffix |
-|-------------|------------|
-| Development | `…mongodb.net/petspond-dev?retryWrites=true&w=majority` |
-| Production | `…mongodb.net/petspond-prod?retryWrites=true&w=majority` |
-
-Replace `<password>` with your DB user password.
+The API Docker image runs `prisma migrate deploy` on startup.
 
 ---
 
@@ -86,6 +80,7 @@ Create **two services** from the same GitHub repo.
 3. **Settings** → **Source** → set **Branch** to `develop`.
 4. **Settings** → **Build** → confirm Dockerfile path: `apps/api/Dockerfile` (from `railway.toml`).
 5. **Settings** → **Networking** → **Generate Domain** (e.g. `petspond-api-dev.up.railway.app`).
+6. Link the **dev** Postgres service (or paste `DATABASE_URL`).
 
 ### 2.2 Create production API
 
@@ -93,6 +88,7 @@ Create **two services** from the same GitHub repo.
 2. Name it **`petspond-api-prod`**.
 3. Set **Branch** to `main`.
 4. Generate a public domain.
+5. Link the **prod** Postgres service.
 
 ### 2.3 Environment variables
 
@@ -103,7 +99,7 @@ Set these on **each** Railway service (**Variables** tab). Values differ per env
 | Variable | Dev example | Prod example | Notes |
 |----------|-------------|--------------|-------|
 | `NODE_ENV` | `development` | `production` | |
-| `MONGODB_URI` | `…/petspond-dev?…` | `…/petspond-prod?…` | From Atlas |
+| `DATABASE_URL` | Railway Postgres URL | Railway Postgres URL | From Postgres service |
 | `JWT_SECRET` | random 32+ chars | **different** random secret | `openssl rand -base64 32` |
 | `API_PUBLIC_URL` | `https://petspond-api-dev.up.railway.app` | `https://petspond-api-prod.up.railway.app` | Railway public URL |
 | `CORS_ORIGINS` | `https://petspond-vet-dev.netlify.app,http://localhost:3001` | `https://petspond-vet-prod.netlify.app` | Comma-separated, no trailing slash |
@@ -127,7 +123,7 @@ After the first deploy:
 
 ```bash
 curl https://petspond-api-dev.up.railway.app/health
-# → {"status":"ok","timestamp":"…"}
+# → {"status":"ok","postgres":"connected","timestamp":"…"}
 ```
 
 Repeat for production.
@@ -221,67 +217,19 @@ CORS_ORIGINS=https://petspond-vet-dev.netlify.app,http://localhost:3001
 CORS_ORIGINS=https://petspond-vet-prod.netlify.app
 ```
 
-If CORS is wrong, the browser will block API calls with a CORS error in DevTools.
-
 ---
 
-## Step 7 — Git workflow
-
-```bash
-# Daily development
-git checkout develop
-# … make changes …
-git push origin develop
-# → triggers Railway dev + Netlify dev deploys
-
-# Release to production
-git checkout main
-git merge develop
-git push origin main
-# → triggers Railway prod + Netlify prod deploys
-```
-
----
-
-## Local development (unchanged)
+## Local development
 
 ```bash
 pnpm install
-cp apps/api/.env.example apps/api/.env.local      # fill MONGODB_URI, etc.
-cp apps/vet-crm-web/.env.example apps/vet-crm-web/.env.local
-
-pnpm dev:api    # http://localhost:3000
-pnpm dev:web    # http://localhost:3001
+cp apps/api/.env.example apps/api/.env.local   # set DATABASE_URL, JWT_SECRET, etc.
+pnpm --filter @petspond/api prisma:migrate:dev
+pnpm --filter @petspond/api dev
+pnpm --filter @petspond/vet-crm-web dev
 ```
 
-Point `MONGODB_URI` at Atlas `petspond-dev` or a local MongoDB instance.
-
----
-
-## Environment checklist
-
-### Development
-
-- [ ] Atlas cluster + `petspond-dev` database
-- [ ] Railway `petspond-api-dev` on `develop` branch
-- [ ] Netlify `petspond-vet-dev` on `develop` branch
-- [ ] `NEXT_PUBLIC_API_URL` → dev Railway URL
-- [ ] `CORS_ORIGINS` includes dev Netlify URL + localhost
-- [ ] `OTP_BYPASS=true` (optional for easier testing)
-- [ ] `JWT_SECRET` set (dev-specific)
-
-### Production
-
-- [ ] Atlas `petspond-prod` database (separate from dev)
-- [ ] Railway `petspond-api-prod` on `main` branch
-- [ ] Netlify `petspond-vet-prod` on `main` branch
-- [ ] **Different** `JWT_SECRET` from dev
-- [ ] `OTP_BYPASS=false`
-- [ ] `NODE_ENV=production`
-- [ ] Resend domain verified
-- [ ] Google OAuth origins include prod Netlify URL
-- [ ] R2 bucket for prod uploads
-- [ ] Stripe live keys (if applicable)
+Point `DATABASE_URL` at local Postgres or Railway Postgres (dev).
 
 ---
 
@@ -289,48 +237,15 @@ Point `MONGODB_URI` at Atlas `petspond-dev` or a local MongoDB instance.
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| CORS error in browser | `CORS_ORIGINS` missing/wrong | Add exact Netlify URL (no trailing slash) on Railway |
-| API 502 / not starting | Bad `MONGODB_URI` | Check Atlas IP allowlist + password encoding |
-| Email OTP not received | Resend sender not verified | Verify domain or use `onboarding@resend.dev` for dev |
-| Google sign-in fails | Origin not authorized | Add Netlify URL to OAuth client origins |
-| `NEXT_PUBLIC_*` not updating | Build-time env | Redeploy Netlify after changing variables |
-| Build fails on Netlify | Monorepo deps | Confirm `pnpm install` runs at repo root (see `netlify.toml`) |
-| Railway build slow | Docker layer cache | Normal on first build; subsequent builds are faster |
-
-### Useful commands
-
-```bash
-# Test API health
-curl https://YOUR-RAILWAY-URL/health
-
-# Build API locally (same as Railway)
-pnpm build:api
-
-# Build web locally (same as Netlify)
-pnpm build:web
-```
+| API 502 / not starting | Bad `DATABASE_URL` or migrate failed | Check Postgres linkage + Railway logs for Prisma migrate errors |
+| `/health` shows `postgres: disconnected` | DB unreachable | Verify `DATABASE_URL`, network, credentials |
+| CORS errors in browser | Missing Netlify origin | Update `CORS_ORIGINS` |
+| Email OTP not arriving | Resend limits / unverified domain | Check Resend dashboard; use `OTP_BYPASS` only in dev |
 
 ---
 
-## Files added for deployment
+## Cost notes
 
-| File | Purpose |
-|------|---------|
-| `apps/api/Dockerfile` | Railway container build |
-| `railway.toml` | Railway build + health check config |
-| `netlify.toml` | Netlify monorepo build config |
-| `.dockerignore` | Smaller Docker context |
-| `.nvmrc` | Node 20 for local/CI parity |
-| `apps/api/.env.example` | Full API env reference |
-| `apps/api/src/cors.ts` | Production CORS from `CORS_ORIGINS` |
-
----
-
-## Cost notes (approximate)
-
-- **MongoDB Atlas M0:** free tier (shared)
-- **Railway:** pay-as-you-go (~$5+/month per service with usage)
-- **Netlify:** free tier supports two sites for hobby projects
-- **Resend:** free tier for low email volume
-
-Scale Atlas/Railway tiers as traffic grows.
+- **Railway Postgres:** hobby/pro plans depending on usage
+- **Railway API:** usage-based
+- **Netlify:** free tier often enough for Vet CRM

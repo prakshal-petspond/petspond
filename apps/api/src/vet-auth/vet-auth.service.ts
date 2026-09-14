@@ -6,14 +6,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import * as bcrypt from 'bcryptjs';
-import { getAndDeleteOtp } from '../auth/otp.store';
-import { getAndDeleteOtpForKey, setOtpForKey } from '../auth/key-otp.store';
-import { createRegistrationToken, consumeRegistrationToken } from '../auth/registration-token.store';
-import {
-  createPasswordResetToken,
-  consumePasswordResetToken,
-} from '../auth/password-reset-token.store';
 import { shouldAcceptOtpBypass } from '../auth/otp-bypass';
+import { AuthChallengeService } from '../auth/auth-challenge.service';
 import type {
   Clinic,
   ClinicTeamResponse,
@@ -31,24 +25,17 @@ import { ClinicInvitesService } from '@/bookings/clinic-invites.service';
 import { ClinicStaffService } from '@/clinic-staff/clinic-staff.service';
 import { VetTokenService } from './vet-token.service';
 
+const EMAIL_REGISTER_OTP = 'email_register_otp';
+const FORGOT_PASSWORD_OTP = 'forgot_password_otp';
+const REGISTRATION_TOKEN = 'registration_token';
+const PASSWORD_RESET_TOKEN = 'password_reset_token';
+
 function normalizeMobile(mobile: string): string {
   return mobile.replace(/\D/g, '').slice(-10);
 }
 
 function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
-}
-
-function emailOtpKey(email: string): string {
-  return `email:${normalizeEmail(email)}`;
-}
-
-function forgotPasswordOtpKey(email: string): string {
-  return `forgot-email:${normalizeEmail(email)}`;
-}
-
-function onboardingPhoneKey(vetId: string, mobile: string): string {
-  return `vet-phone:${vetId}:${normalizeMobile(mobile)}`;
 }
 
 @Injectable()
@@ -64,6 +51,7 @@ export class VetAuthService {
     private readonly clinicInvites: ClinicInvitesService,
     private readonly clinicStaff: ClinicStaffService,
     private readonly vetTokens: VetTokenService,
+    private readonly challenges: AuthChallengeService,
   ) {}
 
   private getGoogleClient(): OAuth2Client {
@@ -137,12 +125,9 @@ export class VetAuthService {
     if (shouldAcceptOtpBypass(this.config, otp)) {
       vet = await this.resolveVetForLogin(normalized);
     } else {
-      const stored = getAndDeleteOtp(normalized);
-      if (!stored) {
-        return { verified: false, message: 'OTP expired or not found. Please request a new one.' };
-      }
-      if (stored !== otp.trim()) {
-        return { verified: false, message: 'Invalid OTP.' };
+      const check = await this.authService.verifyMobileOtpCode(normalized, otp);
+      if (!check.ok) {
+        return { verified: false, message: check.message ?? 'Invalid OTP.' };
       }
       vet = await this.resolveVetForLogin(normalized);
     }
@@ -177,7 +162,7 @@ export class VetAuthService {
     if (existing) throw new BadRequestException('An account with this email already exists');
 
     const otp = this.emailService.generateOtp();
-    setOtpForKey(emailOtpKey(normalized), otp);
+    await this.challenges.setOtp(EMAIL_REGISTER_OTP, normalized, otp);
     const result = await this.emailService.sendOtp(normalized, otp);
     if (!result.success) {
       throw new BadRequestException(result.message ?? 'Failed to send verification email');
@@ -191,17 +176,17 @@ export class VetAuthService {
     if (existing) throw new BadRequestException('An account with this email already exists');
 
     if (!shouldAcceptOtpBypass(this.config, otp)) {
-      const stored = getAndDeleteOtpForKey(emailOtpKey(normalized));
-      if (!stored) throw new BadRequestException('OTP expired or not found. Please request a new one.');
-      if (stored !== otp.trim()) throw new BadRequestException('Invalid OTP.');
+      const result = await this.challenges.consumeOtp(EMAIL_REGISTER_OTP, normalized, otp);
+      if (result === 'missing') throw new BadRequestException('OTP expired or not found. Please request a new one.');
+      if (result === 'mismatch') throw new BadRequestException('Invalid OTP.');
     }
 
-    const registrationToken = createRegistrationToken(normalized);
+    const registrationToken = await this.challenges.createToken(REGISTRATION_TOKEN, normalized);
     return { verified: true, registrationToken, email: normalized };
   }
 
   async completeRegistration(registrationToken: string, password: string) {
-    const email = consumeRegistrationToken(registrationToken);
+    const email = await this.challenges.consumeToken(REGISTRATION_TOKEN, registrationToken);
     if (!email) throw new BadRequestException('Registration session expired. Please start again.');
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -215,7 +200,7 @@ export class VetAuthService {
 
     if (vet) {
       const otp = this.emailService.generateOtp();
-      setOtpForKey(forgotPasswordOtpKey(normalized), otp);
+      await this.challenges.setOtp(FORGOT_PASSWORD_OTP, normalized, otp);
       const result = await this.emailService.sendOtp(normalized, otp, {
         subject: 'Your Petspond password reset code',
         heading: 'Your Petspond password reset code is:',
@@ -237,17 +222,17 @@ export class VetAuthService {
     if (!vet) throw new BadRequestException('Invalid or expired verification code');
 
     if (!shouldAcceptOtpBypass(this.config, otp)) {
-      const stored = getAndDeleteOtpForKey(forgotPasswordOtpKey(normalized));
-      if (!stored) throw new BadRequestException('OTP expired or not found. Please request a new one.');
-      if (stored !== otp.trim()) throw new BadRequestException('Invalid OTP.');
+      const result = await this.challenges.consumeOtp(FORGOT_PASSWORD_OTP, normalized, otp);
+      if (result === 'missing') throw new BadRequestException('OTP expired or not found. Please request a new one.');
+      if (result === 'mismatch') throw new BadRequestException('Invalid OTP.');
     }
 
-    const resetToken = createPasswordResetToken(normalized);
+    const resetToken = await this.challenges.createToken(PASSWORD_RESET_TOKEN, normalized);
     return { verified: true, resetToken, email: normalized };
   }
 
   async resetPasswordWithToken(resetToken: string, password: string) {
-    const email = consumePasswordResetToken(resetToken);
+    const email = await this.challenges.consumeToken(PASSWORD_RESET_TOKEN, resetToken);
     if (!email) throw new BadRequestException('Reset session expired. Please start again.');
 
     const vet = await this.vetsService.findByEmail(email);
@@ -301,9 +286,8 @@ export class VetAuthService {
     if (normalized.length < 10) throw new BadRequestException('Invalid mobile number');
 
     if (!shouldAcceptOtpBypass(this.config, otp)) {
-      const stored = getAndDeleteOtp(normalized);
-      if (!stored) throw new BadRequestException('OTP expired or not found. Please request a new one.');
-      if (stored !== otp.trim()) throw new BadRequestException('Invalid OTP.');
+      const check = await this.authService.verifyMobileOtpCode(normalized, otp);
+      if (!check.ok) throw new BadRequestException(check.message ?? 'Invalid OTP.');
     }
 
     const vet = await this.vetsService.verifyPhone(vetId, normalized);
