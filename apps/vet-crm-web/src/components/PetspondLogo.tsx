@@ -22,6 +22,9 @@ export function PetspondLogo({
       src={petspondLogo}
       alt="Petspond"
       priority
+      // Serve the static asset directly — Netlify's /_next/image optimizer
+      // often 404s/breaks for imported media while local `next dev` works.
+      unoptimized
       className={imageClassName}
     />
   );
