@@ -81,7 +81,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch {
-      router.replace('/login');
+      // Any API error after failed auth refresh should send the user to login.
+      // Soft failures (network) that left tokens intact are handled by ApiClient.
+      const stillAuthed = Boolean(getStoredVetToken());
+      if (!stillAuthed) {
+        router.replace('/login');
+      }
     } finally {
       if (!keepLoading) setLoading(false);
     }

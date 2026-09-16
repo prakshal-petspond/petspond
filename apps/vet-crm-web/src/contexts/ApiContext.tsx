@@ -91,11 +91,16 @@ export function ApiProvider({ children }: { children: ReactNode }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken: storedRefresh }),
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+          // Only clear when the refresh token itself is rejected.
+          if (res.status === 401 || res.status === 403) clearAuth();
+          return null;
+        }
         const data = (await res.json()) as VetRefreshTokenResponse;
         setAuthTokens(data.accessToken, data.refreshToken);
         return data.accessToken;
       } catch {
+        // Network blip — keep stored tokens so the next request can retry.
         return null;
       }
     };
@@ -104,16 +109,18 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       refreshPromiseRef.current = null;
     });
     return refreshPromiseRef.current;
-  }, [setAuthTokens]);
+  }, [setAuthTokens, clearAuth]);
 
   const client = useMemo(() => {
     return createApiClient({
       baseUrl: API_BASE,
-      getAccessToken: () => token ?? getStoredVetAccessToken(),
+      // Always read from localStorage so a successful refresh is visible on the
+      // immediate retry (React state / useMemo closures would still hold the expired JWT).
+      getAccessToken: () => getStoredVetAccessToken(),
       refreshAccessToken,
       onUnauthorized: clearAuth,
     });
-  }, [token, refreshAccessToken, clearAuth]);
+  }, [refreshAccessToken, clearAuth]);
 
   const value = useMemo(
     () => ({ client, token, setToken, setAuthTokens, clearAuth }),

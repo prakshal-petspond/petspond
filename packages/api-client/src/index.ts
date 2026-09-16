@@ -40,8 +40,8 @@ export class ApiClient {
       if (newToken) {
         return this.request<T>(path, { ...options, _retried: true });
       }
-    }
-    if (res.status === 401 && this.config.onUnauthorized) {
+      // Hard auth failures clear inside refreshAccessToken; avoid wiping on network errors.
+    } else if (res.status === 401 && this.config.onUnauthorized) {
       this.config.onUnauthorized();
     }
     const text = await res.text();
