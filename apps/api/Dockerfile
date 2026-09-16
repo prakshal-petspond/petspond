@@ -20,6 +20,9 @@ RUN pnpm --filter @petspond/api build
 RUN pnpm deploy --filter @petspond/api --prod /deploy
 # Prisma schema + migrations needed at runtime for migrate deploy
 COPY apps/api/prisma /deploy/prisma
+# Regenerate the Prisma client inside /deploy so the generated .prisma/client
+# output ships with the production node_modules used at runtime
+RUN cd /deploy && pnpm exec prisma generate
 
 FROM base AS production
 WORKDIR /app
