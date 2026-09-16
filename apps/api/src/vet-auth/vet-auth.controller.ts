@@ -10,7 +10,6 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
-  InternalServerErrorException,
   BadRequestException,
   ForbiddenException,
   NotFoundException,
@@ -19,8 +18,6 @@ import { VetAuthService } from './vet-auth.service';
 import { VetJwtAuthGuard } from './vet-jwt-auth.guard';
 import { CurrentVet } from './current-vet.decorator';
 import type { Vet } from '@petspond/types';
-import { SendOtpDto } from '@/auth/dto/send-otp.dto';
-import { VetVerifyOtpDto } from './dto/verify-otp.dto';
 import { VetCompleteOnboardingDto } from './dto/complete-onboarding.dto';
 import { VetCompleteClinicSetupDto } from './dto/complete-clinic-setup.dto';
 import {
@@ -49,25 +46,6 @@ export class VetAuthController {
     private readonly clinicsService: ClinicsService,
     private readonly storage: R2StorageService,
   ) {}
-
-  @Post('send-otp')
-  @HttpCode(HttpStatus.OK)
-  async sendOtp(@Body() dto: SendOtpDto) {
-    return this.vetAuthService.sendOtp(dto.mobile, dto.countryCode);
-  }
-
-  @Post('verify-otp')
-  @HttpCode(HttpStatus.OK)
-  async verifyOtp(@Body() dto: VetVerifyOtpDto) {
-    try {
-      return await this.vetAuthService.verifyOtp(dto.mobile, dto.otp);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw new InternalServerErrorException(
-        process.env.NODE_ENV === 'production' ? 'Verification failed. Please try again.' : message,
-      );
-    }
-  }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)

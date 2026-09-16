@@ -13,13 +13,17 @@ RUN pnpm install --frozen-lockfile --filter @petspond/api...
 COPY packages/types packages/types
 COPY apps/api apps/api
 RUN pnpm --filter @petspond/types build
+# Generate Prisma client before Nest build
+RUN pnpm --filter @petspond/api exec prisma generate
 RUN pnpm --filter @petspond/api build
 # Bundle production deps + workspace packages into a portable directory
 RUN pnpm deploy --filter @petspond/api --prod /deploy
+# Prisma schema + migrations needed at runtime for migrate deploy
+COPY apps/api/prisma /deploy/prisma
 
 FROM base AS production
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /deploy ./
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/main.js"]

@@ -1,13 +1,15 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { getAndDeleteOtp, setOtp } from './otp.store';
 import { shouldAcceptOtpBypass } from './otp-bypass';
 import { canSendOtp, getCooldownSeconds, recordOtpSent } from './otp-rate-limit';
 import type { OtpSender } from './otp-sender.interface';
 import { OTP_SENDER } from './auth.tokens';
 import type { User } from '@petspond/types';
 import { UsersService } from '@/users/users.service';
+import { AuthChallengeService } from './auth-challenge.service';
+
+const MOBILE_OTP_KIND = 'mobile_otp';
 
 function generateOtp(length = 6): string {
   const digits = '0123456789';
@@ -29,6 +31,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly challenges: AuthChallengeService,
   ) {}
 
   async sendOtp(mobile: string, countryCode?: string): Promise<{ success: boolean; message?: string }> {
@@ -42,7 +45,7 @@ export class AuthService {
       );
     }
     const otp = generateOtp(6);
-    setOtp(normalized, otp);
+    await this.challenges.setOtp(MOBILE_OTP_KIND, normalized, otp);
     await this.otpSender.send(normalized, otp, { countryCode });
     recordOtpSent(normalized);
     const provider = this.config.get<string>('OTP_PROVIDER', 'mock');
@@ -68,16 +71,31 @@ export class AuthService {
       const token = this.jwtService.sign({ sub: user.id });
       return { verified: true, token, user };
     }
-    const stored = getAndDeleteOtp(normalized);
-    if (!stored) {
+    const result = await this.challenges.consumeOtp(MOBILE_OTP_KIND, normalized, otp);
+    if (result === 'missing') {
       return { verified: false, message: 'OTP expired or not found. Please request a new one.' };
     }
-    if (stored !== otp.trim()) {
+    if (result === 'mismatch') {
       return { verified: false, message: 'Invalid OTP.' };
     }
     const user = await this.usersService.createOrFindByMobile(normalized);
     const token = this.jwtService.sign({ sub: user.id });
     return { verified: true, token, user };
+  }
+
+  /** Verify mobile OTP without issuing a user JWT (shared by vet/vendor onboarding). */
+  async verifyMobileOtpCode(mobile: string, otp: string): Promise<{ ok: boolean; message?: string }> {
+    const normalized = normalizeMobile(mobile);
+    if (normalized.length < 10) {
+      return { ok: false, message: 'Invalid mobile number.' };
+    }
+    if (shouldAcceptOtpBypass(this.config, otp)) {
+      return { ok: true };
+    }
+    const result = await this.challenges.consumeOtp(MOBILE_OTP_KIND, normalized, otp);
+    if (result === 'ok') return { ok: true };
+    if (result === 'mismatch') return { ok: false, message: 'Invalid OTP.' };
+    return { ok: false, message: 'OTP expired or not found. Please request a new one.' };
   }
 
   async completeOnboarding(

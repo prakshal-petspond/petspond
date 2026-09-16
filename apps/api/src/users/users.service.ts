@@ -1,73 +1,70 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import type { User as UserRow } from '@prisma/client';
 import type { User } from '@petspond/types';
-import { UserDocument } from './user.schema';
+import { PrismaService } from '@/prisma/prisma.service';
 
-function toUser(doc: UserDocument): User {
+function toUser(row: UserRow): User {
   return {
-    id: doc._id.toString(),
-    name: doc.name,
-    mobile: doc.mobile,
-    email: doc.email,
-    city: doc.city,
-    pincode: doc.pincode,
-    referredBy: doc.referredBy,
-    onboardingCompleted: doc.onboardingCompleted,
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
+    id: row.id,
+    name: row.name,
+    mobile: row.mobile,
+    email: row.email ?? undefined,
+    city: row.city ?? undefined,
+    pincode: row.pincode ?? undefined,
+    referredBy: row.referredBy ?? undefined,
+    onboardingCompleted: row.onboardingCompleted,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectModel(UserDocument.name) private readonly userModel: Model<UserDocument>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findByMobile(mobile: string): Promise<User | null> {
-    const doc = await this.userModel.findOne({ mobile }).exec();
-    return doc ? toUser(doc) : null;
+    const row = await this.prisma.user.findUnique({ where: { mobile } });
+    return row ? toUser(row) : null;
   }
 
   async findById(id: string): Promise<User | null> {
-    const doc = await this.userModel.findById(id).exec();
-    return doc ? toUser(doc) : null;
+    const row = await this.prisma.user.findUnique({ where: { id } });
+    return row ? toUser(row) : null;
   }
 
   async createOrFindByMobile(mobile: string): Promise<User> {
     const normalized = mobile.replace(/\D/g, '').slice(-10);
-    let doc = await this.userModel.findOne({ mobile: normalized }).exec();
-    if (!doc) {
-      doc = await this.userModel.create({
-        name: 'User',
-        mobile: normalized,
-        onboardingCompleted: false,
+    let row = await this.prisma.user.findUnique({ where: { mobile: normalized } });
+    if (!row) {
+      row = await this.prisma.user.create({
+        data: {
+          name: 'User',
+          mobile: normalized,
+          onboardingCompleted: false,
+        },
       });
     }
-    return toUser(doc);
+    return toUser(row);
   }
 
   async updateOnboarding(
     userId: string,
     data: { name?: string; email?: string; city?: string; pincode?: string },
   ): Promise<User> {
-    const doc = await this.userModel
-      .findByIdAndUpdate(
-        userId,
-        {
-          $set: {
-            ...(data.name != null && { name: data.name }),
-            ...(data.email != null && { email: data.email }),
-            ...(data.city != null && { city: data.city }),
-            ...(data.pincode != null && { pincode: data.pincode }),
-            onboardingCompleted: true,
-          },
+    try {
+      const row = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(data.name != null && { name: data.name }),
+          ...(data.email != null && { email: data.email }),
+          ...(data.city != null && { city: data.city }),
+          ...(data.pincode != null && { pincode: data.pincode }),
+          onboardingCompleted: true,
         },
-        { new: true, runValidators: true },
-      )
-      .exec();
-    if (!doc) throw new Error('User not found');
-    return toUser(doc);
+      });
+      return toUser(row);
+    } catch {
+      throw new Error('User not found');
+    }
   }
 }

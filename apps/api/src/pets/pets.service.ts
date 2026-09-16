@@ -1,41 +1,52 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import type { Pet as PetRow } from '@prisma/client';
 import type { CreatePetDto, Pet, UpdatePetDto } from '@petspond/types';
-import { PetDocument } from './pet.schema';
+import { PrismaService } from '@/prisma/prisma.service';
 
-function toPet(doc: PetDocument): Pet {
+function toPet(row: PetRow): Pet {
   return {
-    id: doc._id.toString(),
-    userId: doc.userId,
-    name: doc.name,
-    species: doc.species,
-    breed: doc.breed,
-    dateOfBirth: doc.dateOfBirth,
-    gender: doc.gender,
-    servicesNeeded: (doc.servicesNeeded ?? []) as Pet['servicesNeeded'],
-    weight: doc.weight,
-    neutered: doc.neutered,
-    photoUrl: doc.photoUrl,
-    microchipId: doc.microchipId,
-    medicalNotes: doc.medicalNotes,
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
+    id: row.id,
+    userId: row.userId,
+    name: row.name,
+    species: row.species as Pet['species'],
+    breed: row.breed,
+    dateOfBirth: row.dateOfBirth ?? undefined,
+    gender: (row.gender as Pet['gender'] | null) ?? undefined,
+    servicesNeeded: (row.servicesNeeded ?? []) as Pet['servicesNeeded'],
+    weight: row.weight ?? undefined,
+    neutered: row.neutered ?? undefined,
+    photoUrl: row.photoUrl ?? undefined,
+    microchipId: row.microchipId ?? undefined,
+    medicalNotes: row.medicalNotes ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function stripUndefined<T extends Record<string, unknown>>(o: T): Partial<T> {
+  const out: Partial<T> = {};
+  for (const k of Object.keys(o)) {
+    const v = o[k as keyof T];
+    if (v !== undefined) (out as Record<string, unknown>)[k] = v;
+  }
+  return out;
 }
 
 @Injectable()
 export class PetsService {
-  constructor(@InjectModel(PetDocument.name) private readonly petModel: Model<PetDocument>) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async listByUser(userId: string): Promise<Pet[]> {
-    const docs = await this.petModel.find({ userId }).sort({ createdAt: -1 }).exec();
-    return docs.map(toPet);
+    const rows = await this.prisma.pet.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map(toPet);
   }
 
   async findById(petId: string): Promise<Pet | null> {
-    const doc = await this.petModel.findById(petId).exec();
-    return doc ? toPet(doc) : null;
+    const row = await this.prisma.pet.findUnique({ where: { id: petId } });
+    return row ? toPet(row) : null;
   }
 
   async assertPetOwnedByUser(petId: string, userId: string): Promise<Pet> {
@@ -46,34 +57,40 @@ export class PetsService {
   }
 
   async create(userId: string, dto: CreatePetDto): Promise<Pet> {
-    const doc = await this.petModel.create({
-      userId,
-      name: dto.name,
-      species: dto.species,
-      breed: dto.breed,
-      dateOfBirth: dto.dateOfBirth,
-      gender: dto.gender,
-      servicesNeeded: dto.servicesNeeded ?? [],
-      weight: dto.weight,
-      neutered: dto.neutered,
-      photoUrl: dto.photoUrl,
-      microchipId: dto.microchipId,
-      medicalNotes: dto.medicalNotes,
+    const row = await this.prisma.pet.create({
+      data: {
+        userId,
+        name: dto.name,
+        species: dto.species,
+        breed: dto.breed,
+        dateOfBirth: dto.dateOfBirth,
+        gender: dto.gender,
+        servicesNeeded: dto.servicesNeeded ?? [],
+        weight: dto.weight,
+        neutered: dto.neutered,
+        photoUrl: dto.photoUrl,
+        microchipId: dto.microchipId,
+        medicalNotes: dto.medicalNotes,
+      },
     });
-    return toPet(doc);
+    return toPet(row);
   }
 
   async update(petId: string, userId: string, dto: UpdatePetDto): Promise<Pet> {
     await this.assertPetOwnedByUser(petId, userId);
-    const doc = await this.petModel
-      .findByIdAndUpdate(petId, { $set: { ...dto } }, { new: true, runValidators: true })
-      .exec();
-    if (!doc) throw new NotFoundException('Pet not found');
-    return toPet(doc);
+    try {
+      const row = await this.prisma.pet.update({
+        where: { id: petId },
+        data: stripUndefined(dto as unknown as Record<string, unknown>),
+      });
+      return toPet(row);
+    } catch {
+      throw new NotFoundException('Pet not found');
+    }
   }
 
   async remove(petId: string, userId: string): Promise<void> {
     await this.assertPetOwnedByUser(petId, userId);
-    await this.petModel.findByIdAndDelete(petId).exec();
+    await this.prisma.pet.delete({ where: { id: petId } });
   }
 }

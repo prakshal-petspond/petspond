@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String   @id @default(cuid())
+  name                 String
+  mobile               String   @unique
+  email                String?
+  city                 String?
+  pincode              String?
+  referredBy           String?
+  onboardingCompleted  Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  pets                 Pet[]
+  consultationBookings ConsultationBooking[]
+  vaccinationBookings  VaccinationBooking[]
+
+  @@index([mobile])
+}
+
+model Vet {
+  id                            String   @id @default(cuid())
+  fullName                      String
+  mobile                        String   @unique
+  email                         String?  @unique
+  passwordHash                  String?
+  googleId                      String?  @unique
+  emailVerified                 Boolean  @default(false)
+  phoneVerified                 Boolean  @default(false)
+  veterinaryRegistrationNumber  String
+  yearOfRegistration            Int
+  qualifications                String[] @default([])
+  specializations               String[] @default([])
+  clinicId                      String?
+  isClinicAdmin                 Boolean  @default(false)
+  approvalStatus                String   @default("pending")
+  onboardingCompleted           Boolean  @default(false)
+  photoUrl                      String?
+  displayTitle                  String?
+  /// [{ dayOfWeek, startMinute, endMinute }]
+  weeklyAvailability            Json     @default("[]")
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+
+  clinic                        Clinic?  @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  refreshTokens                 VetRefreshToken[]
+
+  @@index([clinicId])
+  @@index([email])
+  @@index([googleId])
+}
+
+model Clinic {
+  id                    String   @id @default(cuid())
+  name                  String
+  totalDoctors          Int      @default(1)
+  address               String
+  pincode               String
+  city                  String?
+  state                 String?
+  country               String?
+  latitude              Float?
+  longitude             Float?
+  placeId               String?
+  adminVetId            String
+  listingImage          String?
+  heroImage             String?
+  tagline               String?
+  rating                Float    @default(4.5)
+  reviewCount           Int      @default(0)
+  is24_7                Boolean  @default(false)
+  closingTimeLabel      String?
+  /// [{ day, hours }]
+  hours                 Json     @default("[]")
+  facilities            String[] @default([])
+  photoGallery          String[] @default([])
+  /// [{ id, name, icon }]
+  servicesOffered       Json     @default("[]")
+  /// [{ id, name, pricePaise }]
+  vaccinesOffered       Json     @default("[]")
+  acceptsConsultations  Boolean  @default(true)
+  acceptsVaccinations   Boolean  @default(true)
+  establishedYear       Int?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  vets                  Vet[]
+  staff                 ClinicStaff[]
+  invites               ClinicInvite[]
+  consultationBookings  ConsultationBooking[]
+  vaccinationBookings   VaccinationBooking[]
+
+  @@index([adminVetId])
+  @@index([pincode])
+}
+
+model ClinicStaff {
+  id             String   @id @default(cuid())
+  clinicId       String
+  role           String   @default("front_office")
+  fullName       String
+  email          String?
+  mobile         String?
+  createdByVetId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, role])
+}
+
+model Pet {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  species         String
+  breed           String
+  dateOfBirth     String?
+  gender          String?
+  servicesNeeded  String[] @default([])
+  weight          Float?
+  neutered        Boolean?
+  photoUrl        String?
+  microchipId     String?
+  medicalNotes    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model Vendor {
+  id                   String   @id @default(cuid())
+  mobile               String   @unique
+  businessName         String   @default("")
+  displayTitle         String?
+  bio                  String?
+  photoUrl             String?
+  serviceTypes         String[] @default([])
+  serviceModes         String[] @default([])
+  latitude             Float    @default(0)
+  longitude            Float    @default(0)
+  address              String   @default("")
+  city                 String?
+  serviceRadiusKm      Float    @default(10)
+  /// [{ dayOfWeek, startMinute, endMinute }]
+  weeklyAvailability   Json     @default("[]")
+  rating               Float    @default(4.5)
+  reviewCount          Int      @default(0)
+  promo                String?
+  onboardingCompleted  Boolean  @default(false)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([serviceTypes])
+  @@index([onboardingCompleted, isActive])
+  @@index([latitude, longitude])
+}
+
+model ConsultationBooking {
+  id                      String    @id @default(cuid())
+  userId                  String?
+  clinicId                String
+  vetId                   String
+  petId                   String?
+  petName                 String
+  petSpecies              String
+  petBreed                String
+  petWeightLabel          String?
+  reasonIds               String[]  @default([])
+  notes                   String?
+  scheduledAt             DateTime
+  status                  String    @default("pending_payment")
+  paymentStatus           String    @default("pending")
+  queueStatus             String    @default("expected")
+  isWalkIn                Boolean   @default(false)
+  ownerNameSnapshot       String?
+  ownerMobileSnapshot     String?
+  checkedInAt             DateTime?
+  consultationStartedAt   DateTime?
+  checkoutReadyAt         DateTime?
+  roomLabel               String?
+  invoiceNumber           String?
+  collectedAt             DateTime?
+  collectedByVetId        String?
+  refundedAt              DateTime?
+  consultationFeePaise    Int
+  platformFeePaise        Int
+  discountPaise           Int       @default(0)
+  totalPaise              Int
+  promoCode               String?
+  paymentMethodLabel      String?
+  stripeCheckoutSessionId String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  user                    User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  clinic                  Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, scheduledAt])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([vetId, scheduledAt])
+  @@index([status, paymentStatus])
+  @@index([clinicId, queueStatus, scheduledAt])
+}
+
+model VaccinationBooking {
+  id                      String   @id @default(cuid())
+  userId                  String
+  clinicId                String
+  petId                   String
+  petName                 String
+  petSpecies              String
+  petBreed                String
+  /// [{ vaccineId, name, pricePaise }]
+  vaccines                Json     @default("[]")
+  notes                   String?
+  scheduledAt             DateTime
+  status                  String   @default("pending_payment")
+  paymentStatus           String   @default("pending")
+  platformFeePaise        Int
+  discountPaise           Int      @default(0)
+  vaccinesSubtotalPaise   Int
+  totalPaise              Int
+  promoCode               String?
+  paymentMethodLabel      String?
+  stripeCheckoutSessionId String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic                  Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, scheduledAt])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model ClinicInvite {
+  id             String   @id @default(cuid())
+  clinicId       String
+  mobile         String
+  createdByVetId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, mobile])
+  @@index([clinicId])
+  @@index([mobile])
+}
+
+model VetRefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  vetId     String
+  familyId  String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  vet       Vet       @relation(fields: [vetId], references: [id], onDelete: Cascade)
+
+  @@index([vetId])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+/// Durable OTP / registration / password-reset codes (replaces in-memory Maps)
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  kind      String
+  subject   String
+  codeHash  String
+  payload   Json?
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([kind, subject])
+  @@index([expiresAt])
+}

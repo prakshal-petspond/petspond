@@ -61,7 +61,7 @@ Or from the root: `pnpm dev` (runs all in parallel via Turbo).
 
 ## Environment
 
-- **API:** Copy `apps/api/.env.example` to `apps/api/.env.local` and set `MONGODB_URI` (and optionally Redis, JWT, OTP). For images, configure **Cloudflare R2** — see [apps/api/CLOUDFLARE_R2_SETUP.md](apps/api/CLOUDFLARE_R2_SETUP.md).
+- **API:** Copy `apps/api/.env.example` to `apps/api/.env.local` and set `DATABASE_URL` (and optionally JWT, OTP). For images, configure **Cloudflare R2** — see [apps/api/CLOUDFLARE_R2_SETUP.md](apps/api/CLOUDFLARE_R2_SETUP.md).
 - **Vet CRM Web:** Set `NEXT_PUBLIC_API_URL=http://localhost:3000` in `apps/vet-crm-web/.env.local` if needed.
 - **Mobile apps:** Set `EXPO_PUBLIC_API_URL` in `.env` for the app if not using default (see `apps/user-app/.env.example`, `apps/vendor-app/.env.example`).
 - **Vendors:** Groomers, walkers, and trainers onboard via **Vendor App** (`vendor-auth` API). Pet parents see listings filtered by location and service radius on the user app (`GET /public/vendors`).
@@ -83,4 +83,4 @@ Builds all apps and packages (Turbo respects dependency order).
 
 ## Deployment
 
-Vet CRM Web (Netlify) + API (Railway) + MongoDB Atlas — see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full development and production setup guide.
+Vet CRM Web (Netlify) + API (Railway) + PostgreSQL — see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full development and production setup guide.
