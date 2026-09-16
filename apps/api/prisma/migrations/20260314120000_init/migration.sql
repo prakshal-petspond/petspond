@@ -373,14 +373,4 @@ ALTER TABLE "ClinicInvite" ADD CONSTRAINT "ClinicInvite_clinicId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "VetRefreshToken" ADD CONSTRAINT "VetRefreshToken_vetId_fkey" FOREIGN KEY ("vetId") REFERENCES "Vet"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-┌─────────────────────────────────────────────────────────┐
-│  Update available 6.19.3 -> 8.0.0-rc.15                 │
-│                                                         │
-│  This is a major update - please follow the guide at    │
-│  https://pris.ly/d/major-version-upgrade                │
-│                                                         │
-│  Run the following to update                            │
-│    npm i --save-dev prisma@latest                       │
-│    npm i @prisma/client@latest                          │
-└─────────────────────────────────────────────────────────┘
 
