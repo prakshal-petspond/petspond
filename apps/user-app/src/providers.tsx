@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { ThemeProvider, ApiProvider, OnboardingProvider, LocationProvider } from '@/contexts';
+import { ThemeProvider, ApiProvider, OnboardingProvider } from '@/contexts';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -9,9 +9,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <SafeAreaProvider>
         <ThemeProvider>
           <ApiProvider>
-            <LocationProvider>
-              <OnboardingProvider>{children}</OnboardingProvider>
-            </LocationProvider>
+            <OnboardingProvider>{children}</OnboardingProvider>
           </ApiProvider>
         </ThemeProvider>
       </SafeAreaProvider>

@@ -15,9 +15,10 @@ export function confirmConsultationPayment(
   bookingId: string,
   stripeSessionId?: string,
 ) {
-  return client.post<ConsultationBooking>(`/user/bookings/consultations/${bookingId}/confirm-payment`, {
-    stripeSessionId,
-  });
+  return client.post<ConsultationBooking>(
+    `/user/bookings/consultations/${bookingId}/confirm-payment`,
+    { stripeSessionId },
+  );
 }
 
 export function createVaccinationBooking(client: ApiClient, body: CreateVaccinationBookingDto) {
@@ -29,15 +30,12 @@ export function confirmVaccinationPayment(
   bookingId: string,
   stripeSessionId?: string,
 ) {
-  return client.post<VaccinationBooking>(`/user/bookings/vaccinations/${bookingId}/confirm-payment`, {
-    stripeSessionId,
-  });
+  return client.post<VaccinationBooking>(
+    `/user/bookings/vaccinations/${bookingId}/confirm-payment`,
+    { stripeSessionId },
+  );
 }
 
 export function listUserConsultations(client: ApiClient) {
   return client.get<ConsultationBooking[]>('/user/bookings/consultations');
-}
-
-export function listUserVaccinations(client: ApiClient) {
-  return client.get<VaccinationBooking[]>('/user/bookings/vaccinations');
 }

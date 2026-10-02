@@ -40,7 +40,7 @@ export function OnboardingStepHeader({
         ]}
       >
         <View style={[styles.backCircle, { backgroundColor: t.colors.inactive_bg_alpha }]}>
-          <AntDesign name="arrowleft" size={24} color={t.colors.text_primary} />
+          <AntDesign name="arrow-left" size={24} color={t.colors.text_primary} />
         </View>
       </Pressable>
       <Text style={[styles.stepLabel, { color: t.colors.text_secondary }]}>

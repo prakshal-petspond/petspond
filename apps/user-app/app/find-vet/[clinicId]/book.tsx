@@ -1,15 +1,7 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { BookVetFlow } from '@/features/find-vet/BookVetFlow';
 
-export default function BookVetScreen() {
-  return (
-    <View style={styles.fill}>
-      <BookVetFlow />
-    </View>
-  );
+export default function BookVetRoute() {
+  const { clinicId } = useLocalSearchParams<{ clinicId: string }>();
+  return <BookVetFlow clinicId={String(clinicId)} />;
 }
-
-const styles = StyleSheet.create({
-  fill: { flex: 1 },
-});

@@ -10,7 +10,7 @@
     "dev": "turbo run dev",
     "dev:api": "pnpm --filter @petspond/api dev",
     "dev:web": "pnpm --filter @petspond/vet-crm-web dev",
-    "dev:user-app": "pnpm --filter @petspond/user-app start",
+    "dev:user-app": "pnpm --dir apps/user-app exec expo start --clear",
     "dev:vendor-app": "pnpm --filter @petspond/vendor-app start",
     "dev:vet-mobile": "pnpm --filter @petspond/vet-crm-mobile start",
     "lint": "turbo run lint",
@@ -25,5 +25,16 @@
   "engines": {
     "node": ">=18"
   },
-  "packageManager": "pnpm@9.14.2"
+  "packageManager": "pnpm@9.14.2",
+  "pnpm": {
+    "overrides": {
+      "wrap-ansi@7>string-width": "4.2.3",
+      "react-native": "0.81.5",
+      "react-native-safe-area-context": "5.6.2",
+      "react-native-screens": "4.16.0"
+    },
+    "patchedDependencies": {
+      "@expo/cli@54.0.27": "patches/@expo__cli@54.0.27.patch"
+    }
+  }
 }

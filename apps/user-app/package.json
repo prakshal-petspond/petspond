@@ -2,7 +2,7 @@
   "name": "@petspond/user-app",
   "version": "0.0.1",
   "private": true,
-  "main": "App.js",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -13,29 +13,24 @@
     "clean": "rm -rf .expo node_modules"
   },
   "dependencies": {
-    "@expo/vector-icons": "^14.0.4",
+    "@expo/vector-icons": "^15.0.3",
     "@petspond/api-client": "workspace:*",
     "@petspond/types": "workspace:*",
-    "@react-native-community/datetimepicker": "8.4.4",
     "expo": "~54.0.0",
-    "expo-image-picker": "~17.0.10",
-    "expo-linear-gradient": "~15.0.8",
-    "expo-linking": "~8.0.0",
-    "expo-location": "~18.0.0",
-    "expo-router": "~6.0.0",
+    "expo-linking": "~8.0.12",
+    "expo-router": "~6.0.24",
     "expo-secure-store": "~15.0.8",
-    "expo-status-bar": "~2.0.0",
-    "expo-web-browser": "^55.0.10",
+    "expo-status-bar": "~3.0.9",
+    "expo-web-browser": "^15.0.11",
     "react": "19.1.0",
-    "react-native": "0.81.0",
-    "react-native-safe-area-context": "5.4.0",
-    "react-native-screens": "~4.10.0"
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
     "@expo/metro-runtime": "~6.1.0",
     "@types/react": "~19.1.0",
-    "@types/react-native": "^0.73.0",
     "typescript": "^5.6.3"
   }
 }

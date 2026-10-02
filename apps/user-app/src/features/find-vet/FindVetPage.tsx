@@ -4,50 +4,81 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   Image,
   TextInput,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { useTheme, useLocation, useApi } from '@/contexts';
-import { getNetworkErrorHelp } from '@/contexts/ApiContext';
-import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PublicClinicListItem } from '@petspond/types';
+import { useApi, useTheme } from '@/contexts';
+import { getNetworkErrorHelp } from '@/contexts/ApiContext';
 import { fetchConsultationClinics } from '@/services/catalog';
 import { formatDistanceKm, haversineKm } from '@/lib/geo';
-
-const FALLBACK_IMG =
-  'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=200&h=200&fit=crop';
+import { resolvePhotoUrl } from '@/lib/photoUrl';
 
 const H_PAD = 16;
 
-type FilterId = 'all' | 'nearest' | 'topRated' | 'available24_7';
+type CategoryId = 'all' | 'consultation' | 'vaccination';
+type SubFilterId = 'all' | 'nearest' | 'topRated' | 'available24_7';
 
-const FILTERS: { id: FilterId; label: string }[] = [
+const CATEGORIES: { id: CategoryId; label: string }[] = [
+  { id: 'all', label: 'All Services' },
+  { id: 'consultation', label: 'Consultation' },
+  { id: 'vaccination', label: 'Vaccination' },
+];
+
+const SUB_FILTERS: { id: SubFilterId; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'nearest', label: 'Nearest' },
   { id: 'topRated', label: 'Top Rated' },
-  { id: 'available24_7', label: '24/7 Available' },
+  { id: 'available24_7', label: '24/7' },
 ];
+
+function clinicPhotoUri(c: PublicClinicListItem): string | null {
+  return resolvePhotoUrl(c.primaryDoctor.photoUrl);
+}
+
+function matchesSearch(c: PublicClinicListItem, q: string): boolean {
+  const hay = [
+    c.name,
+    c.primaryDoctor.fullName,
+    c.address,
+    c.city ?? '',
+    ...c.primaryDoctor.specializations,
+    c.primaryDoctor.displayTitle ?? '',
+  ]
+    .join(' ')
+    .toLowerCase();
+  return hay.includes(q);
+}
+
+function openStatusLabel(c: PublicClinicListItem): { open: string; closing: string } {
+  if (c.is24_7) return { open: 'Open 24/7', closing: '' };
+  return { open: 'Open', closing: c.closingTimeLabel ?? 'See hours' };
+}
 
 export function FindVetPage() {
   const t = useTheme();
   const router = useRouter();
+  const { lat, lng } = useLocalSearchParams<{ lat?: string; lng?: string }>();
   const { client } = useApi();
-  const {
-    addressLine: locationAddress,
-    loading: locationLoading,
-    refresh: refreshLocation,
-    coords,
-  } = useLocation();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent;
-  const headerBg = '#f5f0e8';
+  const primary = t.colors.primary;
 
-  const [selectedFilter, setSelectedFilter] = useState<FilterId>('all');
+  const userCoords = useMemo(() => {
+    if (!lat || !lng) return null;
+    const latitude = Number(lat);
+    const longitude = Number(lng);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    return { latitude, longitude };
+  }, [lat, lng]);
+
+  const [category, setCategory] = useState<CategoryId>('all');
+  const [subFilter, setSubFilter] = useState<SubFilterId>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [clinics, setClinics] = useState<PublicClinicListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,102 +108,156 @@ export function FindVetPage() {
     fetchList().finally(() => setRefreshing(false));
   }, [fetchList]);
 
+  const locationLine = useMemo(() => {
+    const first = clinics[0];
+    if (!first) return 'Near you';
+    if (first.city?.trim()) return first.city.trim();
+    if (first.address?.trim()) return first.address.trim();
+    return 'Near you';
+  }, [clinics]);
+
   const filtered = useMemo(() => {
     let list = [...clinics];
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.primaryDoctor.fullName.toLowerCase().includes(q) ||
-          c.address.toLowerCase().includes(q)
-      );
+
+    if (category === 'consultation') {
+      list = list.filter((c) => c.acceptsConsultations);
+    } else if (category === 'vaccination') {
+      list = list.filter((c) => c.acceptsVaccinations);
     }
-    if (selectedFilter === 'topRated') list.sort((a, b) => b.rating - a.rating);
-    if (selectedFilter === 'available24_7') list = list.filter((c) => c.is24_7);
-    if (selectedFilter === 'nearest' && coords) {
+
+    const q = searchQuery.trim().toLowerCase();
+    if (q) list = list.filter((c) => matchesSearch(c, q));
+
+    if (subFilter === 'available24_7') list = list.filter((c) => c.is24_7);
+    if (subFilter === 'topRated') list.sort((a, b) => b.rating - a.rating || b.reviewCount - a.reviewCount);
+    if (subFilter === 'nearest' && userCoords) {
       list.sort((a, b) => {
         const da =
           a.latitude != null && a.longitude != null
-            ? haversineKm(coords, { latitude: a.latitude, longitude: a.longitude })
+            ? haversineKm(userCoords, { latitude: a.latitude, longitude: a.longitude })
             : Number.POSITIVE_INFINITY;
         const db =
           b.latitude != null && b.longitude != null
-            ? haversineKm(coords, { latitude: b.latitude, longitude: b.longitude })
+            ? haversineKm(userCoords, { latitude: b.latitude, longitude: b.longitude })
             : Number.POSITIVE_INFINITY;
         return da - db;
       });
+    } else if (subFilter === 'nearest') {
+      list.sort((a, b) => (a.distanceLabel ?? '').localeCompare(b.distanceLabel ?? ''));
     }
+
     return list;
-  }, [clinics, searchQuery, selectedFilter, coords]);
+  }, [clinics, category, searchQuery, subFilter, userCoords]);
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
-      {/* Header with cream background */}
-      <View style={[styles.header, { backgroundColor: headerBg, paddingTop: insets.top }]}>
+    <View style={[styles.fill, { backgroundColor: t.colors.grey_bg }]}>
+      <View
+        style={[
+          styles.header,
+          { backgroundColor: t.colors.solid_white, paddingTop: insets.top + 8 },
+        ]}
+      >
         <View style={[styles.headerRow, { paddingHorizontal: H_PAD }]}>
-          <TouchableOpacity
-            style={styles.backBtn}
+          <Pressable
+            style={[styles.iconCircle, { backgroundColor: t.colors.grey_bg }]}
             onPress={() => router.back()}
-            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: t.colors.text_primary }]}>Find a Vet</Text>
+          </Pressable>
+          <View style={styles.headerTitles}>
+            <Text style={[styles.headerTitle, { color: t.colors.text_primary }]}>
+              Veterinary Care
+            </Text>
+            <View style={styles.locationRow}>
+              <Ionicons name="location-outline" size={14} color={primary} />
+              <Text style={[styles.locationText, { color: t.colors.text_secondary }]} numberOfLines={1}>
+                {locationLine}
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            style={[styles.iconCircle, { backgroundColor: t.colors.grey_bg }]}
+            accessibilityRole="button"
+            accessibilityLabel="Filters"
+          >
+            <Ionicons name="options-outline" size={22} color={t.colors.text_primary} />
+          </Pressable>
         </View>
 
-        <View style={[styles.inputsWrap, { paddingHorizontal: H_PAD }]}>
-          <View style={[styles.searchWrap, { backgroundColor: t.colors.solid_white }]}>
-            <Ionicons name="search" size={20} color={t.colors.text_secondary} />
-            <TextInput
-              style={[styles.searchInput, { color: t.colors.text_primary }]}
-              placeholder="Search by name, clinic or specialty..."
-              placeholderTextColor={t.colors.text_secondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-          <TouchableOpacity
-            style={[styles.locationWrap, { backgroundColor: t.colors.solid_white }]}
-            onPress={() => refreshLocation()}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="location" size={18} color={accent} />
-            <Text style={[styles.locationText, { color: t.colors.text_primary }]} numberOfLines={1}>
-              {locationLoading ? 'Getting location…' : (locationAddress ?? 'Your location')}
-            </Text>
-          </TouchableOpacity>
+        <View style={[styles.searchWrap, { marginHorizontal: H_PAD, backgroundColor: t.colors.grey_bg }]}>
+          <Ionicons name="search" size={20} color={t.colors.text_secondary} />
+          <TextInput
+            style={[styles.searchInput, { color: t.colors.text_primary }]}
+            placeholder="Search vets, clinics, specialty…"
+            placeholderTextColor={t.colors.text_secondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+          />
         </View>
 
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={[styles.filtersScroll, { paddingHorizontal: H_PAD }]}
-          style={styles.filtersScrollWrap}
+          contentContainerStyle={[styles.pillRow, { paddingHorizontal: H_PAD }]}
         >
-          {FILTERS.map((f) => {
-            const isSelected = selectedFilter === f.id;
+          {CATEGORIES.map((cat) => {
+            const active = category === cat.id;
             return (
-              <TouchableOpacity
-                key={f.id}
+              <Pressable
+                key={cat.id}
                 style={[
-                  styles.filterPill,
+                  styles.categoryPill,
                   {
-                    backgroundColor: isSelected ? accent : t.colors.solid_white,
+                    backgroundColor: active ? primary : t.colors.grey_bg,
+                    borderColor: active ? primary : t.colors.border,
                   },
                 ]}
-                onPress={() => setSelectedFilter(f.id)}
-                activeOpacity={0.8}
+                onPress={() => setCategory(cat.id)}
               >
                 <Text
                   style={[
-                    styles.filterPillText,
-                    { color: isSelected ? '#fff' : t.colors.text_secondary },
+                    styles.categoryPillText,
+                    { color: active ? t.colors.solid_white : t.colors.text_primary },
+                  ]}
+                >
+                  {cat.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={[styles.pillRow, { paddingHorizontal: H_PAD, paddingBottom: 12 }]}
+        >
+          {SUB_FILTERS.map((f) => {
+            const active = subFilter === f.id;
+            return (
+              <Pressable
+                key={f.id}
+                style={[
+                  styles.subPill,
+                  {
+                    backgroundColor: active ? t.colors.primary_bg : t.colors.solid_white,
+                    borderColor: active ? primary : t.colors.border,
+                  },
+                ]}
+                onPress={() => setSubFilter(f.id)}
+              >
+                <Text
+                  style={[
+                    styles.subPillText,
+                    { color: active ? primary : t.colors.text_secondary },
                   ]}
                 >
                   {f.label}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             );
           })}
         </ScrollView>
@@ -180,133 +265,134 @@ export function FindVetPage() {
 
       <ScrollView
         style={styles.fill}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: H_PAD }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accent} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={primary} />
         }
       >
-        <View style={[styles.sectionHeader, { paddingHorizontal: H_PAD }]}>
-          <Text style={[styles.sectionLabel, { color: t.colors.text_secondary }]}>
-            Clinics near you
-          </Text>
-        </View>
+        <Text style={[styles.foundLabel, { color: t.colors.text_secondary }]}>
+          Found {filtered.length} provider{filtered.length === 1 ? '' : 's'} near you
+        </Text>
 
-        <View style={{ paddingHorizontal: H_PAD }}>
-          {loading && (
-            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-              <ActivityIndicator size="large" color={accent} />
-            </View>
-          )}
-          {listErr && !loading && (
-            <Text style={{ color: t.colors.text_secondary, marginBottom: 12 }}>{listErr}</Text>
-          )}
-          {!loading && !listErr && filtered.length === 0 && (
-            <Text style={{ color: t.colors.text_secondary }}>
-              No clinics yet. This list depends on onboarding and approval in Vet CRM (not your
-              schedule). You need an approved vet linked to a clinic that accepts consultations. On
-              a phone, set EXPO_PUBLIC_API_URL to your computer&apos;s IP if the API runs locally.
-              Pull down to refresh.
-            </Text>
-          )}
-          {filtered.map((c) => {
-            const img = c.primaryDoctor.photoUrl ?? FALLBACK_IMG;
-            const spec =
-              c.primaryDoctor.specializations[0] ?? c.primaryDoctor.displayTitle ?? 'Veterinarian';
-            const distLabel =
-              coords && c.latitude != null && c.longitude != null
-                ? formatDistanceKm(
-                    haversineKm(coords, { latitude: c.latitude, longitude: c.longitude })
-                  )
-                : null;
-            return (
-              <View
-                key={c.id}
-                style={[
-                  styles.vetCard,
-                  {
-                    backgroundColor: t.colors.solid_white,
-                    borderColor: t.colors.inactive_bg_alpha,
-                  },
-                ]}
+        {loading && (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={primary} />
+          </View>
+        )}
+
+        {listErr && !loading && (
+          <Text style={[styles.emptyText, { color: t.colors.text_secondary }]}>{listErr}</Text>
+        )}
+
+        {!loading && !listErr && filtered.length === 0 && (
+          <Text style={[styles.emptyText, { color: t.colors.text_secondary }]}>
+            No veterinary providers match your search. Pull down to refresh.
+          </Text>
+        )}
+
+        {filtered.map((c) => {
+          const photo = clinicPhotoUri(c);
+          const spec = c.primaryDoctor.specializations[0] ?? c.primaryDoctor.displayTitle;
+          const status = openStatusLabel(c);
+          const distLabel =
+            userCoords && c.latitude != null && c.longitude != null
+              ? formatDistanceKm(
+                  haversineKm(userCoords, { latitude: c.latitude, longitude: c.longitude }),
+                )
+              : c.distanceLabel?.trim() || null;
+
+          return (
+            <View
+              key={c.id}
+              style={[
+                styles.card,
+                { backgroundColor: t.colors.solid_white, borderColor: t.colors.border },
+              ]}
+            >
+              <Pressable
+                style={styles.cardMain}
+                onPress={() => router.push(`/find-vet/${c.id}`)}
               >
-                {c.is24_7 && (
-                  <View style={[styles.badge24_7, { backgroundColor: '#dcfce7' }]}>
-                    <Text style={styles.badge24_7Text}>24/7</Text>
+                {photo ? (
+                  <Image source={{ uri: photo }} style={styles.cardImage} />
+                ) : (
+                  <View style={[styles.cardImage, styles.imagePlaceholder, { backgroundColor: t.colors.grey_bg }]}>
+                    <MaterialCommunityIcons name="hospital-building" size={32} color={t.colors.text_secondary} />
                   </View>
                 )}
-                <TouchableOpacity
-                  style={styles.vetCardTop}
-                  onPress={() => router.push(`/find-vet/${c.id}`)}
-                  activeOpacity={0.9}
-                >
-                  <Image source={{ uri: img }} style={styles.vetImage} />
-                  <View style={styles.vetCardBody}>
-                    <Text style={[styles.vetName, { color: t.colors.text_primary }]}>{c.name}</Text>
-                    <Text style={[styles.vetClinic, { color: t.colors.text_secondary }]}>
-                      {c.primaryDoctor.fullName}
+
+                <View style={styles.cardBody}>
+                  <View style={styles.titleRow}>
+                    <Text style={[styles.cardName, { color: t.colors.text_primary }]} numberOfLines={2}>
+                      {c.name}
                     </Text>
-                    <Text style={[styles.vetSpecialty, { color: accent }]}>{spec}</Text>
-                    <View style={styles.vetMeta}>
-                      <Ionicons name="star" size={14} color="#eab308" />
-                      <Text style={[styles.vetRating, { color: t.colors.text_primary }]}>
-                        {c.rating} ({c.reviewCount})
-                      </Text>
-                      <Ionicons
-                        name="location"
-                        size={14}
-                        color={accent}
-                        style={{ marginLeft: 12 }}
-                      />
+                    <View
+                      style={[
+                        styles.typeBadge,
+                        { backgroundColor: c.is24_7 ? t.colors.success_alpha : t.colors.primary_bg },
+                      ]}
+                    >
                       <Text
-                        style={[styles.vetDistance, { color: t.colors.text_secondary }]}
-                        numberOfLines={1}
+                        style={[
+                          styles.typeBadgeText,
+                          { color: c.is24_7 ? t.colors.success : primary },
+                        ]}
                       >
-                        {distLabel ?? c.city ?? c.pincode}
-                      </Text>
-                    </View>
-                    <View style={styles.vetStatusRow}>
-                      <Text style={[styles.vetStatus, { color: t.colors.success }]}>Open</Text>
-                      <Text style={[styles.vetClosing, { color: t.colors.text_secondary }]}>
-                        {' '}
-                        • {c.closingTimeLabel ?? 'See profile'}
+                        {c.is24_7 ? '24/7' : 'Vet'}
                       </Text>
                     </View>
                   </View>
-                </TouchableOpacity>
-                <View
-                  style={[styles.vetCardActions, { borderTopColor: t.colors.inactive_bg_alpha }]}
-                >
-                  <TouchableOpacity
-                    style={styles.vetActionBtn}
-                    onPress={() => {}}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="call" size={18} color={accent} />
-                    <Text style={[styles.vetActionText, { color: accent }]}>Call</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.vetActionBtn}
-                    onPress={() => {}}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="chatbubble" size={18} color={accent} />
-                    <Text style={[styles.vetActionText, { color: accent }]}>Message</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.vetActionPrimary, { backgroundColor: accent }]}
-                    onPress={() => router.push(`/find-vet/${c.id}`)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.vetActionPrimaryText}>Book Visit</Text>
-                    <Ionicons name="chevron-forward" size={18} color="#fff" />
-                  </TouchableOpacity>
+
+                  <Text style={[styles.doctorLine, { color: t.colors.text_secondary }]} numberOfLines={1}>
+                    {c.primaryDoctor.fullName}
+                  </Text>
+
+                  {spec ? (
+                    <View style={[styles.specTag, { backgroundColor: t.colors.grey_bg }]}>
+                      <Text style={[styles.specTagText, { color: primary }]} numberOfLines={1}>
+                        {spec}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.metaRow}>
+                    <Ionicons name="star" size={14} color="#EAB308" />
+                    <Text style={[styles.ratingText, { color: t.colors.text_primary }]}>
+                      {c.rating} ({c.reviewCount})
+                    </Text>
+                    {distLabel ? (
+                      <>
+                        <Text style={[styles.metaDot, { color: t.colors.text_secondary }]}>·</Text>
+                        <Ionicons name="navigate-outline" size={13} color={primary} />
+                        <Text style={[styles.distText, { color: t.colors.text_secondary }]}>
+                          {distLabel}
+                        </Text>
+                      </>
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.statusLine} numberOfLines={1}>
+                    <Text style={{ color: t.colors.success, fontWeight: '600' }}>{status.open}</Text>
+                    {status.closing ? (
+                      <Text style={{ color: t.colors.text_secondary }}> · {status.closing}</Text>
+                    ) : null}
+                  </Text>
                 </View>
-              </View>
-            );
-          })}
-        </View>
-        <View style={{ height: 24 }} />
+              </Pressable>
+
+              <Pressable
+                style={[styles.bookBtn, { backgroundColor: primary }]}
+                onPress={() => router.push(`/find-vet/${c.id}`)}
+              >
+                <Text style={styles.bookBtnText}>Book Visit</Text>
+                <Ionicons name="chevron-forward" size={18} color="#fff" />
+              </Pressable>
+            </View>
+          );
+        })}
+
+        <View style={{ height: Math.max(insets.bottom, 16) }} />
       </ScrollView>
     </View>
   );
@@ -315,117 +401,94 @@ export function FindVetPage() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   header: {
-    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EEF0F3',
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
+    gap: 12,
   },
-  backBtn: {
+  iconCircle: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  inputsWrap: { gap: 10 },
+  headerTitles: { flex: 1 },
+  headerTitle: { fontSize: 18, fontWeight: '700' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  locationText: { fontSize: 13, flex: 1 },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 48,
-    borderRadius: 12,
+    borderRadius: 14,
     paddingHorizontal: 14,
     gap: 10,
+    marginBottom: 12,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    paddingVertical: 0,
-  },
-  locationWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 48,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    gap: 8,
-  },
-  locationText: { fontSize: 15, fontWeight: '500' },
-  filtersScroll: { gap: 10, paddingBottom: 4 },
-  filtersScrollWrap: { maxHeight: 44 },
-  filterPill: {
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 0 },
+  pillRow: { gap: 8, paddingBottom: 8 },
+  categoryPill: {
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 9999,
-    marginRight: 8,
-  },
-  filterPillText: { fontSize: 14, fontWeight: '600' },
-  scrollContent: { paddingTop: 16 },
-  sectionHeader: { marginBottom: 12 },
-  sectionLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
-  vetCard: {
-    borderRadius: 12,
+    borderRadius: 999,
     borderWidth: 1,
-    padding: 14,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    marginRight: 4,
   },
-  badge24_7: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    zIndex: 1,
-  },
-  badge24_7Text: { fontSize: 11, fontWeight: '700', color: '#166534' },
-  vetCardTop: { flexDirection: 'row', marginBottom: 12 },
-  vetImage: { width: 80, height: 80, borderRadius: 10 },
-  vetCardBody: { flex: 1, marginLeft: 12 },
-  vetName: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
-  vetClinic: { fontSize: 13, marginBottom: 2 },
-  vetSpecialty: { fontSize: 13, fontWeight: '600', marginBottom: 6 },
-  vetMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  vetRating: { fontSize: 13, fontWeight: '600' },
-  vetDistance: { fontSize: 13 },
-  vetStatusRow: { flexDirection: 'row', marginTop: 4 },
-  vetStatus: { fontSize: 13, fontWeight: '600' },
-  vetClosing: { fontSize: 13 },
-  vetCardActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    paddingTop: 12,
-    gap: 8,
-  },
-  vetActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+  categoryPillText: { fontSize: 14, fontWeight: '600' },
+  subPill: {
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 4,
   },
-  vetActionText: { fontSize: 14, fontWeight: '600' },
-  vetActionPrimary: {
+  subPillText: { fontSize: 13, fontWeight: '600' },
+  scrollContent: { paddingTop: 16 },
+  foundLabel: { fontSize: 13, fontWeight: '600', marginBottom: 12 },
+  centered: { paddingVertical: 48, alignItems: 'center' },
+  emptyText: { fontSize: 14, lineHeight: 20, marginBottom: 16 },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 14,
+    overflow: 'hidden',
+  },
+  cardMain: { flexDirection: 'row', padding: 14, gap: 12 },
+  cardImage: { width: 88, height: 88, borderRadius: 12 },
+  imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  cardBody: { flex: 1, minWidth: 0 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  cardName: { flex: 1, fontSize: 16, fontWeight: '700' },
+  typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  typeBadgeText: { fontSize: 11, fontWeight: '700' },
+  doctorLine: { fontSize: 13, marginTop: 4 },
+  specTag: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  specTagText: { fontSize: 12, fontWeight: '600' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 },
+  ratingText: { fontSize: 13, fontWeight: '600' },
+  metaDot: { marginHorizontal: 2 },
+  distText: { fontSize: 12 },
+  statusLine: { fontSize: 12, marginTop: 4 },
+  bookBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginLeft: 'auto',
+    marginHorizontal: 14,
+    marginBottom: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  vetActionPrimaryText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  bookBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

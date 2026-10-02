@@ -1,43 +1,68 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  TextInput,
+  Pressable,
+  Image,
   ActivityIndicator,
   Alert,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useTheme, useApi } from '@/contexts';
+import { useRouter } from 'expo-router';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import type {
+  ConsultationBooking,
+  Pet,
+  PublicClinicDetail,
+  PublicClinicDoctorPreview,
+  VaccinationBooking,
+} from '@petspond/types';
+import { useApi, useTheme } from '@/contexts';
 import { getNetworkErrorHelp } from '@/contexts/ApiContext';
-import { Ionicons } from '@expo/vector-icons';
-import type { Pet, PublicClinicDetail } from '@petspond/types';
-import { startVetBookingCheckout } from '@/services/vetBookingPayment';
 import { fetchClinicDetail } from '@/services/catalog';
-import { createConsultationBooking, confirmConsultationPayment } from '@/services/userBookings';
-import { TIME_SLOT_DEFS, scheduledAtFromDateAndSlot } from '@/lib/bookingTime';
+import { fetchUserPets } from '@/services/pets';
+import {
+  confirmConsultationPayment,
+  confirmVaccinationPayment,
+  createConsultationBooking,
+  createVaccinationBooking,
+} from '@/services/userBookings';
 import { slotsForDoctorOnDate } from '@/lib/vetAvailability';
+import {
+  TIME_SLOT_DEFS,
+  formatPaise,
+  petAgeLabel,
+  scheduledAtFromDateAndSlot,
+} from '@/lib/bookingTime';
+import { resolvePhotoUrl } from '@/lib/photoUrl';
 
 const H_PAD = 16;
+const ANY_DOCTOR_ID = '__any__';
 
-const REASONS: {
-  id: string;
-  label: string;
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-}[] = [
-  { id: 'checkup', label: 'General Check-up', icon: 'medical-outline' },
-  { id: 'vax', label: 'Vaccination', icon: 'bandage-outline' },
-  { id: 'illness', label: 'Illness/Symptoms', icon: 'pulse-outline' },
-  { id: 'injury', label: 'Injury/Emergency', icon: 'warning-outline' },
-  { id: 'followup', label: 'Follow-up Visit', icon: 'heart-outline' },
-  { id: 'behavior', label: 'Behavioral Issues', icon: 'paw-outline' },
-];
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6 | 'confirmed';
+type SlotDef = (typeof TIME_SLOT_DEFS)[number];
 
-function formatFullDate(d: Date) {
-  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+function clinicPhotoUri(clinic: PublicClinicDetail): string | null {
+  const candidates = [
+    clinic.listingImage,
+    clinic.heroImage,
+    clinic.photoGallery?.[0],
+    clinic.primaryDoctor.photoUrl,
+  ];
+  for (const c of candidates) {
+    const url = resolvePhotoUrl(c);
+    if (url) return url;
+  }
+  return null;
+}
+
+function clinicSpecialtyLabel(clinic: PublicClinicDetail): string | null {
+  const spec = clinic.primaryDoctor.specializations?.[0];
+  if (spec) return spec;
+  return clinic.primaryDoctor.displayTitle ?? null;
 }
 
 function buildDateStrip(): Date[] {
@@ -52,11 +77,7 @@ function buildDateStrip(): Date[] {
   return out;
 }
 
-type PaymentMethod = 'card' | 'upi' | 'clinic';
-
-type SlotDef = (typeof TIME_SLOT_DEFS)[number];
-
-function sameDay(a: Date, b: Date) {
+function sameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
     a.getMonth() === b.getMonth() &&
@@ -64,944 +85,1295 @@ function sameDay(a: Date, b: Date) {
   );
 }
 
-export function BookVetFlow() {
-  const { clinicId } = useLocalSearchParams<{ clinicId: string }>();
+function isSlotInPast(date: Date, slot: SlotDef): boolean {
+  const now = new Date();
+  if (!sameDay(date, now)) return false;
+  const t = new Date(date);
+  t.setHours(slot.hour, slot.minute, 0, 0);
+  return t.getTime() <= now.getTime();
+}
+
+function resolveVetId(
+  doctors: PublicClinicDoctorPreview[],
+  selectedDoctorId: string | null,
+): string | null {
+  if (!doctors.length) return null;
+  if (selectedDoctorId && selectedDoctorId !== ANY_DOCTOR_ID) {
+    return selectedDoctorId;
+  }
+  const withAvail = doctors.find((d) => d.weeklyAvailability?.length);
+  return (withAvail ?? doctors[0]).id;
+}
+
+function doctorForAvailability(
+  doctors: PublicClinicDoctorPreview[],
+  selectedDoctorId: string | null,
+): PublicClinicDoctorPreview | undefined {
+  if (!doctors.length) return undefined;
+  if (selectedDoctorId && selectedDoctorId !== ANY_DOCTOR_ID) {
+    return doctors.find((d) => d.id === selectedDoctorId) ?? doctors[0];
+  }
+  return doctors.find((d) => d.weeklyAvailability?.length) ?? doctors[0];
+}
+
+function formatVisitDateTime(date: Date, slot: SlotDef): string {
+  const day = date.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+  return `${day} · ${slot.label}`;
+}
+
+function ProgressBar({ step, primary }: { step: WizardStep; primary: string }) {
+  const n = step === 'confirmed' ? 6 : step;
+  return (
+    <View style={styles.progressRow}>
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <View
+          key={i}
+          style={[
+            styles.progressSegment,
+            { backgroundColor: i <= n ? primary : '#E8EAED' },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+function ClinicSummaryCard({
+  clinic,
+  primary,
+  textPrimary,
+  textSecondary,
+  border,
+  white,
+}: {
+  clinic: PublicClinicDetail;
+  primary: string;
+  textPrimary: string;
+  textSecondary: string;
+  border: string;
+  white: string;
+}) {
+  const photo = clinicPhotoUri(clinic);
+  const specialty = clinicSpecialtyLabel(clinic);
+  return (
+    <View style={[styles.clinicCard, { backgroundColor: white, borderColor: border }]}>
+      {photo ? (
+        <Image source={{ uri: photo }} style={styles.clinicThumb} />
+      ) : (
+        <View style={[styles.clinicThumb, styles.clinicThumbPlaceholder, { backgroundColor: border }]}>
+          <MaterialCommunityIcons name="hospital-building" size={28} color={textSecondary} />
+        </View>
+      )}
+      <View style={styles.clinicCardBody}>
+        <Text style={[styles.clinicCardName, { color: textPrimary }]} numberOfLines={2}>
+          {clinic.name}
+        </Text>
+        {specialty ? (
+          <Text style={[styles.clinicCardMeta, { color: primary }]} numberOfLines={1}>
+            {specialty}
+          </Text>
+        ) : null}
+        <View style={styles.clinicCardFooter}>
+          {clinic.distanceLabel ? (
+            <Text style={[styles.clinicCardMeta, { color: textSecondary }]}>
+              {clinic.distanceLabel}
+            </Text>
+          ) : null}
+          <View style={styles.ratingRow}>
+            <Ionicons name="star" size={14} color="#EAB308" />
+            <Text style={[styles.clinicCardMeta, { color: textPrimary, fontWeight: '600' }]}>
+              {clinic.rating}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function BookVetFlow({ clinicId }: { clinicId: string }) {
   const t = useTheme();
+  const { client, token } = useApi();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { client, token } = useApi();
-  const accent = t.colors.accent;
+  const primary = t.colors.primary;
 
-  const [detail, setDetail] = useState<PublicClinicDetail | null>(null);
-  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [step, setStep] = useState<WizardStep>(1);
+  const [clinic, setClinic] = useState<PublicClinicDetail | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
-  const [selectedVetId, setSelectedVetId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [step, setStep] = useState(0);
   const [petId, setPetId] = useState<string | null>(null);
-  const [reasons, setReasons] = useState<string[]>([]);
-  const [notes, setNotes] = useState('');
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [selectedVaccineIds, setSelectedVaccineIds] = useState<string[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(ANY_DOCTOR_ID);
+
   const dates = useMemo(() => buildDateStrip(), []);
-  const [selectedDate, setSelectedDate] = useState<Date>(dates[0]!);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => dates[0]!);
   const [selectedSlot, setSelectedSlot] = useState<SlotDef | null>(null);
-  const [promoInput, setPromoInput] = useState('');
-  const [promoDiscount, setPromoDiscount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
-  const [payLoading, setPayLoading] = useState(false);
-  const [bookingId, setBookingId] = useState<string | null>(null);
-  const [paidStripeSession, setPaidStripeSession] = useState<string | undefined>();
+
+  const [remindMe, setRemindMe] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [consultationBooking, setConsultationBooking] = useState<ConsultationBooking | null>(null);
+  const [vaccinationBooking, setVaccinationBooking] = useState<VaccinationBooking | null>(null);
 
   useEffect(() => {
-    if (!clinicId) return;
-    let c = false;
-    fetchClinicDetail(client, String(clinicId))
-      .then((d) => {
-        if (!c) {
-          setDetail(d);
-          setSelectedVetId(d.doctors[0]?.id ?? null);
-        }
+    if (!clinicId) {
+      setLoading(false);
+      setLoadError('Clinic not found.');
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+    Promise.all([fetchClinicDetail(client, clinicId), fetchUserPets(client)])
+      .then(([detail, petList]) => {
+        if (cancelled) return;
+        setClinic(detail);
+        setPets(petList);
       })
       .catch(() => {
-        if (!c) setLoadErr(getNetworkErrorHelp());
+        if (!cancelled) setLoadError(getNetworkErrorHelp());
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
-      c = true;
+      cancelled = true;
     };
   }, [client, clinicId]);
 
-  useEffect(() => {
-    if (!token) {
-      setPets([]);
-      return;
-    }
-    let c = false;
-    client
-      .get<Pet[]>('/user/pets')
-      .then((list) => {
-        if (!c) setPets(list);
-      })
-      .catch(() => {
-        if (!c) setPets([]);
-      });
-    return () => {
-      c = true;
-    };
-  }, [client, token]);
+  const selectedPet = useMemo(
+    () => pets.find((p) => p.id === petId) ?? null,
+    [pets, petId],
+  );
 
-  const assignedDoctor = useMemo(() => {
-    if (!detail?.doctors?.length) return undefined;
-    return detail.doctors.find((d) => d.id === selectedVetId) ?? detail.doctors[0];
-  }, [detail, selectedVetId]);
+  const doctors = clinic?.doctors ?? [];
+  const availabilityDoctor = useMemo(
+    () => doctorForAvailability(doctors, selectedDoctorId),
+    [doctors, selectedDoctorId],
+  );
 
-  const availableSlots = useMemo(
-    () => slotsForDoctorOnDate(selectedDate, assignedDoctor?.weeklyAvailability, TIME_SLOT_DEFS),
-    [selectedDate, assignedDoctor]
+  const availableSlots = useMemo(() => {
+    if (!availabilityDoctor) return [];
+    return slotsForDoctorOnDate(selectedDate, availabilityDoctor.weeklyAvailability);
+  }, [selectedDate, availabilityDoctor]);
+
+  const bookableSlots = useMemo(
+    () => availableSlots.filter((s) => !isSlotInPast(selectedDate, s)),
+    [availableSlots, selectedDate],
   );
 
   useEffect(() => {
     setSelectedSlot((prev) => {
       if (!prev) return null;
-      const ok = availableSlots.some(
-        (s) => s.hour === prev.hour && s.minute === prev.minute && s.label === prev.label
+      const ok = bookableSlots.some(
+        (s) => s.hour === prev.hour && s.minute === prev.minute,
       );
       return ok ? prev : null;
     });
-  }, [availableSlots]);
+  }, [bookableSlots]);
 
-  const pet = pets.find((p) => p.id === petId);
-  const petDetailLine = pet
-    ? `${pet.species} · ${pet.breed}${pet.weight != null ? ` · ${pet.weight} kg` : ''}`
-    : '';
+  const servicesOffered = clinic?.servicesOffered ?? [];
+  const vaccinesOffered = clinic?.vaccinesOffered ?? [];
 
-  const subtotalInr = 0;
-  const totalInr = Math.max(0, subtotalInr - promoDiscount);
+  const vaccineTotalPaise = useMemo(() => {
+    return vaccinesOffered
+      .filter((v) => selectedVaccineIds.includes(v.id))
+      .reduce((sum, v) => sum + v.pricePaise, 0);
+  }, [vaccinesOffered, selectedVaccineIds]);
 
-  const toggleReason = useCallback((id: string) => {
-    setReasons((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const selectedServiceNames = useMemo(
+    () =>
+      servicesOffered.filter((s) => selectedServiceIds.includes(s.id)).map((s) => s.name),
+    [servicesOffered, selectedServiceIds],
+  );
+
+  const selectedVaccineLines = useMemo(
+    () => vaccinesOffered.filter((v) => selectedVaccineIds.includes(v.id)),
+    [vaccinesOffered, selectedVaccineIds],
+  );
+
+  const resolvedVetId = useMemo(
+    () => resolveVetId(doctors, selectedDoctorId),
+    [doctors, selectedDoctorId],
+  );
+
+  const doctorDisplayName = useMemo(() => {
+    if (selectedDoctorId === ANY_DOCTOR_ID) return 'Any available doctor';
+    const d = doctors.find((doc) => doc.id === selectedDoctorId);
+    return d?.fullName ?? availabilityDoctor?.fullName ?? '—';
+  }, [selectedDoctorId, doctors, availabilityDoctor]);
+
+  const closeFlow = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace(`/find-vet/${clinicId}`);
+  }, [router, clinicId]);
+
+  const goBack = useCallback(() => {
+    if (step === 1) closeFlow();
+    else if (step === 'confirmed') router.replace('/');
+    else setStep((s) => (typeof s === 'number' ? ((s - 1) as WizardStep) : s));
+  }, [step, closeFlow, router]);
+
+  const toggleService = useCallback((id: string) => {
+    setSelectedServiceIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }, []);
 
-  const applyPromo = useCallback(() => {
-    const code = promoInput.trim().toUpperCase();
-    if (code === 'SAVE100') setPromoDiscount(100);
-    else {
-      Alert.alert('Promo code', 'Invalid or expired code. Try SAVE100.');
-      return;
+  const toggleVaccine = useCallback((id: string) => {
+    setSelectedVaccineIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }, []);
+
+  const canContinue = useMemo(() => {
+    switch (step) {
+      case 1:
+        return petId != null;
+      case 2:
+        return selectedServiceIds.length > 0 || selectedVaccineIds.length > 0;
+      case 3:
+        return doctors.length > 0 && resolvedVetId != null;
+      case 4:
+        return selectedSlot != null;
+      case 5:
+      case 6:
+        return true;
+      default:
+        return false;
     }
-    Alert.alert('Promo applied', '₹100 off applied.');
-  }, [promoInput]);
+  }, [step, petId, selectedServiceIds, selectedVaccineIds, doctors, resolvedVetId, selectedSlot]);
 
-  const reasonLabels = reasons
-    .map((id) => REASONS.find((r) => r.id === id)?.label)
-    .filter(Boolean) as string[];
+  const goNext = useCallback(() => {
+    if (!canContinue) return;
+    if (step === 6) return;
+    setStep((s) => (typeof s === 'number' ? ((s + 1) as WizardStep) : s));
+  }, [canContinue, step]);
 
-  const goNext = () => {
-    if (step === 0 && !petId) return;
-    if (step === 1 && reasons.length === 0) return;
-    if (step === 2 && !selectedSlot) return;
-    setStep((s) => s + 1);
-  };
-
-  const goBack = () => {
-    if (step === 0) router.back();
-    else if (bookingId) router.replace(`/find-vet/${clinicId ?? ''}`);
-    else setStep((s) => s - 1);
-  };
-
-  const confirmPayment = async () => {
-    if (!detail || !pet || !selectedSlot || !assignedDoctor || !clinicId) return;
+  const confirmBooking = useCallback(async () => {
+    if (!clinic || !selectedPet || !selectedSlot || !resolvedVetId) return;
     if (!token) {
-      Alert.alert('Sign in required', 'Please complete onboarding and sign in to book.');
+      Alert.alert('Sign in required', 'Please sign in to book a visit.');
       return;
     }
 
-    const discountPaise = Math.round(promoDiscount * 100);
+    setConfirmLoading(true);
+    setConfirmError(null);
     const scheduledAt = scheduledAtFromDateAndSlot(selectedDate, selectedSlot);
 
-    setPayLoading(true);
     try {
-      const booking = await createConsultationBooking(client, {
-        clinicId: String(clinicId),
-        vetId: assignedDoctor.id,
-        petId: pet.id,
-        reasonIds: reasons,
-        notes: notes || undefined,
-        scheduledAt,
-        promoCode: promoInput.trim() || undefined,
-        paymentMethodLabel: paymentMethod,
-        discountPaise: discountPaise > 0 ? discountPaise : undefined,
-      });
+      let consultation: ConsultationBooking | null = null;
+      let vaccination: VaccinationBooking | null = null;
 
-      if (paymentMethod === 'clinic') {
-        await confirmConsultationPayment(client, booking.id);
-        setBookingId(booking.id);
-        setStep(5);
-        return;
+      if (selectedServiceIds.length > 0) {
+        consultation = await createConsultationBooking(client, {
+          clinicId,
+          vetId: resolvedVetId,
+          petId: selectedPet.id,
+          reasonIds: selectedServiceIds,
+          scheduledAt,
+        });
+        consultation = await confirmConsultationPayment(client, consultation.id);
       }
 
-      const amountPaise = booking.totalPaise;
-      const description = `${detail.name} — ${pet.name} — ${reasonLabels.join(', ') || 'Visit'} (#${booking.id})`;
-
-      const result = await startVetBookingCheckout(client, {
-        amountPaise,
-        vetId: assignedDoctor.id,
-        description,
-      });
-
-      if (result.status === 'cancelled') {
-        Alert.alert('Payment', 'Checkout was cancelled.');
-        return;
-      }
-      if (result.status === 'error') {
-        Alert.alert('Payment', result.message);
-        return;
+      if (selectedVaccineIds.length > 0) {
+        vaccination = await createVaccinationBooking(client, {
+          clinicId,
+          petId: selectedPet.id,
+          vaccineIds: selectedVaccineIds,
+          scheduledAt,
+        });
+        vaccination = await confirmVaccinationPayment(client, vaccination.id);
       }
 
-      if (result.status === 'paid' || result.status === 'mock_ok') {
-        const stripeSessionId = result.status === 'paid' ? result.stripeSessionId : undefined;
-        if (stripeSessionId) setPaidStripeSession(stripeSessionId);
-        await confirmConsultationPayment(client, booking.id, stripeSessionId);
-        setBookingId(booking.id);
-        setStep(5);
-      }
+      setConsultationBooking(consultation);
+      setVaccinationBooking(vaccination);
+      setStep('confirmed');
     } catch (e) {
       const msg =
         e && typeof e === 'object' && 'message' in e
           ? String((e as { message: string }).message)
-          : 'Booking failed';
+          : 'Booking failed. Please try again.';
+      setConfirmError(msg);
       Alert.alert('Booking', msg);
     } finally {
-      setPayLoading(false);
+      setConfirmLoading(false);
     }
-  };
+  }, [
+    clinic,
+    selectedPet,
+    selectedSlot,
+    resolvedVetId,
+    token,
+    selectedDate,
+    client,
+    clinicId,
+    selectedServiceIds,
+    selectedVaccineIds,
+  ]);
 
-  if (loadErr || !detail || !assignedDoctor) {
+  const confirmedTotalPaise = useMemo(() => {
+    if (vaccinationBooking) return vaccinationBooking.totalPaise;
+    if (consultationBooking) return consultationBooking.totalPaise;
+    return vaccineTotalPaise;
+  }, [vaccinationBooking, consultationBooking, vaccineTotalPaise]);
+
+  const displayBookingId =
+    consultationBooking?.id ?? vaccinationBooking?.id ?? '—';
+
+  const confirmedDoctorName =
+    consultationBooking?.vetName ??
+    (selectedDoctorId === ANY_DOCTOR_ID
+      ? availabilityDoctor?.fullName
+      : doctorDisplayName) ??
+    '—';
+
+  if (loading) {
     return (
       <View
-        style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}
+        style={[
+          styles.fill,
+          styles.centered,
+          { paddingTop: insets.top, backgroundColor: t.colors.grey_bg },
+        ]}
       >
-        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>
-          {loadErr ?? 'Unable to load clinic.'}
+        <ActivityIndicator size="large" color={primary} />
+        <Text style={[styles.muted, { color: t.colors.text_secondary, marginTop: 12 }]}>
+          Loading booking…
         </Text>
-        <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
-          <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
-        </TouchableOpacity>
       </View>
     );
   }
 
-  const headerSubtitle = bookingId ? 'Confirmed' : `Step ${Math.min(step + 1, 5)} of 5`;
-
-  return (
-    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
+  if (loadError || !clinic) {
+    return (
       <View
         style={[
-          styles.header,
-          { paddingTop: insets.top + 8, borderBottomColor: t.colors.inactive_bg_alpha },
+          styles.fill,
+          { paddingTop: insets.top + 16, paddingHorizontal: H_PAD, backgroundColor: t.colors.grey_bg },
         ]}
       >
-        <TouchableOpacity style={styles.backRound} onPress={goBack} activeOpacity={0.85}>
+        <Pressable onPress={closeFlow} style={styles.iconBtn}>
           <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerStep, { color: t.colors.text_secondary }]}>
-          {headerSubtitle}
+        </Pressable>
+        <Text style={[styles.muted, { color: t.colors.text_secondary }]}>
+          {loadError ?? 'Unable to load clinic.'}
         </Text>
-        <View style={{ width: 40 }} />
+      </View>
+    );
+  }
+
+  if (step === 'confirmed') {
+    const visitWhen =
+      consultationBooking?.scheduledAt ??
+      vaccinationBooking?.scheduledAt ??
+      (selectedSlot ? scheduledAtFromDateAndSlot(selectedDate, selectedSlot) : null);
+
+    const visitLabel = visitWhen
+      ? new Date(visitWhen).toLocaleString(undefined, {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : formatVisitDateTime(selectedDate, selectedSlot!);
+
+    return (
+      <View style={[styles.fill, { backgroundColor: t.colors.grey_bg }]}>
+        <ScrollView
+          contentContainerStyle={{
+            paddingTop: insets.top + 16,
+            paddingHorizontal: H_PAD,
+            paddingBottom: insets.bottom + 24,
+          }}
+        >
+          <View style={[styles.successBanner, { backgroundColor: t.colors.success_alpha }]}>
+            <Ionicons name="checkmark-circle" size={48} color={t.colors.success} />
+            <Text style={[styles.successTitle, { color: t.colors.text_primary }]}>
+              Booking confirmed
+            </Text>
+            <Text style={[styles.successSubtitle, { color: t.colors.text_secondary }]}>
+              {selectedPet?.name ?? consultationBooking?.petName ?? vaccinationBooking?.petName}{' '}
+              with {confirmedDoctorName}
+            </Text>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: t.colors.solid_white, borderColor: t.colors.border }]}>
+            <Text style={[styles.cardLabel, { color: t.colors.text_secondary }]}>Booking ID</Text>
+            <Text style={[styles.bookingId, { color: primary }]}>{displayBookingId}</Text>
+            <Text style={[styles.hint, { color: t.colors.text_secondary, marginTop: 8 }]}>
+              Show your Booking ID at the front desk
+            </Text>
+          </View>
+
+          <View style={[styles.card, { backgroundColor: t.colors.solid_white, borderColor: t.colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>Visit details</Text>
+            <DetailRow label="When" value={visitLabel} textPrimary={t.colors.text_primary} textSecondary={t.colors.text_secondary} />
+            <DetailRow label="Clinic" value={clinic.name} textPrimary={t.colors.text_primary} textSecondary={t.colors.text_secondary} />
+            <DetailRow label="Address" value={clinic.address} textPrimary={t.colors.text_primary} textSecondary={t.colors.text_secondary} />
+            {selectedServiceNames.length > 0 ? (
+              <DetailRow
+                label="Services"
+                value={selectedServiceNames.join(', ')}
+                textPrimary={t.colors.text_primary}
+                textSecondary={t.colors.text_secondary}
+              />
+            ) : null}
+            {selectedVaccineLines.length > 0 ? (
+              <DetailRow
+                label="Vaccines"
+                value={selectedVaccineLines.map((v) => v.name).join(', ')}
+                textPrimary={t.colors.text_primary}
+                textSecondary={t.colors.text_secondary}
+              />
+            ) : null}
+            {(confirmedTotalPaise > 0 || selectedVaccineLines.length > 0) && (
+              <View style={styles.totalRow}>
+                <Text style={[styles.totalLabel, { color: t.colors.text_primary }]}>Estimate</Text>
+                <Text style={[styles.totalValue, { color: primary }]}>
+                  {formatPaise(confirmedTotalPaise)}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <Pressable
+            style={[styles.primaryBtn, { backgroundColor: primary, marginTop: 8 }]}
+            onPress={() => router.replace('/')}
+          >
+            <Text style={styles.primaryBtnText}>Back to Home</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  const stepNum = step;
+  const footerLabel =
+    step === 1
+      ? petId
+        ? '1 pet selected'
+        : 'Select a pet'
+      : step === 2 && vaccineTotalPaise > 0
+        ? `Total ${formatPaise(vaccineTotalPaise)}`
+        : step === 6
+          ? vaccineTotalPaise > 0
+            ? `Total ${formatPaise(vaccineTotalPaise)}`
+            : undefined
+          : undefined;
+
+  const footerCta = step === 6 ? 'Confirm booking' : 'Continue';
+
+  return (
+    <View style={[styles.fill, { backgroundColor: t.colors.grey_bg }]}>
+      <View
+        style={[
+          styles.topChrome,
+          {
+            paddingTop: insets.top + 8,
+            backgroundColor: t.colors.solid_white,
+            borderBottomColor: t.colors.border,
+          },
+        ]}
+      >
+        <View style={styles.topRow}>
+          <Pressable onPress={goBack} style={styles.iconBtn} hitSlop={8}>
+            <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
+          </Pressable>
+          <Pressable onPress={closeFlow} style={styles.iconBtn} hitSlop={8}>
+            <Ionicons name="close" size={24} color={t.colors.text_primary} />
+          </Pressable>
+        </View>
+        <Text style={[styles.flowTitle, { color: t.colors.text_primary }]}>Book a visit</Text>
+        <Text style={[styles.stepLabel, { color: t.colors.text_secondary }]}>
+          Step {stepNum} of 6
+        </Text>
+        <ProgressBar step={stepNum} primary={primary} />
+        <View style={{ paddingHorizontal: H_PAD, paddingBottom: 12 }}>
+          <ClinicSummaryCard
+            clinic={clinic}
+            primary={primary}
+            textPrimary={t.colors.text_primary}
+            textSecondary={t.colors.text_secondary}
+            border={t.colors.border}
+            white={t.colors.solid_white}
+          />
+        </View>
       </View>
 
-      {step < 5 && (
-        <ScrollView
-          contentContainerStyle={[styles.scrollPad, { paddingBottom: insets.bottom + 100 }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {step === 0 && (
-            <>
-              <Text style={[styles.title, { color: t.colors.text_primary }]}>Select Your Pet</Text>
-              <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>
-                Which pet needs care?
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: H_PAD,
+          paddingTop: 16,
+          paddingBottom: insets.bottom + 120,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {step === 1 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>Select pet</Text>
+            <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
+              Which pet is this visit for?
+            </Text>
+            {!token ? (
+              <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary, marginTop: 8 }]}>
+                Sign in to load your pets.
               </Text>
-              {!token && (
-                <Text style={[styles.subtitle, { color: t.colors.text_secondary, marginTop: 12 }]}>
-                  Sign in (complete onboarding) to load your pets and book.
+            ) : null}
+            {pets.length === 0 ? (
+              <View style={[styles.emptyBox, { borderColor: t.colors.border, backgroundColor: t.colors.solid_white }]}>
+                <Ionicons name="paw-outline" size={32} color={t.colors.text_secondary} />
+                <Text style={[styles.emptyText, { color: t.colors.text_secondary }]}>
+                  No pets yet. Add a pet from your profile to book a visit.
                 </Text>
-              )}
-              {detail.doctors.length > 1 && (
-                <>
-                  <Text
-                    style={[styles.notesLabel, { color: t.colors.text_primary, marginTop: 20 }]}
-                  >
-                    Veterinarian
-                  </Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-                    {detail.doctors.map((d) => {
-                      const sel = selectedVetId === d.id;
-                      return (
-                        <TouchableOpacity
-                          key={d.id}
-                          style={[
-                            styles.timeChip,
-                            {
-                              borderColor: sel ? accent : t.colors.inactive_bg_alpha,
-                              backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
-                            },
-                          ]}
-                          onPress={() => setSelectedVetId(d.id)}
-                          activeOpacity={0.85}
-                        >
-                          <Text
-                            style={[
-                              styles.timeChipText,
-                              { color: sel ? accent : t.colors.text_primary },
-                            ]}
-                          >
-                            {d.fullName}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-              <View style={{ marginTop: 20, gap: 12 }}>
-                {pets.length === 0 ? (
-                  <Text style={{ color: t.colors.text_secondary }}>
-                    {token ? 'No pets yet. Add pets via your profile (API: POST /user/pets).' : '—'}
-                  </Text>
-                ) : (
-                  pets.map((p) => {
-                    const sel = petId === p.id;
+              </View>
+            ) : (
+              <View style={{ gap: 10, marginTop: 12 }}>
+                {pets.map((p) => {
+                  const sel = petId === p.id;
+                  const age = petAgeLabel(p.dateOfBirth);
+                  const photo = resolvePhotoUrl(p.photoUrl);
+                  return (
+                    <Pressable
+                      key={p.id}
+                      style={[
+                        styles.selectCard,
+                        {
+                          borderColor: sel ? primary : t.colors.border,
+                          backgroundColor: sel ? t.colors.primary_bg : t.colors.solid_white,
+                        },
+                      ]}
+                      onPress={() => setPetId(p.id)}
+                    >
+                      {photo ? (
+                        <Image source={{ uri: photo }} style={styles.petThumb} />
+                      ) : (
+                        <View style={[styles.petThumb, styles.petThumbPlaceholder, { backgroundColor: t.colors.border }]}>
+                          <Ionicons name="paw" size={22} color={t.colors.text_secondary} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.petName, { color: t.colors.text_primary }]}>{p.name}</Text>
+                        <Text style={[styles.petMeta, { color: t.colors.text_secondary }]}>
+                          {[p.breed, age].filter(Boolean).join(' · ')}
+                        </Text>
+                        {p.medicalNotes?.trim() ? (
+                          <View style={[styles.warnBadge, { backgroundColor: '#FFF4E5' }]}>
+                            <Ionicons name="alert-circle" size={14} color="#B45309" />
+                            <Text style={styles.warnBadgeText} numberOfLines={2}>
+                              {p.medicalNotes.trim()}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {sel ? <Ionicons name="checkmark-circle" size={26} color={primary} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>Select services</Text>
+            <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
+              Choose consultation services and/or vaccines for this visit.
+            </Text>
+
+            {servicesOffered.length > 0 ? (
+              <>
+                <Text style={[styles.groupLabel, { color: t.colors.text_secondary }]}>CONSULTATION</Text>
+                <View style={{ gap: 8 }}>
+                  {servicesOffered.map((s) => {
+                    const sel = selectedServiceIds.includes(s.id);
                     return (
-                      <TouchableOpacity
-                        key={p.id}
+                      <Pressable
+                        key={s.id}
                         style={[
-                          styles.petCard,
+                          styles.serviceRow,
                           {
-                            borderColor: sel ? accent : t.colors.inactive_bg_alpha,
-                            backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
+                            borderColor: sel ? primary : t.colors.border,
+                            backgroundColor: sel ? t.colors.primary_bg : t.colors.solid_white,
                           },
                         ]}
-                        onPress={() => setPetId(p.id)}
-                        activeOpacity={0.85}
+                        onPress={() => toggleService(s.id)}
                       >
+                        <View style={[styles.serviceIcon, { backgroundColor: t.colors.primary_bg }]}>
+                          <MaterialCommunityIcons name="medical-bag" size={20} color={primary} />
+                        </View>
+                        <Text style={[styles.serviceName, { color: t.colors.text_primary, flex: 1 }]}>
+                          {s.name}
+                        </Text>
                         <View
                           style={[
-                            styles.petAvatar,
-                            { backgroundColor: t.colors.inactive_bg_alpha },
+                            styles.checkbox,
+                            {
+                              borderColor: sel ? primary : t.colors.border,
+                              backgroundColor: sel ? primary : 'transparent',
+                            },
                           ]}
                         >
-                          <Ionicons name="paw" size={28} color={t.colors.text_secondary} />
+                          {sel ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.petName, { color: t.colors.text_primary }]}>
-                            {p.name}
-                          </Text>
-                          <Text style={[styles.petDetail, { color: t.colors.text_secondary }]}>
-                            {p.species} · {p.breed}
-                            {p.weight != null ? ` · ${p.weight} kg` : ''}
-                          </Text>
-                        </View>
-                        {sel && <Ionicons name="checkmark-circle" size={26} color={accent} />}
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
-            </>
-          )}
-
-          {step === 1 && (
-            <>
-              <Text style={[styles.title, { color: t.colors.text_primary }]}>Reason for Visit</Text>
-              <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>
-                What&apos;s the reason for visit? Select all that apply.
-              </Text>
-              <View style={styles.reasonGrid}>
-                {REASONS.map((r) => {
-                  const sel = reasons.includes(r.id);
-                  return (
-                    <TouchableOpacity
-                      key={r.id}
-                      style={[
-                        styles.reasonCell,
-                        {
-                          borderColor: sel ? accent : t.colors.inactive_bg_alpha,
-                          backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
-                        },
-                      ]}
-                      onPress={() => toggleReason(r.id)}
-                      activeOpacity={0.85}
-                    >
-                      <Ionicons
-                        name={r.icon}
-                        size={26}
-                        color={sel ? accent : t.colors.text_secondary}
-                      />
-                      <Text
-                        style={[styles.reasonLabel, { color: t.colors.text_primary }]}
-                        numberOfLines={2}
-                      >
-                        {r.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <Text style={[styles.notesLabel, { color: t.colors.text_primary }]}>
-                Additional Notes (Optional)
-              </Text>
-              <TextInput
-                style={[
-                  styles.notesInput,
-                  {
-                    color: t.colors.text_primary,
-                    borderColor: t.colors.inactive_bg_alpha,
-                    backgroundColor: t.colors.solid_white,
-                  },
-                ]}
-                placeholder="Describe symptoms, behaviors, or other specific concerns..."
-                placeholderTextColor={t.colors.text_secondary}
-                multiline
-                value={notes}
-                onChangeText={setNotes}
-              />
-            </>
-          )}
-
-          {step === 2 && (
-            <>
-              <Text style={[styles.title, { color: t.colors.text_primary }]}>
-                Select Date & Time
-              </Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.dateStrip}
-              >
-                {dates.map((d, i) => {
-                  const sel = sameDay(d, selectedDate);
-                  return (
-                    <TouchableOpacity
-                      key={i}
-                      style={[
-                        styles.dateChip,
-                        {
-                          borderColor: sel ? accent : t.colors.inactive_bg_alpha,
-                          backgroundColor: sel ? accent : t.colors.solid_white,
-                        },
-                      ]}
-                      onPress={() => setSelectedDate(d)}
-                      activeOpacity={0.85}
-                    >
-                      <Text
-                        style={[
-                          styles.dateChipTop,
-                          { color: sel ? '#fff' : t.colors.text_secondary },
-                        ]}
-                      >
-                        {d.toLocaleDateString(undefined, { weekday: 'short' })}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.dateChipDay,
-                          { color: sel ? '#fff' : t.colors.text_primary },
-                        ]}
-                      >
-                        {d.getDate()}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-              {availableSlots.length === 0 ? (
-                <Text style={{ color: t.colors.text_secondary, marginTop: 12 }}>
-                  No bookable times on this day for {assignedDoctor.fullName}. Pick another date or
-                  ask the clinic to widen hours in Vet CRM (Schedule).
-                </Text>
-              ) : (
-                <View style={styles.timeGrid}>
-                  {availableSlots.map((slot) => {
-                    const sel =
-                      selectedSlot?.label === slot.label &&
-                      selectedSlot?.hour === slot.hour &&
-                      selectedSlot?.minute === slot.minute;
-                    return (
-                      <TouchableOpacity
-                        key={`${slot.hour}-${slot.minute}`}
-                        style={[
-                          styles.timeChip,
-                          {
-                            borderColor: sel ? accent : t.colors.inactive_bg_alpha,
-                            backgroundColor: sel ? t.colors.primary_light : t.colors.solid_white,
-                          },
-                        ]}
-                        onPress={() => setSelectedSlot(slot)}
-                        activeOpacity={0.85}
-                      >
-                        <Text
-                          style={[
-                            styles.timeChipText,
-                            { color: sel ? accent : t.colors.text_primary },
-                          ]}
-                        >
-                          {slot.label}
-                        </Text>
-                      </TouchableOpacity>
+                      </Pressable>
                     );
                   })}
                 </View>
-              )}
-            </>
-          )}
+              </>
+            ) : null}
 
-          {step === 3 && (
-            <>
-              <Text style={[styles.title, { color: t.colors.text_primary }]}>
-                Review Appointment
+            {vaccinesOffered.length > 0 ? (
+              <>
+                <Text style={[styles.groupLabel, { color: t.colors.text_secondary, marginTop: 20 }]}>
+                  VACCINATION
+                </Text>
+                <View style={{ gap: 8 }}>
+                  {vaccinesOffered.map((v) => {
+                    const sel = selectedVaccineIds.includes(v.id);
+                    return (
+                      <Pressable
+                        key={v.id}
+                        style={[
+                          styles.serviceRow,
+                          {
+                            borderColor: sel ? primary : t.colors.border,
+                            backgroundColor: sel ? t.colors.primary_bg : t.colors.solid_white,
+                          },
+                        ]}
+                        onPress={() => toggleVaccine(v.id)}
+                      >
+                        <View style={[styles.serviceIcon, { backgroundColor: t.colors.vaccination_bg }]}>
+                          <MaterialCommunityIcons name="needle" size={20} color={t.colors.vaccination_fg} />
+                        </View>
+                        <Text style={[styles.serviceName, { color: t.colors.text_primary, flex: 1 }]}>
+                          {v.name}
+                        </Text>
+                        <Text style={[styles.priceText, { color: t.colors.text_primary }]}>
+                          {formatPaise(v.pricePaise)}
+                        </Text>
+                        <View
+                          style={[
+                            styles.checkbox,
+                            {
+                              borderColor: sel ? primary : t.colors.border,
+                              backgroundColor: sel ? primary : 'transparent',
+                            },
+                          ]}
+                        >
+                          {sel ? <Ionicons name="checkmark" size={14} color="#fff" /> : null}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+
+            {servicesOffered.length === 0 && vaccinesOffered.length === 0 ? (
+              <Text style={[styles.muted, { color: t.colors.text_secondary, marginTop: 12 }]}>
+                This clinic has not listed bookable services yet.
               </Text>
-              <Text style={[styles.summaryHead, { color: t.colors.text_secondary }]}>
-                Appointment Summary
-              </Text>
-              <View style={[styles.summaryCard, { borderColor: t.colors.inactive_bg_alpha }]}>
-                <Text style={[styles.summarySection, { color: t.colors.text_secondary }]}>Pet</Text>
-                <View style={styles.summaryRow}>
-                  <Ionicons name="paw" size={22} color={accent} />
-                  <View>
-                    <Text style={[styles.summaryBold, { color: t.colors.text_primary }]}>
-                      {pet?.name ?? '—'}
-                    </Text>
-                    <Text style={{ color: t.colors.text_secondary, fontSize: 14 }}>
-                      {petDetailLine}
-                    </Text>
-                  </View>
-                </View>
-                <Text
-                  style={[styles.summarySection, { color: t.colors.text_secondary, marginTop: 14 }]}
-                >
-                  Veterinarian
-                </Text>
-                <View style={styles.summaryRow}>
-                  <Ionicons name="person-circle-outline" size={40} color={accent} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.summaryBold, { color: t.colors.text_primary }]}>
-                      {assignedDoctor.fullName}
-                    </Text>
-                    <Text style={{ color: t.colors.text_secondary, fontSize: 14 }}>
-                      {assignedDoctor.displayTitle} ·{' '}
-                      {assignedDoctor.specializations.join(', ') || 'Vet'}
-                    </Text>
-                  </View>
-                </View>
-                <Text
-                  style={[styles.summarySection, { color: t.colors.text_secondary, marginTop: 14 }]}
-                >
-                  Reason for Visit
-                </Text>
-                <View style={styles.tagRow}>
-                  {reasonLabels.map((label) => (
-                    <View
-                      key={label}
-                      style={[styles.tag, { backgroundColor: t.colors.primary_light }]}
-                    >
-                      <Text style={[styles.tagText, { color: accent }]}>{label}</Text>
-                    </View>
-                  ))}
-                </View>
-                <Text
-                  style={[styles.summarySection, { color: t.colors.text_secondary, marginTop: 14 }]}
-                >
-                  Schedule
-                </Text>
-                <Text style={[styles.summaryBold, { color: t.colors.text_primary }]}>
-                  {formatFullDate(selectedDate)} @ {selectedSlot?.label ?? '—'}
+            ) : (
+              <View style={[styles.infoBox, { backgroundColor: t.colors.primary_bg, marginTop: 16 }]}>
+                <Ionicons name="information-circle-outline" size={20} color={primary} />
+                <Text style={[styles.infoText, { color: t.colors.text_primary }]}>
+                  Consultation and vaccination can be booked for the same visit.
                 </Text>
               </View>
-            </>
-          )}
+            )}
+          </>
+        )}
 
-          {step === 4 && (
-            <>
-              <Text style={[styles.title, { color: t.colors.text_primary }]}>
-                Review Appointment
+        {step === 3 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>Choose doctor</Text>
+            <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
+              For {selectedPet?.name ?? 'your pet'}
+            </Text>
+
+            {doctors.length === 0 ? (
+              <Text style={[styles.muted, { color: t.colors.text_secondary, marginTop: 12 }]}>
+                No doctors listed for this clinic.
               </Text>
-              <Text style={[styles.subtitle, { color: t.colors.text_secondary }]}>Payment</Text>
-              <View style={[styles.promoRow, { borderColor: t.colors.inactive_bg_alpha }]}>
-                <TextInput
-                  style={[styles.promoInput, { color: t.colors.text_primary }]}
-                  placeholder="Promo code"
-                  placeholderTextColor={t.colors.text_secondary}
-                  value={promoInput}
-                  onChangeText={setPromoInput}
-                />
-                <TouchableOpacity
-                  style={[styles.applyBtn, { backgroundColor: accent }]}
-                  onPress={applyPromo}
-                >
-                  <Text style={styles.applyBtnText}>Apply</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={[styles.paySection, { color: t.colors.text_primary }]}>
-                Payment method
-              </Text>
-              {(
-                [
-                  ['card', 'Credit/Debit Card', 'card-outline'] as const,
-                  ['upi', 'UPI Payment', 'phone-portrait-outline'] as const,
-                  ['clinic', 'Pay At Clinic', 'business-outline'] as const,
-                ] as const
-              ).map(([id, label, icon]) => {
-                const sel = paymentMethod === id;
-                return (
-                  <TouchableOpacity
-                    key={id}
-                    style={[
-                      styles.payRow,
-                      { borderColor: sel ? accent : t.colors.inactive_bg_alpha },
-                    ]}
-                    onPress={() => setPaymentMethod(id)}
-                    activeOpacity={0.85}
-                  >
-                    <Ionicons
-                      name={icon}
-                      size={22}
-                      color={sel ? accent : t.colors.text_secondary}
-                    />
-                    <Text style={[styles.payRowText, { color: t.colors.text_primary, flex: 1 }]}>
-                      {label}
-                    </Text>
-                    <View
-                      style={[
-                        styles.radio,
-                        { borderColor: sel ? accent : t.colors.text_secondary },
-                      ]}
-                    >
-                      {sel && <View style={[styles.radioInner, { backgroundColor: accent }]} />}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-              {paymentMethod === 'upi' && (
-                <Text style={{ color: t.colors.text_secondary, fontSize: 13, marginTop: 8 }}>
-                  UPI is processed securely via Stripe Checkout when your API has STRIPE_SECRET_KEY
-                  set.
-                </Text>
-              )}
-              <View style={[styles.priceBox, { borderColor: t.colors.inactive_bg_alpha }]}>
-                {promoDiscount > 0 && (
-                  <View style={styles.priceLine}>
-                    <Text style={{ color: t.colors.success }}>Discount</Text>
-                    <Text style={{ color: t.colors.success, fontWeight: '600' }}>
-                      -₹{promoDiscount}
-                    </Text>
-                  </View>
-                )}
-                <View
+            ) : (
+              <View style={{ gap: 10, marginTop: 12 }}>
+                <Pressable
                   style={[
-                    styles.priceLine,
+                    styles.doctorCard,
                     {
-                      marginTop: promoDiscount > 0 ? 8 : 0,
-                      paddingTop: promoDiscount > 0 ? 8 : 0,
-                      borderTopWidth: promoDiscount > 0 ? 1 : 0,
-                      borderTopColor: t.colors.inactive_bg_alpha,
+                      borderColor: selectedDoctorId === ANY_DOCTOR_ID ? primary : t.colors.border,
+                      backgroundColor:
+                        selectedDoctorId === ANY_DOCTOR_ID ? t.colors.primary_bg : t.colors.solid_white,
                     },
                   ]}
+                  onPress={() => setSelectedDoctorId(ANY_DOCTOR_ID)}
                 >
-                  <Text style={{ color: t.colors.text_primary, fontWeight: '800' }}>Total</Text>
-                  <Text style={{ color: accent, fontWeight: '800', fontSize: 18 }}>
-                    ₹{totalInr}
+                  <View style={[styles.doctorAvatar, { backgroundColor: t.colors.primary_bg }]}>
+                    <Ionicons name="people" size={24} color={primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.doctorName, { color: t.colors.text_primary }]}>
+                      Any available doctor
+                    </Text>
+                    <Text style={[styles.petMeta, { color: t.colors.text_secondary }]}>
+                      We&apos;ll assign the first available vet
+                    </Text>
+                  </View>
+                  {selectedDoctorId === ANY_DOCTOR_ID ? (
+                    <Ionicons name="checkmark-circle" size={26} color={primary} />
+                  ) : null}
+                </Pressable>
+
+                {doctors.map((d) => {
+                  const sel = selectedDoctorId === d.id;
+                  const photo = resolvePhotoUrl(d.photoUrl);
+                  const ratingLabel =
+                    d.specializations.length > 0
+                      ? d.specializations.join(', ')
+                      : clinic.primaryDoctor.displayTitle;
+                  return (
+                    <Pressable
+                      key={d.id}
+                      style={[
+                        styles.doctorCard,
+                        {
+                          borderColor: sel ? primary : t.colors.border,
+                          backgroundColor: sel ? t.colors.primary_bg : t.colors.solid_white,
+                        },
+                      ]}
+                      onPress={() => setSelectedDoctorId(d.id)}
+                    >
+                      {photo ? (
+                        <Image source={{ uri: photo }} style={styles.doctorAvatar} />
+                      ) : (
+                        <View
+                          style={[
+                            styles.doctorAvatar,
+                            styles.petThumbPlaceholder,
+                            { backgroundColor: t.colors.border },
+                          ]}
+                        >
+                          <Ionicons name="person" size={24} color={t.colors.text_secondary} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.doctorName, { color: t.colors.text_primary }]}>
+                          {d.fullName}
+                        </Text>
+                        {ratingLabel ? (
+                          <Text style={[styles.petMeta, { color: t.colors.text_secondary }]} numberOfLines={2}>
+                            {ratingLabel}
+                          </Text>
+                        ) : null}
+                        <View style={styles.ratingRow}>
+                          <Ionicons name="star" size={14} color="#EAB308" />
+                          <Text style={[styles.petMeta, { color: t.colors.text_primary }]}>
+                            {clinic.rating}
+                          </Text>
+                        </View>
+                      </View>
+                      {sel ? <Ionicons name="checkmark-circle" size={26} color={primary} /> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
+
+        {step === 4 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>Date & time</Text>
+            <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
+              Pick a slot with {doctorDisplayName}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateStrip}
+              style={{ marginHorizontal: -H_PAD, marginTop: 12 }}
+            >
+              {dates.map((d, i) => {
+                const sel = sameDay(d, selectedDate);
+                return (
+                  <Pressable
+                    key={i}
+                    style={[
+                      styles.dateChip,
+                      {
+                        borderColor: sel ? primary : t.colors.border,
+                        backgroundColor: sel ? primary : t.colors.solid_white,
+                      },
+                    ]}
+                    onPress={() => setSelectedDate(d)}
+                  >
+                    <Text
+                      style={[
+                        styles.dateChipWeek,
+                        { color: sel ? '#fff' : t.colors.text_secondary },
+                      ]}
+                    >
+                      {d.toLocaleDateString(undefined, { weekday: 'short' })}
+                    </Text>
+                    <Text
+                      style={[styles.dateChipDay, { color: sel ? '#fff' : t.colors.text_primary }]}
+                    >
+                      {d.getDate()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {bookableSlots.length === 0 ? (
+              <Text style={[styles.muted, { color: t.colors.text_secondary, marginTop: 16 }]}>
+                No available times on this day. Try another date.
+              </Text>
+            ) : (
+              <View style={styles.slotGrid}>
+                {bookableSlots.map((slot) => {
+                  const sel =
+                    selectedSlot?.hour === slot.hour && selectedSlot?.minute === slot.minute;
+                  return (
+                    <Pressable
+                      key={`${slot.hour}-${slot.minute}`}
+                      style={[
+                        styles.slotChip,
+                        {
+                          borderColor: sel ? primary : t.colors.border,
+                          backgroundColor: sel ? primary : t.colors.solid_white,
+                        },
+                      ]}
+                      onPress={() => setSelectedSlot(slot)}
+                    >
+                      <Text
+                        style={[
+                          styles.slotChipText,
+                          { color: sel ? '#fff' : t.colors.text_primary },
+                        ]}
+                      >
+                        {slot.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
+
+        {step === 5 && selectedPet && selectedSlot && (
+          <>
+            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>Review</Text>
+            <Text style={[styles.sectionSubtitle, { color: t.colors.text_secondary }]}>
+              Check details before you continue
+            </Text>
+            <View style={[styles.card, { backgroundColor: t.colors.solid_white, borderColor: t.colors.border, marginTop: 12 }]}>
+              <ReviewBlock title="Pet" textSecondary={t.colors.text_secondary}>
+                <Text style={[styles.reviewValue, { color: t.colors.text_primary }]}>
+                  {selectedPet.name}
+                </Text>
+                <Text style={[styles.petMeta, { color: t.colors.text_secondary }]}>
+                  {[selectedPet.breed, petAgeLabel(selectedPet.dateOfBirth)].filter(Boolean).join(' · ')}
+                </Text>
+              </ReviewBlock>
+              {(selectedServiceNames.length > 0 || selectedVaccineLines.length > 0) && (
+                <ReviewBlock title="Services" textSecondary={t.colors.text_secondary}>
+                  {selectedServiceNames.map((name) => (
+                    <Text key={name} style={[styles.reviewLine, { color: t.colors.text_primary }]}>
+                      {name}
+                    </Text>
+                  ))}
+                  {selectedVaccineLines.map((v) => (
+                    <View key={v.id} style={styles.reviewPriceRow}>
+                      <Text style={[styles.reviewLine, { color: t.colors.text_primary, flex: 1 }]}>
+                        {v.name}
+                      </Text>
+                      <Text style={[styles.reviewLine, { color: t.colors.text_primary }]}>
+                        {formatPaise(v.pricePaise)}
+                      </Text>
+                    </View>
+                  ))}
+                </ReviewBlock>
+              )}
+              <ReviewBlock title="Doctor" textSecondary={t.colors.text_secondary}>
+                <Text style={[styles.reviewValue, { color: t.colors.text_primary }]}>
+                  {doctorDisplayName}
+                </Text>
+              </ReviewBlock>
+              <ReviewBlock title="Date & time" textSecondary={t.colors.text_secondary}>
+                <Text style={[styles.reviewValue, { color: t.colors.text_primary }]}>
+                  {formatVisitDateTime(selectedDate, selectedSlot)}
+                </Text>
+              </ReviewBlock>
+              <ReviewBlock title="Clinic" textSecondary={t.colors.text_secondary}>
+                <Text style={[styles.reviewValue, { color: t.colors.text_primary }]}>
+                  {clinic.name}
+                </Text>
+                <Text style={[styles.petMeta, { color: t.colors.text_secondary }]}>{clinic.address}</Text>
+              </ReviewBlock>
+              {vaccineTotalPaise > 0 ? (
+                <View style={[styles.totalRow, { borderTopColor: t.colors.border, marginTop: 8, paddingTop: 12 }]}>
+                  <Text style={[styles.totalLabel, { color: t.colors.text_primary }]}>Total estimate</Text>
+                  <Text style={[styles.totalValue, { color: primary }]}>
+                    {formatPaise(vaccineTotalPaise)}
                   </Text>
                 </View>
-                <Text style={{ color: t.colors.text_secondary, fontSize: 12, marginTop: 8 }}>
-                  Consultation pricing is arranged with the clinic; no app fee is charged for this
-                  booking flow.
-                </Text>
-              </View>
-            </>
-          )}
-        </ScrollView>
-      )}
-
-      {step === 5 && bookingId && (
-        <ScrollView
-          contentContainerStyle={[styles.scrollPad, { paddingBottom: insets.bottom + 24 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={[styles.successBanner, { backgroundColor: t.colors.success }]}>
-            <View style={styles.successIconCircle}>
-              <Ionicons name="checkmark" size={40} color="#fff" />
+              ) : null}
             </View>
-            <Text style={styles.successTitle}>Booking Confirmed!</Text>
-            <Text style={styles.successId}>Booking ID: {bookingId}</Text>
-          </View>
-          <View
-            style={[styles.summaryCard, { borderColor: t.colors.inactive_bg_alpha, marginTop: 16 }]}
-          >
-            <View style={styles.summaryRow}>
-              <Ionicons name="person-circle-outline" size={44} color={accent} />
+          </>
+        )}
+
+        {step === 6 && selectedPet && selectedSlot && (
+          <>
+            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>Confirm</Text>
+            <View style={[styles.infoBox, { backgroundColor: t.colors.primary_bg }]}>
+              <Ionicons name="wallet-outline" size={22} color={primary} />
+              <Text style={[styles.infoText, { color: t.colors.text_primary }]}>
+                You pay at the clinic. No online payment is required to confirm this booking.
+              </Text>
+            </View>
+
+            <View style={[styles.card, { backgroundColor: t.colors.solid_white, borderColor: t.colors.border, marginTop: 16 }]}>
+              <Text style={[styles.cardLabel, { color: t.colors.text_secondary }]}>Estimate</Text>
+              {selectedServiceNames.map((name) => (
+                <Text key={name} style={[styles.reviewLine, { color: t.colors.text_primary }]}>
+                  {name}
+                </Text>
+              ))}
+              {selectedVaccineLines.map((v) => (
+                <View key={v.id} style={styles.reviewPriceRow}>
+                  <Text style={[styles.reviewLine, { color: t.colors.text_primary, flex: 1 }]}>
+                    {v.name}
+                  </Text>
+                  <Text style={[styles.reviewLine, { color: t.colors.text_primary }]}>
+                    {formatPaise(v.pricePaise)}
+                  </Text>
+                </View>
+              ))}
+              {vaccineTotalPaise > 0 ? (
+                <View style={[styles.totalRow, { marginTop: 8 }]}>
+                  <Text style={[styles.totalLabel, { color: t.colors.text_primary }]}>Total</Text>
+                  <Text style={[styles.totalValue, { color: primary }]}>
+                    {formatPaise(vaccineTotalPaise)}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.petMeta, { color: t.colors.text_secondary, marginTop: 4 }]}>
+                  Consultation fees are collected at the clinic.
+                </Text>
+              )}
+            </View>
+
+            <View
+              style={[
+                styles.remindRow,
+                { backgroundColor: t.colors.solid_white, borderColor: t.colors.border },
+              ]}
+            >
               <View style={{ flex: 1 }}>
-                <Text style={[styles.summaryBold, { color: t.colors.text_primary }]}>
-                  {assignedDoctor.fullName}
-                </Text>
-                <Text style={{ color: t.colors.text_secondary, fontSize: 14 }}>
-                  {assignedDoctor.displayTitle} ·{' '}
-                  {assignedDoctor.specializations.join(', ') || 'Vet'}
+                <Text style={[styles.remindTitle, { color: t.colors.text_primary }]}>Remind me</Text>
+                <Text style={[styles.petMeta, { color: t.colors.text_secondary }]}>
+                  Get a reminder before your visit (on this device only)
                 </Text>
               </View>
+              <Switch
+                value={remindMe}
+                onValueChange={setRemindMe}
+                trackColor={{ false: t.colors.inactive_bg_alpha, true: primary }}
+                thumbColor="#fff"
+              />
             </View>
-            <Text style={{ color: t.colors.text_secondary, marginTop: 12, fontSize: 14 }}>
-              {pet?.name} · {reasonLabels.join(', ') || 'Consultation'}
-            </Text>
-            <Text style={[styles.summaryBold, { color: t.colors.text_primary, marginTop: 8 }]}>
-              {selectedDate.toLocaleDateString(undefined, {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-              })}{' '}
-              at {selectedSlot?.label}
-            </Text>
-            <View style={[styles.locInline, { marginTop: 10 }]}>
-              <Ionicons name="location" size={18} color={accent} />
-              <Text style={{ color: t.colors.text_primary, flex: 1, marginLeft: 8 }}>
-                {detail.name}
-              </Text>
-            </View>
-            <Text style={{ color: t.colors.text_secondary, fontSize: 13, marginTop: 4 }}>
-              {detail.address}
-            </Text>
-          </View>
-          <View
-            style={[styles.priceBox, { borderColor: t.colors.inactive_bg_alpha, marginTop: 14 }]}
-          >
-            <View style={styles.priceLine}>
-              <Text style={{ color: t.colors.text_secondary }}>Consultation + platform</Text>
-              <Text style={{ color: t.colors.text_primary }}>₹{subtotalInr}</Text>
-            </View>
-            {promoDiscount > 0 && (
-              <View style={styles.priceLine}>
-                <Text style={{ color: t.colors.success }}>Discount</Text>
-                <Text style={{ color: t.colors.success }}>-₹{promoDiscount}</Text>
-              </View>
-            )}
-            <View style={styles.priceLine}>
-              <Text style={{ color: t.colors.text_secondary }}>Payment method</Text>
-              <Text style={{ color: t.colors.text_primary }}>
-                {paymentMethod === 'clinic'
-                  ? 'Pay at clinic'
-                  : paymentMethod === 'upi'
-                    ? 'UPI (Stripe)'
-                    : 'Card (Stripe)'}
-              </Text>
-            </View>
-            {paidStripeSession && (
-              <Text
-                style={{ fontSize: 11, color: t.colors.text_secondary, marginTop: 6 }}
-                numberOfLines={1}
-              >
-                Stripe session: {paidStripeSession}
-              </Text>
-            )}
-            <View style={[styles.priceLine, { marginTop: 8 }]}>
-              <Text style={{ fontWeight: '800', color: t.colors.text_primary }}>Total paid</Text>
-              <Text style={{ fontWeight: '800', color: accent, fontSize: 18 }}>
-                ₹{paymentMethod === 'clinic' ? 0 : totalInr}
-              </Text>
-            </View>
-          </View>
-          <Text style={[styles.notesLabel, { color: t.colors.text_primary, marginTop: 20 }]}>
-            Important
-          </Text>
-          <Text style={{ color: t.colors.text_secondary, lineHeight: 22, fontSize: 14 }}>
-            • Arrive 10 minutes early with your pet&apos;s medical records{'\n'}• Cancel or
-            reschedule up to 2 hours before
-            {'\n'}
-            {paymentMethod === 'clinic' ? '• Pay consultation fee at the clinic front desk\n' : ''}
-          </Text>
-          <TouchableOpacity
-            style={[styles.secondaryRow, { marginTop: 16 }]}
-            onPress={() => router.replace('/')}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="home-outline" size={20} color={accent} />
-            <Text style={{ color: accent, fontWeight: '700', marginLeft: 8 }}>Back to Home</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      )}
 
-      {step < 5 && (
-        <View
+            {confirmError ? (
+              <Text style={[styles.errorInline, { color: t.colors.warning }]}>{confirmError}</Text>
+            ) : null}
+          </>
+        )}
+      </ScrollView>
+
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: Math.max(insets.bottom, 12),
+            backgroundColor: t.colors.solid_white,
+            borderTopColor: t.colors.border,
+          },
+        ]}
+      >
+        {footerLabel ? (
+          <Text style={[styles.footerMeta, { color: t.colors.text_secondary }]}>{footerLabel}</Text>
+        ) : null}
+        <Pressable
           style={[
-            styles.footer,
+            styles.primaryBtn,
             {
-              paddingBottom: Math.max(insets.bottom, 14),
-              backgroundColor: t.colors.solid_white,
-              borderTopColor: t.colors.inactive_bg_alpha,
+              backgroundColor: primary,
+              opacity: canContinue && !confirmLoading ? 1 : 0.45,
             },
           ]}
+          disabled={!canContinue || confirmLoading}
+          onPress={step === 6 ? confirmBooking : goNext}
         >
-          <TouchableOpacity
-            style={[
-              styles.continueBtn,
-              { backgroundColor: accent },
-              (step === 0 && !petId) ||
-              (step === 1 && reasons.length === 0) ||
-              (step === 2 && !selectedSlot) ||
-              payLoading
-                ? { opacity: 0.45 }
-                : null,
-            ]}
-            disabled={
-              (step === 0 && !petId) ||
-              (step === 1 && reasons.length === 0) ||
-              (step === 2 && !selectedSlot) ||
-              payLoading
-            }
-            onPress={step === 4 ? confirmPayment : goNext}
-            activeOpacity={0.9}
-          >
-            {payLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.continueText}>
-                  {step === 4
-                    ? `Confirm Appointment — ₹${paymentMethod === 'clinic' ? 0 : totalInr}`
-                    : 'Continue'}
-                </Text>
-                {step < 4 && <Ionicons name="chevron-forward" size={22} color="#fff" />}
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
+          {confirmLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.primaryBtnText}>{footerCta}</Text>
+          )}
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  textPrimary,
+  textSecondary,
+}: {
+  label: string;
+  value: string;
+  textPrimary: string;
+  textSecondary: string;
+}) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={[styles.detailLabel, { color: textSecondary }]}>{label}</Text>
+      <Text style={[styles.detailValue, { color: textPrimary }]}>{value}</Text>
+    </View>
+  );
+}
+
+function ReviewBlock({
+  title,
+  textSecondary,
+  children,
+}: {
+  title: string;
+  textSecondary: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.reviewBlock}>
+      <Text style={[styles.cardLabel, { color: textSecondary }]}>{title}</Text>
+      {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  header: {
+  centered: { justifyContent: 'center', alignItems: 'center' },
+  muted: { fontSize: 14, lineHeight: 20 },
+  topChrome: { borderBottomWidth: StyleSheet.hairlineWidth },
+  topRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: H_PAD,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backRound: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
+  iconBtn: { padding: 4 },
+  flowTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    paddingHorizontal: H_PAD,
+    marginTop: 4,
   },
-  headerStep: { fontSize: 14, fontWeight: '600' },
-  scrollPad: { paddingHorizontal: H_PAD, paddingTop: 20 },
-  title: { fontSize: 24, fontWeight: '800' },
-  subtitle: { fontSize: 15, marginTop: 8, lineHeight: 22 },
-  petCard: {
+  stepLabel: { fontSize: 13, paddingHorizontal: H_PAD, marginTop: 4, marginBottom: 10 },
+  progressRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 16,
+    gap: 6,
+    paddingHorizontal: H_PAD,
+    marginBottom: 12,
+  },
+  progressSegment: { flex: 1, height: 4, borderRadius: 2 },
+  clinicCard: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 12,
     borderRadius: 14,
-    borderWidth: 2,
-  },
-  petAvatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  petName: { fontSize: 18, fontWeight: '700' },
-  petDetail: { fontSize: 14, marginTop: 2 },
-  petWeight: { fontSize: 14, fontWeight: '600', marginTop: 4 },
-  reasonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 20 },
-  reasonCell: {
-    width: '47%',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 2,
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 100,
-    justifyContent: 'center',
-  },
-  reasonLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  notesLabel: { fontSize: 15, fontWeight: '700', marginTop: 24 },
-  notesInput: {
-    marginTop: 10,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    minHeight: 100,
-    textAlignVertical: 'top',
-    fontSize: 15,
   },
-  dateStrip: { gap: 10, paddingVertical: 20 },
-  dateChip: {
-    width: 64,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 2,
-    alignItems: 'center',
-  },
-  dateChipTop: { fontSize: 12, fontWeight: '600' },
-  dateChipDay: { fontSize: 18, fontWeight: '800', marginTop: 4 },
-  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  timeChip: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1 },
-  timeChipText: { fontSize: 14, fontWeight: '600' },
-  summaryHead: { fontSize: 14, fontWeight: '600', marginTop: 8, letterSpacing: 0.3 },
-  summaryCard: { marginTop: 16, padding: 16, borderRadius: 14, borderWidth: 1 },
-  summarySection: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  summaryBold: { fontSize: 17, fontWeight: '700' },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 9999 },
-  tagText: { fontSize: 13, fontWeight: '600' },
-  promoRow: {
-    flexDirection: 'row',
+  clinicThumb: { width: 56, height: 56, borderRadius: 12 },
+  clinicThumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  clinicCardBody: { flex: 1 },
+  clinicCardName: { fontSize: 16, fontWeight: '700' },
+  clinicCardMeta: { fontSize: 13, marginTop: 2 },
+  clinicCardFooter: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 6 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sectionTitle: { fontSize: 18, fontWeight: '700' },
+  sectionSubtitle: { fontSize: 14, marginTop: 4, lineHeight: 20 },
+  groupLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.6, marginTop: 16, marginBottom: 8 },
+  emptyBox: {
     marginTop: 16,
+    padding: 24,
+    borderRadius: 14,
     borderWidth: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
+    alignItems: 'center',
+    gap: 10,
   },
-  promoInput: { flex: 1, paddingHorizontal: 14, paddingVertical: 14, fontSize: 16 },
-  applyBtn: { paddingHorizontal: 20, justifyContent: 'center' },
-  applyBtnText: { color: '#fff', fontWeight: '700' },
-  paySection: { fontSize: 17, fontWeight: '700', marginTop: 24 },
-  payRow: {
+  emptyText: { textAlign: 'center', fontSize: 14, lineHeight: 20 },
+  selectCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    marginTop: 10,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
   },
-  payRowText: { fontSize: 16, fontWeight: '600' },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
+  petThumb: { width: 52, height: 52, borderRadius: 26 },
+  petThumbPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  petName: { fontSize: 16, fontWeight: '700' },
+  petMeta: { fontSize: 13, marginTop: 2 },
+  warnBadge: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    maxWidth: '100%',
+  },
+  warnBadgeText: { flex: 1, fontSize: 12, color: '#92400E', lineHeight: 16 },
+  serviceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  serviceIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioInner: { width: 12, height: 12, borderRadius: 6 },
-  priceBox: { marginTop: 20, padding: 16, borderRadius: 14, borderWidth: 1 },
-  priceLine: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  serviceName: { fontSize: 15, fontWeight: '600' },
+  priceText: { fontSize: 14, fontWeight: '600', marginRight: 4 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'flex-start',
+  },
+  infoText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  doctorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  doctorAvatar: { width: 56, height: 56, borderRadius: 12 },
+  doctorName: { fontSize: 16, fontWeight: '700' },
+  dateStrip: { paddingHorizontal: H_PAD, gap: 8 },
+  dateChip: {
+    width: 64,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+  },
+  dateChipWeek: { fontSize: 12, fontWeight: '600' },
+  dateChipDay: { fontSize: 18, fontWeight: '800', marginTop: 2 },
+  slotGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 16,
+  },
+  slotChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    minWidth: '30%',
+    alignItems: 'center',
+  },
+  slotChipText: { fontSize: 14, fontWeight: '600' },
+  card: {
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  cardLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
+  reviewBlock: { marginBottom: 14 },
+  reviewValue: { fontSize: 15, fontWeight: '600', marginTop: 4 },
+  reviewLine: { fontSize: 14, marginTop: 4 },
+  reviewPriceRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  totalLabel: { fontSize: 16, fontWeight: '700' },
+  totalValue: { fontSize: 18, fontWeight: '800' },
+  remindRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  remindTitle: { fontSize: 15, fontWeight: '600' },
+  errorInline: { marginTop: 12, fontSize: 14 },
   footer: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     paddingHorizontal: H_PAD,
-    paddingTop: 12,
+    paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  continueBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+  footerMeta: { fontSize: 13, marginBottom: 8, textAlign: 'center' },
+  primaryBtn: {
     paddingVertical: 16,
     borderRadius: 14,
-  },
-  continueText: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  successBanner: { borderRadius: 16, padding: 28, alignItems: 'center' },
-  successIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
-  successTitle: { color: '#fff', fontSize: 22, fontWeight: '800' },
-  successId: { color: 'rgba(255,255,255,0.95)', fontSize: 15, marginTop: 8, fontWeight: '600' },
-  locInline: { flexDirection: 'row', alignItems: 'center' },
-  secondaryRow: { flexDirection: 'row', alignItems: 'center' },
+  primaryBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  successBanner: {
+    alignItems: 'center',
+    padding: 24,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  successTitle: { fontSize: 22, fontWeight: '800', marginTop: 12 },
+  successSubtitle: { fontSize: 15, marginTop: 6, textAlign: 'center' },
+  bookingId: { fontSize: 20, fontWeight: '800', marginTop: 6, letterSpacing: 0.5 },
+  hint: { fontSize: 13, lineHeight: 18 },
+  detailRow: { marginTop: 12 },
+  detailLabel: { fontSize: 12, fontWeight: '600' },
+  detailValue: { fontSize: 15, marginTop: 4, lineHeight: 21 },
 });

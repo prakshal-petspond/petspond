@@ -1,39 +1,58 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   Image,
   Linking,
-  Dimensions,
   ActivityIndicator,
+  Alert,
+  Share,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useTheme, useApi } from '@/contexts';
-import { getNetworkErrorHelp } from '@/contexts/ApiContext';
-import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import type { PublicClinicDetail } from '@petspond/types';
+import { useApi, useTheme } from '@/contexts';
+import { getNetworkErrorHelp } from '@/contexts/ApiContext';
 import { fetchClinicDetail } from '@/services/catalog';
+import { resolvePhotoUrl } from '@/lib/photoUrl';
 
 const H_PAD = 16;
-const { width: SCREEN_W } = Dimensions.get('window');
-const PHOTO_GAP = 8;
-const PHOTO_CELL = (SCREEN_W - H_PAD * 2 - PHOTO_GAP * 2) / 3;
-const FALLBACK_HERO =
-  'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&h=480&fit=crop';
 
 type TabId = 'overview' | 'services' | 'doctors';
 
-export function VetDetailPage() {
-  const { clinicId } = useLocalSearchParams<{ clinicId: string }>();
+type VetDetailPageProps = {
+  clinicId: string;
+};
+
+function heroUri(detail: PublicClinicDetail): string | null {
+  const candidates = [
+    detail.heroImage,
+    detail.listingImage,
+    detail.photoGallery?.[0],
+    detail.primaryDoctor.photoUrl,
+  ];
+  for (const c of candidates) {
+    const url = resolvePhotoUrl(c);
+    if (url) return url;
+  }
+  return null;
+}
+
+function mapsQueryUrl(address: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}
+
+export function VetDetailPage({ clinicId }: VetDetailPageProps) {
   const t = useTheme();
   const { client } = useApi();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const accent = t.colors.accent;
+  const primary = t.colors.primary;
+
   const [tab, setTab] = useState<TabId>('overview');
   const [detail, setDetail] = useState<PublicClinicDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,12 +61,13 @@ export function VetDetailPage() {
   useEffect(() => {
     if (!clinicId) {
       setLoading(false);
+      setError('Clinic not found.');
       return;
     }
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchClinicDetail(client, String(clinicId))
+    fetchClinicDetail(client, clinicId)
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
@@ -62,16 +82,38 @@ export function VetDetailPage() {
     };
   }, [client, clinicId]);
 
+  const onShare = useCallback(async () => {
+    if (!detail) return;
+    try {
+      await Share.share({
+        message: `${detail.name}\n${detail.address}`,
+        title: detail.name,
+      });
+    } catch {
+      Alert.alert('Share', `${detail.name}\n${detail.address}`);
+    }
+  }, [detail]);
+
+  const openLabel = useMemo(() => {
+    if (!detail) return '';
+    if (detail.is24_7) return 'OPEN NOW · 24/7';
+    if (detail.closingTimeLabel) return `OPEN NOW · Closes ${detail.closingTimeLabel}`;
+    return 'See hours below';
+  }, [detail]);
+
   if (loading) {
     return (
       <View
         style={[
           styles.fill,
-          { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center' },
+          styles.centered,
+          { paddingTop: insets.top, backgroundColor: t.colors.grey_bg },
         ]}
       >
-        <ActivityIndicator size="large" color={accent} />
-        <Text style={{ marginTop: 12, color: t.colors.text_secondary }}>Loading clinic…</Text>
+        <ActivityIndicator size="large" color={primary} />
+        <Text style={[styles.loadingText, { color: t.colors.text_secondary }]}>
+          Loading clinic…
+        </Text>
       </View>
     );
   }
@@ -79,159 +121,124 @@ export function VetDetailPage() {
   if (error || !detail) {
     return (
       <View
-        style={[styles.fill, { paddingTop: insets.top, backgroundColor: t.colors.solid_white }]}
+        style={[
+          styles.fill,
+          { paddingTop: insets.top + 16, paddingHorizontal: H_PAD, backgroundColor: t.colors.grey_bg },
+        ]}
       >
-        <Text style={{ padding: H_PAD, color: t.colors.text_secondary }}>
+        <Pressable onPress={() => router.back()} style={styles.backLink}>
+          <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
+        </Pressable>
+        <Text style={[styles.errorText, { color: t.colors.text_secondary }]}>
           {error ?? 'Clinic not found.'}
         </Text>
-        <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: H_PAD }}>
-          <Text style={{ color: accent, fontWeight: '600' }}>Go back</Text>
-        </TouchableOpacity>
       </View>
     );
   }
 
-  const vet = detail;
-  const heroUri = vet.heroImage ?? vet.listingImage ?? vet.primaryDoctor.photoUrl ?? FALLBACK_HERO;
-  const photos = vet.photoGallery?.length ? vet.photoGallery : [heroUri];
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(vet.address)}`;
-  const statusOpen = vet.is24_7 ? 'Open 24/7' : 'Open';
-  const closing = vet.closingTimeLabel ?? 'See hours';
+  const hero = heroUri(detail);
+  const mapsUrl = mapsQueryUrl(detail.address);
 
   return (
-    <View style={[styles.fill, { backgroundColor: t.colors.solid_white }]}>
-      <ScrollView showsVerticalScrollIndicator={false} bounces>
+    <View style={[styles.fill, { backgroundColor: t.colors.grey_bg }]}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={styles.heroWrap}>
-          <Image source={{ uri: heroUri }} style={styles.heroImage} />
-          <View style={[styles.heroOverlay, { paddingTop: insets.top }]} pointerEvents="box-none">
-            <View style={styles.heroTopRow}>
-              <TouchableOpacity
-                style={styles.heroCircleBtn}
-                onPress={() => router.back()}
-                activeOpacity={0.85}
-              >
-                <Ionicons name="arrow-back" size={22} color="#0f172a" />
-              </TouchableOpacity>
-              <View style={styles.heroRightBtns}>
-                <TouchableOpacity
-                  style={styles.heroCircleBtn}
-                  onPress={() => {}}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="share-outline" size={20} color="#0f172a" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.heroCircleBtn}
-                  onPress={() => {}}
-                  activeOpacity={0.85}
-                >
-                  <Ionicons name="heart-outline" size={20} color="#0f172a" />
-                </TouchableOpacity>
-              </View>
+          {hero ? (
+            <Image source={{ uri: hero }} style={styles.heroImage} />
+          ) : (
+            <View style={[styles.heroImage, styles.heroPlaceholder, { backgroundColor: t.colors.border }]}>
+              <MaterialCommunityIcons name="hospital-building" size={48} color={t.colors.text_secondary} />
             </View>
-            <View style={styles.openBadgeWrap}>
-              <View style={[styles.openBadge, { backgroundColor: t.colors.success }]}>
-                <Text style={styles.openBadgeText}>{statusOpen}</Text>
-              </View>
+          )}
+          <View style={[styles.heroOverlay, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
+            <View style={styles.heroTopRow}>
+              <Pressable
+                style={[styles.heroBtn, { backgroundColor: t.colors.solid_white }]}
+                onPress={() => router.back()}
+              >
+                <Ionicons name="arrow-back" size={22} color={t.colors.text_primary} />
+              </Pressable>
+              <Pressable
+                style={[styles.heroBtn, { backgroundColor: t.colors.solid_white }]}
+                onPress={onShare}
+              >
+                <Ionicons name="share-outline" size={20} color={t.colors.text_primary} />
+              </Pressable>
             </View>
           </View>
         </View>
 
-        <View style={{ paddingHorizontal: H_PAD, paddingTop: 16 }}>
-          <Text style={[styles.clinicTitle, { color: t.colors.text_primary }]}>{vet.name}</Text>
-          <Text style={[styles.tagline, { color: accent }]}>
-            {vet.tagline ?? vet.primaryDoctor.displayTitle ?? ''}
-          </Text>
+        <View
+          style={[
+            styles.infoCard,
+            { backgroundColor: t.colors.solid_white, borderColor: t.colors.border },
+          ]}
+        >
+          <Text style={[styles.clinicName, { color: t.colors.text_primary }]}>{detail.name}</Text>
+          {detail.tagline ? (
+            <Text style={[styles.tagline, { color: primary }]}>{detail.tagline}</Text>
+          ) : null}
 
           <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Ionicons name="star" size={18} color="#eab308" />
+            <View style={styles.statChip}>
+              <Ionicons name="star" size={16} color="#EAB308" />
               <Text style={[styles.statText, { color: t.colors.text_primary }]}>
-                {vet.rating} ({vet.reviewCount})
+                {detail.rating} ({detail.reviewCount})
               </Text>
             </View>
-            <View style={styles.statItem}>
-              <Ionicons name="people-outline" size={18} color={t.colors.text_secondary} />
+            <View style={styles.statChip}>
+              <Ionicons name="people-outline" size={16} color={t.colors.text_secondary} />
               <Text style={[styles.statText, { color: t.colors.text_primary }]}>
-                {vet.totalDoctors} Doctors
+                {detail.totalDoctors} Doctors
               </Text>
             </View>
-            {vet.establishedYear != null && (
-              <View style={styles.statItem}>
-                <Ionicons name="ribbon-outline" size={18} color={t.colors.text_secondary} />
+            {detail.establishedYear != null ? (
+              <View style={styles.statChip}>
+                <Ionicons name="ribbon-outline" size={16} color={t.colors.text_secondary} />
                 <Text style={[styles.statText, { color: t.colors.text_primary }]}>
-                  Est. {vet.establishedYear}
+                  Est. {detail.establishedYear}
                 </Text>
               </View>
-            )}
+            ) : null}
           </View>
 
-          <View style={styles.locRow}>
-            <Ionicons name="location" size={20} color={accent} style={{ marginTop: 2 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.address, { color: t.colors.text_primary }]}>{vet.address}</Text>
-              {vet.city != null && vet.pincode != null && (
-                <Text style={[styles.distance, { color: accent }]}>
-                  {vet.city}, {vet.pincode}
-                </Text>
-              )}
-            </View>
+          <View style={styles.addressRow}>
+            <Ionicons name="location-outline" size={18} color={primary} />
+            <Text style={[styles.addressText, { color: t.colors.text_primary }]}>{detail.address}</Text>
           </View>
 
-          <View style={styles.hoursRow}>
-            <Ionicons name="time-outline" size={20} color={t.colors.text_secondary} />
-            <Text style={[styles.hoursText, { color: t.colors.text_primary }]}>
-              <Text style={{ color: t.colors.success, fontWeight: '700' }}>{statusOpen}</Text>
-              {vet.is24_7 ? '' : ` — ${closing}`}
-            </Text>
+          <View style={styles.hoursBanner}>
+            <View style={[styles.openDot, { backgroundColor: t.colors.success }]} />
+            <Text style={[styles.hoursBannerText, { color: t.colors.text_primary }]}>{openLabel}</Text>
           </View>
 
-          <View style={styles.actionBar}>
-            <TouchableOpacity
-              style={[styles.actionPill, { backgroundColor: t.colors.primary_light }]}
-              onPress={() => Linking.openURL('tel:+911800000000')}
-              activeOpacity={0.85}
+          <View style={styles.actionRow}>
+            <Pressable
+              style={[styles.actionBtn, { backgroundColor: t.colors.grey_bg, opacity: 0.5 }]}
+              disabled
             >
-              <Ionicons name="call" size={18} color={accent} />
-              <Text style={[styles.actionPillText, { color: accent }]}>Call</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionPill, { backgroundColor: t.colors.primary_light }]}
-              onPress={() => Linking.openURL('sms:+911800000000')}
-              activeOpacity={0.85}
+              <Ionicons name="call" size={18} color={primary} />
+              <Text style={[styles.actionBtnText, { color: primary }]}>Call</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionBtn, { backgroundColor: t.colors.grey_bg, opacity: 0.5 }]}
+              disabled
             >
-              <Ionicons name="chatbubble-outline" size={18} color={accent} />
-              <Text style={[styles.actionPillText, { color: accent }]}>Message</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionPill, { backgroundColor: t.colors.primary_light }]}
+              <Ionicons name="chatbubble-outline" size={18} color={primary} />
+              <Text style={[styles.actionBtnText, { color: primary }]}>Message</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionBtn, { backgroundColor: t.colors.primary_bg }]}
               onPress={() => Linking.openURL(mapsUrl)}
-              activeOpacity={0.85}
             >
-              <Ionicons name="navigate-outline" size={18} color={accent} />
-              <Text style={[styles.actionPillText, { color: accent }]}>Direction</Text>
-            </TouchableOpacity>
+              <Ionicons name="navigate-outline" size={18} color={primary} />
+              <Text style={[styles.actionBtnText, { color: primary }]}>Direction</Text>
+            </Pressable>
           </View>
+        </View>
 
-          <View style={styles.photosHeader}>
-            <Text style={[styles.sectionTitle, { color: t.colors.text_primary }]}>
-              Clinic Photos
-            </Text>
-            <TouchableOpacity activeOpacity={0.8}>
-              <Text style={[styles.viewAll, { color: accent }]}>View All ({photos.length})</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.photoGrid}>
-            {photos.slice(0, 6).map((uri, i) => (
-              <Image
-                key={i}
-                source={{ uri }}
-                style={[styles.photoCell, { width: PHOTO_CELL, height: PHOTO_CELL }]}
-              />
-            ))}
-          </View>
-
-          <View style={[styles.tabsRow, { borderBottomColor: t.colors.inactive_bg_alpha }]}>
+        <View style={[styles.tabsCard, { backgroundColor: t.colors.solid_white, borderColor: t.colors.border }]}>
+          <View style={[styles.tabsRow, { borderBottomColor: t.colors.border }]}>
             {(
               [
                 ['overview', 'Overview'],
@@ -241,122 +248,142 @@ export function VetDetailPage() {
             ).map(([id, label]) => {
               const active = tab === id;
               return (
-                <TouchableOpacity
-                  key={id}
-                  style={styles.tabBtn}
-                  onPress={() => setTab(id)}
-                  activeOpacity={0.8}
-                >
+                <Pressable key={id} style={styles.tabBtn} onPress={() => setTab(id)}>
                   <Text
-                    style={[styles.tabLabel, { color: active ? accent : t.colors.text_secondary }]}
+                    style={[
+                      styles.tabLabel,
+                      { color: active ? primary : t.colors.text_secondary },
+                    ]}
                   >
                     {label}
                   </Text>
-                  {active && <View style={[styles.tabUnderline, { backgroundColor: accent }]} />}
-                </TouchableOpacity>
+                  {active ? <View style={[styles.tabUnderline, { backgroundColor: primary }]} /> : null}
+                </Pressable>
               );
             })}
           </View>
 
-          {tab === 'overview' && (
-            <>
-              <Text style={[styles.blockTitle, { color: t.colors.text_primary }]}>
-                Facilities & Equipment
-              </Text>
-              <View style={styles.facilityGrid}>
-                {(vet.facilities ?? []).map((f) => (
-                  <View key={f} style={styles.facilityCell}>
-                    <Ionicons name="checkmark-circle" size={18} color={t.colors.success} />
-                    <Text
-                      style={[styles.facilityText, { color: t.colors.text_primary }]}
-                      numberOfLines={2}
-                    >
-                      {f}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-              <Text style={[styles.blockTitle, { color: t.colors.text_primary, marginTop: 8 }]}>
-                Operating Hours
-              </Text>
-              {(vet.hours ?? []).map((h) => (
-                <View key={h.day} style={styles.hourLine}>
-                  <Text style={[styles.hourDay, { color: t.colors.text_secondary }]}>{h.day}</Text>
-                  <Text style={[styles.hourTime, { color: t.colors.text_primary }]}>{h.hours}</Text>
-                </View>
-              ))}
-            </>
-          )}
-
-          {tab === 'services' && (
-            <View style={{ gap: 12, paddingBottom: 8 }}>
-              {(vet.servicesOffered ?? []).map((s) => (
-                <View
-                  key={s.id}
-                  style={[
-                    styles.serviceRow,
-                    {
-                      borderColor: t.colors.inactive_bg_alpha,
-                      backgroundColor: t.colors.solid_white,
-                    },
-                  ]}
-                >
-                  <View style={[styles.serviceIcon, { backgroundColor: t.colors.primary_light }]}>
-                    <Ionicons
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      name={(s.icon as any) ?? 'medical'}
-                      size={22}
-                      color={accent}
-                    />
-                  </View>
-                  <Text style={[styles.serviceName, { color: t.colors.text_primary }]}>
-                    {s.name}
+          <View style={styles.tabContent}>
+            {tab === 'overview' && (
+              <>
+                <Text style={[styles.blockTitle, { color: t.colors.text_primary }]}>About</Text>
+                {detail.tagline ? (
+                  <Text style={[styles.bodyText, { color: t.colors.text_secondary }]}>
+                    {detail.tagline}
                   </Text>
-                </View>
-              ))}
-            </View>
-          )}
+                ) : (
+                  <Text style={[styles.bodyText, { color: t.colors.text_secondary }]}>
+                    No description available.
+                  </Text>
+                )}
 
-          {tab === 'doctors' && (
-            <View style={{ gap: 14, paddingBottom: 8 }}>
-              {(vet.doctors ?? []).map((d) => (
-                <View
-                  key={d.id}
-                  style={[styles.doctorCard, { borderColor: t.colors.inactive_bg_alpha }]}
-                >
-                  {d.photoUrl ? (
-                    <Image source={{ uri: d.photoUrl }} style={styles.doctorImg} />
-                  ) : (
-                    <View
-                      style={[
-                        styles.doctorImg,
-                        {
-                          backgroundColor: t.colors.inactive_bg_alpha,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        },
-                      ]}
-                    >
-                      <Ionicons name="person" size={28} color={t.colors.text_secondary} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.doctorName, { color: t.colors.text_primary }]}>
-                      {d.fullName}
-                    </Text>
-                    <Text style={[styles.doctorMeta, { color: t.colors.text_secondary }]}>
-                      {d.displayTitle}
-                    </Text>
-                    <Text style={[styles.doctorExp, { color: accent }]}>
-                      {d.specializations.join(', ') || 'Veterinarian'}
-                    </Text>
+                <Text style={[styles.blockTitle, { color: t.colors.text_primary, marginTop: 20 }]}>
+                  Facilities
+                </Text>
+                {(detail.facilities ?? []).length === 0 ? (
+                  <Text style={[styles.bodyText, { color: t.colors.text_secondary }]}>
+                    No facilities listed.
+                  </Text>
+                ) : (
+                  <View style={styles.facilityGrid}>
+                    {detail.facilities.map((f) => (
+                      <View key={f} style={styles.facilityCell}>
+                        <Ionicons name="checkmark-circle" size={18} color={t.colors.success} />
+                        <Text style={[styles.facilityText, { color: t.colors.text_primary }]}>{f}</Text>
+                      </View>
+                    ))}
                   </View>
-                </View>
-              ))}
-            </View>
-          )}
+                )}
 
-          <View style={{ height: 100 }} />
+                <Text style={[styles.blockTitle, { color: t.colors.text_primary, marginTop: 20 }]}>
+                  Hours
+                </Text>
+                {(detail.hours ?? []).length === 0 ? (
+                  <Text style={[styles.bodyText, { color: t.colors.text_secondary }]}>
+                    {detail.is24_7 ? 'Open 24 hours, 7 days a week.' : 'Hours not published.'}
+                  </Text>
+                ) : (
+                  detail.hours.map((h) => (
+                    <View key={h.day} style={styles.hourRow}>
+                      <Text style={[styles.hourDay, { color: t.colors.text_secondary }]}>{h.day}</Text>
+                      <Text style={[styles.hourTime, { color: t.colors.text_primary }]}>{h.hours}</Text>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+
+            {tab === 'services' && (
+              <>
+                {(detail.servicesOffered ?? []).length === 0 ? (
+                  <Text style={[styles.bodyText, { color: t.colors.text_secondary }]}>
+                    No services listed yet.
+                  </Text>
+                ) : (
+                  detail.servicesOffered.map((s) => (
+                    <View
+                      key={s.id}
+                      style={[styles.serviceRow, { borderColor: t.colors.border, backgroundColor: t.colors.grey_bg }]}
+                    >
+                      <View style={[styles.serviceIcon, { backgroundColor: t.colors.primary_bg }]}>
+                        <MaterialCommunityIcons name="medical-bag" size={22} color={primary} />
+                      </View>
+                      <Text style={[styles.serviceName, { color: t.colors.text_primary }]}>{s.name}</Text>
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+
+            {tab === 'doctors' && (
+              <>
+                {(detail.doctors ?? []).length === 0 ? (
+                  <Text style={[styles.bodyText, { color: t.colors.text_secondary }]}>
+                    No doctors listed yet.
+                  </Text>
+                ) : (
+                  detail.doctors.map((d) => {
+                    const docPhoto = resolvePhotoUrl(d.photoUrl);
+                    return (
+                      <View
+                        key={d.id}
+                        style={[styles.doctorCard, { borderColor: t.colors.border, backgroundColor: t.colors.grey_bg }]}
+                      >
+                        {docPhoto ? (
+                          <Image source={{ uri: docPhoto }} style={styles.doctorImg} />
+                        ) : (
+                          <View
+                            style={[
+                              styles.doctorImg,
+                              styles.doctorImgPlaceholder,
+                              { backgroundColor: t.colors.border },
+                            ]}
+                          >
+                            <Ionicons name="person" size={28} color={t.colors.text_secondary} />
+                          </View>
+                        )}
+                        <View style={styles.doctorBody}>
+                          <Text style={[styles.doctorName, { color: t.colors.text_primary }]}>
+                            {d.fullName}
+                          </Text>
+                          {d.displayTitle ? (
+                            <Text style={[styles.doctorMeta, { color: t.colors.text_secondary }]}>
+                              {d.displayTitle}
+                            </Text>
+                          ) : null}
+                          {d.specializations.length > 0 ? (
+                            <Text style={[styles.doctorSpec, { color: primary }]}>
+                              {d.specializations.join(', ')}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </>
+            )}
+          </View>
         </View>
       </ScrollView>
 
@@ -365,20 +392,19 @@ export function VetDetailPage() {
           styles.footer,
           {
             paddingBottom: Math.max(insets.bottom, 12),
-            borderTopColor: t.colors.inactive_bg_alpha,
             backgroundColor: t.colors.solid_white,
+            borderTopColor: t.colors.border,
           },
         ]}
       >
-        <TouchableOpacity
-          style={[styles.bookCta, { backgroundColor: accent }]}
-          onPress={() => router.push(`/find-vet/${vet.id}/book`)}
-          activeOpacity={0.9}
+        <Pressable
+          style={[styles.bookCta, { backgroundColor: primary }]}
+          onPress={() => router.push(`/find-vet/${clinicId}/book`)}
         >
-          <Ionicons name="calendar" size={22} color="#fff" />
+          <Ionicons name="calendar-outline" size={22} color="#fff" />
           <Text style={styles.bookCtaText}>Book Appointment</Text>
-          <Ionicons name="chevron-forward" size={22} color="#fff" />
-        </TouchableOpacity>
+          <Ionicons name="chevron-forward" size={20} color="#fff" />
+        </Pressable>
       </View>
     </View>
   );
@@ -386,104 +412,124 @@ export function VetDetailPage() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  heroWrap: { height: 220, position: 'relative' },
-  heroImage: { ...StyleSheet.absoluteFillObject, width: '100%', height: 220 },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
-  },
+  centered: { justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontSize: 14 },
+  backLink: { marginBottom: 16 },
+  errorText: { fontSize: 15, lineHeight: 22 },
+  heroWrap: { height: 240, position: 'relative' },
+  heroImage: { width: '100%', height: 240 },
+  heroPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  heroOverlay: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-start' },
   heroTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
     paddingHorizontal: H_PAD,
   },
-  heroRightBtns: { flexDirection: 'row', gap: 10 },
-  heroCircleBtn: {
+  heroBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  openBadgeWrap: { alignItems: 'center', marginBottom: 12 },
-  openBadge: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 9999 },
-  openBadgeText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  clinicTitle: { fontSize: 22, fontWeight: '800' },
-  tagline: { fontSize: 15, fontWeight: '600', marginTop: 4 },
-  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 14 },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  infoCard: {
+    marginHorizontal: H_PAD,
+    marginTop: -28,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  clinicName: { fontSize: 22, fontWeight: '800' },
+  tagline: { fontSize: 15, fontWeight: '600', marginTop: 6 },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 14 },
+  statChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statText: { fontSize: 14, fontWeight: '600' },
-  locRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  address: { fontSize: 15, lineHeight: 22 },
-  distance: { fontSize: 14, fontWeight: '600', marginTop: 4 },
-  hoursRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  hoursText: { fontSize: 15, flex: 1 },
-  actionBar: { flexDirection: 'row', gap: 10, marginTop: 18 },
-  actionPill: {
+  addressRow: { flexDirection: 'row', gap: 8, marginTop: 14, alignItems: 'flex-start' },
+  addressText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  hoursBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#E8F5E9',
+  },
+  openDot: { width: 8, height: 8, borderRadius: 4 },
+  hoursBannerText: { fontSize: 13, fontWeight: '700', flex: 1 },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     paddingVertical: 12,
     borderRadius: 12,
   },
-  actionPillText: { fontSize: 14, fontWeight: '700' },
-  photosHeader: {
+  actionBtnText: { fontSize: 13, fontWeight: '700' },
+  tabsCard: {
+    marginHorizontal: H_PAD,
+    marginTop: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  tabsRow: { flexDirection: 'row', borderBottomWidth: StyleSheet.hairlineWidth },
+  tabBtn: { flex: 1, alignItems: 'center', paddingVertical: 14, position: 'relative' },
+  tabLabel: { fontSize: 14, fontWeight: '700' },
+  tabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    height: 3,
+    width: '50%',
+    borderRadius: 2,
+  },
+  tabContent: { padding: 16 },
+  blockTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  bodyText: { fontSize: 14, lineHeight: 21 },
+  facilityGrid: { gap: 10 },
+  facilityCell: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  facilityText: { flex: 1, fontSize: 14, lineHeight: 20 },
+  hourRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 22,
-    marginBottom: 12,
+    paddingVertical: 8,
   },
-  sectionTitle: { fontSize: 17, fontWeight: '700' },
-  viewAll: { fontSize: 14, fontWeight: '700' },
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: PHOTO_GAP },
-  photoCell: { borderRadius: 10 },
-  tabsRow: {
-    flexDirection: 'row',
-    marginTop: 22,
-    borderBottomWidth: 1,
-  },
-  tabBtn: { flex: 1, alignItems: 'center', paddingVertical: 12 },
-  tabLabel: { fontSize: 15, fontWeight: '700' },
-  tabUnderline: { position: 'absolute', bottom: 0, height: 3, width: '60%', borderRadius: 2 },
-  blockTitle: { fontSize: 16, fontWeight: '700', marginTop: 16, marginBottom: 10 },
-  facilityGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  facilityCell: { width: '48%', flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  facilityText: { fontSize: 13, flex: 1, lineHeight: 18 },
-  hourLine: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 },
   hourDay: { fontSize: 14, fontWeight: '600' },
   hourTime: { fontSize: 14, fontWeight: '500' },
   serviceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    padding: 14,
+    gap: 12,
+    padding: 12,
     borderRadius: 12,
     borderWidth: 1,
+    marginBottom: 10,
   },
   serviceIcon: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  serviceName: { fontSize: 16, fontWeight: '600' },
+  serviceName: { fontSize: 15, fontWeight: '600', flex: 1 },
   doctorCard: {
     flexDirection: 'row',
-    gap: 14,
-    padding: 14,
+    gap: 12,
+    padding: 12,
     borderRadius: 12,
     borderWidth: 1,
+    marginBottom: 10,
   },
   doctorImg: { width: 64, height: 64, borderRadius: 12 },
+  doctorImgPlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  doctorBody: { flex: 1 },
   doctorName: { fontSize: 16, fontWeight: '700' },
-  doctorMeta: { fontSize: 14, marginTop: 2 },
-  doctorExp: { fontSize: 13, fontWeight: '600', marginTop: 4 },
+  doctorMeta: { fontSize: 13, marginTop: 2 },
+  doctorSpec: { fontSize: 13, fontWeight: '600', marginTop: 4 },
   footer: {
     position: 'absolute',
     left: 0,

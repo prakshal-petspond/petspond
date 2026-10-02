@@ -1,15 +1,7 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { VetDetailPage } from '@/features/find-vet/VetDetailPage';
 
-export default function VetDetailScreen() {
-  return (
-    <View style={styles.fill}>
-      <VetDetailPage />
-    </View>
-  );
+export default function VetDetailRoute() {
+  const { clinicId } = useLocalSearchParams<{ clinicId: string }>();
+  return <VetDetailPage clinicId={String(clinicId)} />;
 }
-
-const styles = StyleSheet.create({
-  fill: { flex: 1 },
-});

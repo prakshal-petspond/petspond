@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
-import { Providers } from '@/app/providers';
+import { Providers } from '@/providers';
 
 export default function RootLayout() {
   useEffect(() => {
