@@ -7,6 +7,7 @@ RUN corepack enable && corepack prepare pnpm@9.14.2 --activate
 FROM base AS build
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY patches patches
 COPY apps/api/package.json apps/api/
 COPY packages/types/package.json packages/types/
 RUN pnpm install --frozen-lockfile --filter @petspond/api...
