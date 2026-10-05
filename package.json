@@ -35,6 +35,7 @@
     },
     "patchedDependencies": {
       "@expo/cli@54.0.27": "patches/@expo__cli@54.0.27.patch"
-    }
+    },
+    "allowNonAppliedPatches": true
   }
 }
