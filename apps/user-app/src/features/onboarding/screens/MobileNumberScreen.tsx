@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, useOnboarding, useApi, getNetworkErrorHelp } from '@/contexts';
+import { useTheme, useOnboarding, useApi, getApiErrorMessage } from '@/contexts';
 import { OnboardingStepHeader } from '../components/OnboardingStepHeader';
 import { ScreenHeader, PrimaryButton } from '@/components/ui';
 import { authApi } from '@/services/auth.service';
@@ -36,15 +36,7 @@ export function MobileNumberScreen({ onNext, onBack }: MobileNumberScreenProps) 
       setMobile(trimmed);
       onNext();
     } catch (e: unknown) {
-      const err = e as { message?: string; name?: string };
-      const isNetworkError =
-        err?.message === 'Network request failed' ||
-        err?.message === 'Failed to fetch' ||
-        err?.name === 'TypeError';
-      const message = isNetworkError
-        ? getNetworkErrorHelp()
-        : (err?.message ?? 'Failed to send OTP. Try again.');
-      setError(message);
+      setError(getApiErrorMessage(e, 'Failed to send OTP. Try again.'));
     } finally {
       setLoading(false);
     }

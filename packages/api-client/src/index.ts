@@ -26,13 +26,15 @@ export class ApiClient {
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     }
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...(init.headers as Record<string, string>),
+    const headers: Record<string, string> = {
+      ...((init.headers as Record<string, string> | undefined) ?? {}),
     };
+    if (!(init.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
     const token = this.config.getAccessToken?.();
     if (token) {
-      (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+      headers['Authorization'] = `Bearer ${token}`;
     }
     const res = await fetch(url.toString(), { ...init, headers });
     if (res.status === 401 && !_retried && this.config.refreshAccessToken) {
@@ -54,9 +56,13 @@ export class ApiClient {
       }
     }
     if (!res.ok) {
+      const rawMessage = (data as { message?: string | string[] }).message;
+      const message = Array.isArray(rawMessage)
+        ? rawMessage.join(' ')
+        : (rawMessage ?? res.statusText);
       const err: ApiError = {
         statusCode: res.status,
-        message: (data as { message?: string }).message ?? res.statusText,
+        message,
         error: (data as { error?: string }).error,
       };
       throw err;
@@ -70,6 +76,10 @@ export class ApiClient {
 
   post<T>(path: string, body?: unknown) {
     return this.request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined });
+  }
+
+  postForm<T>(path: string, body: FormData) {
+    return this.request<T>(path, { method: 'POST', body });
   }
 
   patch<T>(path: string, body?: unknown) {

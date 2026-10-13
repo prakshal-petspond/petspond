@@ -15,7 +15,20 @@ const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 /** User-friendly message when the app can't reach the API (e.g. wrong URL on device). */
 export function getNetworkErrorHelp(): string {
-  return "Can't reach the server. (1) Ensure the API is running: pnpm --filter @petspond/api dev. (2) On a physical device: set EXPO_PUBLIC_API_URL in apps/user-app/.env to your computer's IP (e.g. http://192.168.1.8:3000), use the same WiFi as your phone, then restart Expo (npx expo start --clear).";
+  return "Can't reach the Petspond API. Ensure it is running (pnpm --filter @petspond/api dev) and EXPO_PUBLIC_API_URL is your Mac's Wi‑Fi IP (e.g. http://192.168.1.8:3000), not localhost if another app owns port 3000. Restart Expo with --clear after changing .env.";
+}
+
+export function getApiErrorMessage(e: unknown, fallback: string): string {
+  const err = e as { message?: string; statusCode?: number; name?: string };
+  const isNetworkError =
+    err?.message === 'Network request failed' ||
+    err?.message === 'Failed to fetch' ||
+    err?.name === 'TypeError';
+  if (isNetworkError) return getNetworkErrorHelp();
+  if (err?.statusCode === 405 || err?.message === 'Method Not Allowed') {
+    return "This URL is not the Petspond API (often AEM on localhost:3000). Set EXPO_PUBLIC_API_URL to your Mac's Wi‑Fi IP, e.g. http://192.168.1.8:3000, then restart Expo with --clear.";
+  }
+  return err?.message?.trim() || fallback;
 }
 
 export function ApiProvider({ children }: { children: ReactNode }) {

@@ -1,9 +1,27 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
-import type { Pet as PetRow } from '@prisma/client';
 import type { CreatePetDto, Pet, UpdatePetDto } from '@petspond/types';
 import { PrismaService } from '@/prisma/prisma.service';
 
-function toPet(row: PetRow): Pet {
+type PetRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  species: string;
+  breed: string;
+  dateOfBirth: string | null;
+  gender: string | null;
+  servicesNeeded: string[];
+  weight: number | null;
+  neutered: boolean | null;
+  photoUrl: string | null;
+  color?: string | null;
+  microchipId: string | null;
+  medicalNotes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function toPet(row: PetRecord): Pet {
   return {
     id: row.id,
     userId: row.userId,
@@ -16,6 +34,7 @@ function toPet(row: PetRow): Pet {
     weight: row.weight ?? undefined,
     neutered: row.neutered ?? undefined,
     photoUrl: row.photoUrl ?? undefined,
+    color: row.color ?? undefined,
     microchipId: row.microchipId ?? undefined,
     medicalNotes: row.medicalNotes ?? undefined,
     createdAt: row.createdAt.toISOString(),
@@ -71,6 +90,7 @@ export class PetsService {
         photoUrl: dto.photoUrl,
         microchipId: dto.microchipId,
         medicalNotes: dto.medicalNotes,
+        ...(dto.color !== undefined ? { color: dto.color } : {}),
       },
     });
     return toPet(row);

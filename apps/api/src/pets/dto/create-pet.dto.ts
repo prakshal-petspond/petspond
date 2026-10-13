@@ -43,6 +43,10 @@ export class CreatePetBodyDto {
 
   @IsOptional()
   @IsString()
+  color?: string;
+
+  @IsOptional()
+  @IsString()
   microchipId?: string;
 
   @IsOptional()

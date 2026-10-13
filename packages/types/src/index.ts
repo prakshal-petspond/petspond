@@ -389,6 +389,7 @@ export interface Pet {
   weight?: number;
   neutered?: boolean;
   photoUrl?: string;
+  color?: string;
   microchipId?: string;
   medicalNotes?: string;
   createdAt: string;
@@ -405,6 +406,7 @@ export interface CreatePetDto {
   weight?: number;
   neutered?: boolean;
   photoUrl?: string;
+  color?: string;
   microchipId?: string;
   medicalNotes?: string;
 }

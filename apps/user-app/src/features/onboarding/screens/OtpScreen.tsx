@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTheme, useOnboarding, useApi } from '@/contexts';
+import { useTheme, useOnboarding, useApi, getApiErrorMessage } from '@/contexts';
 import { OnboardingStepHeader } from '../components/OnboardingStepHeader';
 import { ScreenHeader, OtpInput, PrimaryButton } from '@/components/ui';
 import { authApi } from '@/services/auth.service';
@@ -48,8 +48,7 @@ export function OtpScreen({ onNext, onBack }: OtpScreenProps) {
         onNext();
       }
     } catch (e: unknown) {
-      const message = (e as { message?: string })?.message ?? 'Verification failed. Try again.';
-      setError(message);
+      setError(getApiErrorMessage(e, 'Verification failed. Try again.'));
     } finally {
       setLoading(false);
     }
@@ -62,8 +61,7 @@ export function OtpScreen({ onNext, onBack }: OtpScreenProps) {
     try {
       await authApi.sendOtp(client, state.mobile, { countryCode: 'IN' });
     } catch (e: unknown) {
-      const message = (e as { message?: string })?.message ?? 'Failed to resend OTP.';
-      setError(message);
+      setError(getApiErrorMessage(e, 'Failed to resend OTP.'));
     } finally {
       setResendLoading(false);
     }

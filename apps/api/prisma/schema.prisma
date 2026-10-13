@@ -130,6 +130,7 @@ model Pet {
   weight          Float?
   neutered        Boolean?
   photoUrl        String?
+  color           String?
   microchipId     String?
   medicalNotes    String?
   createdAt       DateTime @default(now())

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,11 @@ import {
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useTheme } from '@/contexts';
+import { usePets, useTheme } from '@/contexts';
+import { resolvePhotoUrl } from '@/lib/photoUrl';
+import { PetSwitcherSheet } from './PetSwitcherSheet';
 
 const TOP_RATED = [
   {
@@ -44,6 +46,15 @@ export function LandingPage() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { activePet, pets, refreshPets } = usePets();
+  const [petSheetOpen, setPetSheetOpen] = useState(false);
+  const activePhoto = resolvePhotoUrl(activePet?.photoUrl);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPets();
+    }, [refreshPets]),
+  );
 
   return (
     <View
@@ -75,9 +86,26 @@ export function LandingPage() {
               >
                 <Ionicons name="notifications-outline" size={20} color={t.colors.text_primary} />
               </Pressable>
-              <View style={[styles.avatar, { backgroundColor: t.colors.primary_bg }]}>
-                <Ionicons name="person" size={18} color={t.colors.primary} />
-              </View>
+              <Pressable
+                onPress={() => {
+                  if (pets.length === 0) router.push('/add-pet');
+                  else setPetSheetOpen(true);
+                }}
+                style={styles.avatarWrap}
+                accessibilityRole="button"
+                accessibilityLabel={activePet ? `${activePet.name}, add or switch pet` : 'Add a pet'}
+              >
+                <View style={[styles.avatar, { backgroundColor: t.colors.primary_bg }]}>
+                  {activePhoto ? (
+                    <Image source={{ uri: activePhoto }} style={styles.avatarImage} />
+                  ) : (
+                    <Ionicons name={activePet ? 'paw' : 'add'} size={18} color={t.colors.primary} />
+                  )}
+                </View>
+                <View style={[styles.avatarBadge, { backgroundColor: t.colors.primary }]}>
+                  <Ionicons name="add" size={10} color="#fff" />
+                </View>
+              </Pressable>
             </View>
           </View>
 
@@ -198,6 +226,7 @@ export function LandingPage() {
           <TabItem icon="calendar-outline" label="Bookings" colors={t.colors} />
           <TabItem icon="person-outline" label="Profile" colors={t.colors} />
         </View>
+        <PetSwitcherSheet visible={petSheetOpen} onClose={() => setPetSheetOpen(false)} />
     </View>
   );
 }
@@ -269,12 +298,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarWrap: { width: 42, height: 42 },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: { width: 40, height: 40 },
+  avatarBadge: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   searchBar: {
     flexDirection: 'row',

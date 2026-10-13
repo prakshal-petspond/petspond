@@ -110,7 +110,7 @@ diff --git a/build/src/start/platforms/ios/ensureSimulatorAppRunning.js b/build/
 index 31296bcbc7a079acf2e5cd5020881fb001897d7d..4f7309ebdcebbbaca49b3b98363209cfdfe15a26 100644
 --- a/build/src/start/platforms/ios/ensureSimulatorAppRunning.js
 +++ b/build/src/start/platforms/ios/ensureSimulatorAppRunning.js
-@@ -95,7 +95,7 @@ async function waitForSimulatorAppToStart({ maxWaitTime } = {}) {
+@@ -95,28 +95,59 @@ async function waitForSimulatorAppToStart({ maxWaitTime } = {}) {
  // I think the app can be open while no simulators are booted.
  async function isSimulatorAppRunningAsync() {
      try {
@@ -119,9 +119,32 @@ index 31296bcbc7a079acf2e5cd5020881fb001897d7d..4f7309ebdcebbbaca49b3b98363209cf
          if (zeroMeansNo === '0') {
              return false;
          }
-@@ -108,15 +108,28 @@ async function isSimulatorAppRunningAsync() {
+     } catch (error) {
+         if (error.message.includes('Application isn’t running')) {
+             return false;
+         }
+-        throw error;
++        // macOS Automation TCC denial (-1743) and other Apple Event failures.
++        return await isSimulatorProcessRunningWithoutAppleEventsAsync();
+     }
      return true;
  }
++async function isSimulatorProcessRunningWithoutAppleEventsAsync() {
++    for (const name of [
++        'Simulator',
++        'DeviceHub'
++    ]){
++        try {
++            await (0, _spawnasync().default)('pgrep', [
++                '-x',
++                name
++            ]);
++            return true;
++        } catch  {
++        }
++    }
++    return false;
++}
  async function openSimulatorAppAsync(device) {
 -    const args = [
 -        '-a',
