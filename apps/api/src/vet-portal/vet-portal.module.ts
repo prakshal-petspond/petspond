@@ -7,8 +7,10 @@ import { VetClinicController } from './vet-clinic.controller';
 import { VetBookingsController } from './vet-bookings.controller';
 import { VetScheduleController } from './vet-schedule.controller';
 import { VetFrontDeskController } from './vet-front-desk.controller';
+import { VetDirectoryController } from './vet-directory.controller';
 import { ApprovedVetGuard } from './approved-vet.guard';
 import { FrontDeskService } from './front-desk.service';
+import { ClinicDirectoryService } from './clinic-directory.service';
 
 @Module({
   imports: [VetAuthModule, BookingsModule, ClinicsModule, VetsModule],
@@ -17,7 +19,8 @@ import { FrontDeskService } from './front-desk.service';
     VetBookingsController,
     VetScheduleController,
     VetFrontDeskController,
+    VetDirectoryController,
   ],
-  providers: [ApprovedVetGuard, FrontDeskService],
+  providers: [ApprovedVetGuard, FrontDeskService, ClinicDirectoryService],
 })
 export class VetPortalModule {}

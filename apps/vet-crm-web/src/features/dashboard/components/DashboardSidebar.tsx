@@ -1,9 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PetspondLogo } from '@/components/PetspondLogo';
+import { frontDeskApi } from '@/services/front-desk.service';
+import { useFrontDeskData } from '@/features/front-desk/shared/useFrontDeskData';
+import { waitMinutesSince } from '@/features/front-desk/shared/utils';
 import { useDashboard } from '../DashboardContext';
 import { ROLE_NAV_ACCESS } from '../roles';
 
@@ -12,8 +15,31 @@ type NavItem = {
   label: string;
   icon: React.ReactNode;
   badge?: number;
+  badgeTone?: 'blue' | 'red';
   match?: (pathname: string) => boolean;
 };
+
+function IconQuickView() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 10.5L12 4l8 6.5V20a1 1 0 01-1 1h-5v-6H10v6H5a1 1 0 01-1-1v-9.5z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconSchedule() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function IconOverview() {
   return (
@@ -79,6 +105,21 @@ function IconSettings() {
   );
 }
 
+const MY_DAY: NavItem[] = [
+  {
+    href: '/dashboard/my-day',
+    label: 'Quick View',
+    icon: <IconQuickView />,
+    match: (p) => p === '/dashboard/my-day',
+  },
+  {
+    href: '/dashboard/my-day/schedule',
+    label: 'Schedule',
+    icon: <IconSchedule />,
+    match: (p) => p.startsWith('/dashboard/my-day/schedule'),
+  },
+];
+
 const WORKSPACE: NavItem[] = [
   { href: '/dashboard', label: 'Overview', icon: <IconOverview />, match: (p) => p === '/dashboard' },
   {
@@ -92,7 +133,12 @@ const WORKSPACE: NavItem[] = [
 
 const DIRECTORY: NavItem[] = [
   { href: '/dashboard/pets', label: 'Pets', icon: <IconPets /> },
-  { href: '/dashboard/owners', label: 'Owners', icon: <IconOwners /> },
+  {
+    href: '/dashboard/owners',
+    label: 'Owners',
+    icon: <IconOwners />,
+    match: (p) => p.startsWith('/dashboard/owners'),
+  },
 ];
 
 const ADMIN: NavItem[] = [
@@ -126,7 +172,11 @@ function NavSection({ title, items }: { title: string; items: NavItem[] }) {
                 <span className={active ? 'text-brand-blue' : 'text-muted'}>{item.icon}</span>
                 <span className="flex-1">{item.label}</span>
                 {item.badge != null && item.badge > 0 ? (
-                  <span className="rounded-full bg-brand-blue px-2 py-0.5 text-[10px] font-bold text-on-contrast">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold text-on-contrast ${
+                      item.badgeTone === 'red' ? 'bg-danger' : 'bg-brand-blue'
+                    }`}
+                  >
                     {item.badge}
                   </span>
                 ) : null}
@@ -143,6 +193,15 @@ export function DashboardSidebar() {
   const { role, roleLabel, vet, frontDeskBadges, signOut } = useDashboard();
   const access = ROLE_NAV_ACCESS[role];
 
+  const { data: queue } = useFrontDeskData(
+    useCallback((c) => (access.myDay ? frontDeskApi.getQueue(c) : Promise.resolve(null)), [access.myDay]),
+  );
+
+  const myConsult = useMemo(() => {
+    if (!vet?.id || !queue) return null;
+    return queue.inConsultation.find((b) => b.vetId === vet.id) ?? null;
+  }, [queue, vet?.id]);
+
   const workspace = WORKSPACE.map((item) => {
     if (item.label === 'Front Desk') {
       const badge = frontDeskBadges.checkIn + frontDeskBadges.queue;
@@ -151,43 +210,86 @@ export function DashboardSidebar() {
     return item;
   });
 
+  const vetShort = (vet?.fullName ?? 'Doctor').replace(/^Dr\.?\s*/i, '');
+
   return (
     <aside className="hidden h-full w-[240px] shrink-0 flex-col border-r border-border bg-card px-4 py-5 lg:flex">
-      <div className="mb-8 px-1">
+      <div className="mb-6 px-1">
         <PetspondLogo href="/dashboard" imageClassName="h-8 w-auto" />
         <p className="mt-1 text-xs text-muted">Clinic Workspace</p>
       </div>
 
+      {access.myDay ? (
+        <div className="mb-5 rounded-2xl border border-border bg-success-muted/40 px-3 py-3">
+          <span className="rounded-full bg-success px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-on-contrast">
+            {role === 'admin' ? 'Admin' : 'Vet'}
+          </span>
+          <p className="mt-1.5 truncate text-sm font-semibold text-foreground">Dr. {vetShort}</p>
+          <p className="text-[11px] text-muted">{roleLabel}</p>
+        </div>
+      ) : null}
+
       <nav className="flex-1 overflow-y-auto">
+        {access.myDay ? <NavSection title="My Day" items={MY_DAY} /> : null}
         {access.workspace ? <NavSection title="Workspace" items={workspace} /> : null}
         {access.directory ? <NavSection title="Directory" items={DIRECTORY} /> : null}
         {access.admin ? <NavSection title="Admin" items={ADMIN} /> : null}
       </nav>
 
       <div className="mt-4 space-y-3">
-        <div className="rounded-2xl border border-border bg-surface-online px-3 py-3">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-foreground">Clinic is Online</p>
-              <p className="text-[11px] text-muted">Accepting bookings</p>
+        {access.myDay && myConsult ? (
+          <div className="rounded-2xl border border-brand-blue/20 bg-brand-blue/10 px-3 py-3">
+            <p className="text-sm font-semibold text-foreground">In consultation</p>
+            <p className="text-[11px] text-muted">
+              {myConsult.roomLabel || 'Room'}
+              {myConsult.consultationStartedAt
+                ? ` · since ${new Date(myConsult.consultationStartedAt).toLocaleTimeString(undefined, {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: false,
+                  })}`
+                : myConsult.checkedInAt
+                  ? ` · ${waitMinutesSince(myConsult.checkedInAt)} min`
+                  : ''}
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-surface-online px-3 py-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Clinic is Online</p>
+                <p className="text-[11px] text-muted">Accepting bookings</p>
+              </div>
             </div>
           </div>
-        </div>
-        <div className="border-t border-border px-1 pt-3">
-          <p className="truncate text-sm font-semibold text-foreground">{vet?.fullName ?? 'Staff'}</p>
-          <p className="text-[11px] text-muted">{roleLabel}</p>
-          <button
-            type="button"
-            onClick={signOut}
-            className="mt-1 text-xs font-medium text-muted hover:text-foreground"
-          >
-            Sign out
-          </button>
-        </div>
+        )}
+        {!access.myDay ? (
+          <div className="border-t border-border px-1 pt-3">
+            <p className="truncate text-sm font-semibold text-foreground">{vet?.fullName ?? 'Staff'}</p>
+            <p className="text-[11px] text-muted">{roleLabel}</p>
+            <button
+              type="button"
+              onClick={signOut}
+              className="mt-1 text-xs font-medium text-muted hover:text-foreground"
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <div className="border-t border-border px-1 pt-3">
+            <button
+              type="button"
+              onClick={signOut}
+              className="text-xs font-medium text-muted hover:text-foreground"
+            >
+              Sign out
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

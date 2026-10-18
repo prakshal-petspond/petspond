@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 type WalkInModalProps = {
   open: boolean;
   onClose: () => void;
+  initialOwnerName?: string;
+  initialOwnerMobile?: string;
   onSubmit: (data: {
     petName: string;
     petBreed: string;
@@ -14,14 +16,30 @@ type WalkInModalProps = {
   }) => Promise<void>;
 };
 
-export function WalkInModal({ open, onClose, onSubmit }: WalkInModalProps) {
+export function WalkInModal({
+  open,
+  onClose,
+  initialOwnerName = '',
+  initialOwnerMobile = '',
+  onSubmit,
+}: WalkInModalProps) {
   const [petName, setPetName] = useState('');
   const [petBreed, setPetBreed] = useState('');
-  const [ownerName, setOwnerName] = useState('');
-  const [ownerMobile, setOwnerMobile] = useState('');
+  const [ownerName, setOwnerName] = useState(initialOwnerName);
+  const [ownerMobile, setOwnerMobile] = useState(initialOwnerMobile);
   const [amount, setAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setOwnerName(initialOwnerName);
+    setOwnerMobile(initialOwnerMobile);
+    setPetName('');
+    setPetBreed('');
+    setAmount('');
+    setError('');
+  }, [open, initialOwnerName, initialOwnerMobile]);
 
   if (!open) return null;
 

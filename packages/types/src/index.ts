@@ -537,6 +537,128 @@ export interface CollectPaymentDto {
   paymentMethodLabel?: string;
 }
 
+/** Pet row in the clinic directory (aggregated from clinic visit history). */
+export type ClinicPetAppStatus = 'on_app' | 'invited' | 'none';
+export type ClinicPetHealthStatus =
+  | 'healthy'
+  | 'vaccination_due'
+  | 'under_treatment'
+  | 'incomplete';
+
+export interface ClinicPetDirectoryItem {
+  id: string;
+  displayId: string;
+  petId?: string;
+  name: string;
+  species: string;
+  breed: string;
+  ageLabel?: string;
+  ownerName: string;
+  ownerMobile?: string;
+  userId?: string;
+  isWalkIn: boolean;
+  lastVisitAt: string;
+  appStatus: ClinicPetAppStatus;
+  status: ClinicPetHealthStatus;
+  visitCount: number;
+}
+
+export interface ClinicPetsBoardResponse {
+  pets: ClinicPetDirectoryItem[];
+  summary: {
+    total: number;
+    incompleteProfiles: number;
+  };
+}
+
+/** Owner row in the clinic directory (aggregated from clinic visit history). */
+export type ClinicOwnerAppStatus = 'on_app' | 'invited' | 'none';
+
+export interface ClinicOwnerPetSummary {
+  name: string;
+  breed: string;
+}
+
+export interface ClinicOwnerDirectoryItem {
+  id: string;
+  name: string;
+  mobile?: string;
+  userId?: string;
+  isWalkIn: boolean;
+  appStatus: ClinicOwnerAppStatus;
+  /** ISO timestamp of most recent clinic visit */
+  lastVisitAt: string;
+  /** True when this clinic has only one visit on record for the owner */
+  isFirstVisit: boolean;
+  visitCount: number;
+  pets: ClinicOwnerPetSummary[];
+  /** Outstanding unpaid balance in paise (consultations pending payment) */
+  amountDuePaise: number;
+  /** When the owner was last invited (ISO); used for "just now" badge */
+  invitedAt?: string;
+}
+
+export interface ClinicOwnersBoardResponse {
+  owners: ClinicOwnerDirectoryItem[];
+  summary: {
+    total: number;
+    onAppCount: number;
+    invitedCount: number;
+    paymentDueCount: number;
+  };
+}
+
+export interface ClinicOwnerPaymentItem {
+  id: string;
+  date: string;
+  petName: string;
+  serviceLabel: string;
+  amountPaise: number;
+  methodLabel: string;
+  paymentStatus: BookingPaymentStatus;
+}
+
+export interface ClinicOwnerProfilePet {
+  id: string;
+  petId?: string;
+  name: string;
+  species: string;
+  breed: string;
+  ageLabel?: string;
+  weightLabel?: string;
+  lastVisitAt?: string;
+  nextDueLabel?: string;
+  status: ClinicPetHealthStatus;
+}
+
+export type ClinicOwnerActivityKind =
+  | 'checked_in'
+  | 'booked'
+  | 'pet_added'
+  | 'payment'
+  | 'other';
+
+export interface ClinicOwnerActivityItem {
+  id: string;
+  kind: ClinicOwnerActivityKind;
+  at: string;
+  title: string;
+  detail: string;
+}
+
+export interface ClinicOwnerProfileResponse {
+  owner: ClinicOwnerDirectoryItem & {
+    email?: string;
+    address?: string;
+    memberSinceYear?: number;
+    lifetimeSpendPaise: number;
+  };
+  payments: ClinicOwnerPaymentItem[];
+  pets: ClinicOwnerProfilePet[];
+  activity: ClinicOwnerActivityItem[];
+  allPaid: boolean;
+}
+
 export interface CreateConsultationBookingDto {
   clinicId: string;
   vetId: string;

@@ -21,12 +21,14 @@ export function getDashboardRole(vet: Vet | null | undefined): DashboardRole {
 export const ROLE_NAV_ACCESS: Record<
   DashboardRole,
   {
+    myDay: boolean;
     workspace: boolean;
     directory: boolean;
     admin: boolean;
   }
 > = {
-  admin: { workspace: true, directory: true, admin: true },
-  vet: { workspace: true, directory: true, admin: false },
-  front_staff: { workspace: true, directory: true, admin: false },
+  admin: { myDay: true, workspace: true, directory: true, admin: true },
+  vet: { myDay: true, workspace: true, directory: true, admin: false },
+  // Front-office / additional staff — no personal "My Day" board
+  front_staff: { myDay: false, workspace: true, directory: true, admin: false },
 };

@@ -14,6 +14,8 @@ import {
   waitMinutesSince,
 } from './shared/utils';
 import { WalkInModal } from './check-in/WalkInModal';
+import { ConfirmCheckInModal } from './check-in/ConfirmCheckInModal';
+import { CheckInSuccessModal } from './check-in/CheckInSuccessModal';
 
 type BoardFilter = 'all' | 'waiting' | 'ready';
 type ArrivingWindow = 'next2h' | 'all';
@@ -55,8 +57,16 @@ export function FrontDeskPage() {
   const [query, setQuery] = useState('');
   const [columnQuery, setColumnQuery] = useState('');
   const [walkInOpen, setWalkInOpen] = useState(false);
+  const [walkInOwner, setWalkInOwner] = useState<{ name: string; mobile: string }>({
+    name: '',
+    mobile: '',
+  });
+  const [confirmBooking, setConfirmBooking] = useState<ConsultationBooking | null>(null);
+  const [successBooking, setSuccessBooking] = useState<ConsultationBooking | null>(null);
+  const [successQueuePosition, setSuccessQueuePosition] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
+  const [confirmError, setConfirmError] = useState('');
 
   const {
     data: checkIn,
@@ -134,17 +144,59 @@ export function FrontDeskPage() {
   const emergencyInProgress =
     waiting.some(isEmergency) || inConsultation.some(isEmergency);
 
-  const handleCheckIn = async (id: string) => {
+  const siblingPetsFor = useCallback(
+    (booking: ConsultationBooking) => {
+      const ownerKey = (booking.userId || booking.userMobile || booking.ownerMobileSnapshot || '')
+        .toString()
+        .trim();
+      if (!ownerKey) return [];
+      const seen = new Set<string>([booking.petName.trim().toLowerCase()]);
+      const out: { name: string; breed: string }[] = [];
+      for (const b of checkIn?.expectedArrivals ?? []) {
+        if (b.id === booking.id) continue;
+        const key = (b.userId || b.userMobile || b.ownerMobileSnapshot || '').toString().trim();
+        if (!key || key !== ownerKey) continue;
+        const petKey = b.petName.trim().toLowerCase();
+        if (seen.has(petKey)) continue;
+        seen.add(petKey);
+        out.push({ name: b.petName, breed: b.petBreed });
+      }
+      return out;
+    },
+    [checkIn],
+  );
+
+  const openConfirmCheckIn = (booking: ConsultationBooking) => {
     setActionError('');
-    setBusyId(id);
+    setConfirmError('');
+    setConfirmBooking(booking);
+  };
+
+  const handleConfirmCheckIn = async () => {
+    if (!confirmBooking) return;
+    setConfirmError('');
+    setBusyId(confirmBooking.id);
     try {
-      await frontDeskApi.checkIn(client, id);
+      const checkedIn = await frontDeskApi.checkIn(client, confirmBooking.id);
       await refresh();
+      const position = (queue?.waiting.length ?? 0) + 1;
+      setSuccessQueuePosition(position);
+      setSuccessBooking(checkedIn);
+      setConfirmBooking(null);
     } catch (err: unknown) {
-      setActionError((err as { message?: string })?.message ?? 'Check-in failed');
+      setConfirmError((err as { message?: string })?.message ?? 'Check-in failed');
     } finally {
       setBusyId(null);
     }
+  };
+
+  const openWalkInForOwner = (booking: ConsultationBooking) => {
+    setWalkInOwner({
+      name: ownerLabel(booking),
+      mobile: booking.userMobile ?? booking.ownerMobileSnapshot ?? '',
+    });
+    setConfirmBooking(null);
+    setWalkInOpen(true);
   };
 
   const handleStartConsult = async (id: string) => {
@@ -230,7 +282,10 @@ export function FrontDeskPage() {
             </button>
             <button
               type="button"
-              onClick={() => setWalkInOpen(true)}
+              onClick={() => {
+                setWalkInOwner({ name: '', mobile: '' });
+                setWalkInOpen(true);
+              }}
               className="inline-flex items-center gap-2 rounded-xl bg-brand-blue px-4 py-2.5 text-sm font-semibold text-on-contrast hover:bg-brand-blue-hover"
             >
               <Plus className="h-4 w-4" />
@@ -372,7 +427,7 @@ export function FrontDeskPage() {
                       <button
                         type="button"
                         disabled={busyId === b.id}
-                        onClick={() => void handleCheckIn(b.id)}
+                        onClick={() => openConfirmCheckIn(b)}
                         className="shrink-0 rounded-lg bg-success px-3 py-1.5 text-xs font-semibold text-on-contrast hover:bg-success-hover disabled:opacity-50"
                       >
                         {busyId === b.id ? '…' : 'Check In'}
@@ -385,7 +440,10 @@ export function FrontDeskPage() {
               <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
                 <button
                   type="button"
-                  onClick={() => setWalkInOpen(true)}
+                  onClick={() => {
+                    setWalkInOwner({ name: '', mobile: '' });
+                    setWalkInOpen(true);
+                  }}
                   className="w-full rounded-xl border border-dashed border-border bg-card/60 py-2.5 text-sm font-medium text-muted hover:border-brand-blue hover:text-brand-blue"
                 >
                   + Walk-in (phone lookup)
@@ -462,7 +520,46 @@ export function FrontDeskPage() {
         </div>
       </div>
 
-      <WalkInModal open={walkInOpen} onClose={() => setWalkInOpen(false)} onSubmit={handleWalkIn} />
+      <WalkInModal
+        open={walkInOpen}
+        onClose={() => setWalkInOpen(false)}
+        initialOwnerName={walkInOwner.name}
+        initialOwnerMobile={walkInOwner.mobile}
+        onSubmit={handleWalkIn}
+      />
+
+      <ConfirmCheckInModal
+        open={Boolean(confirmBooking)}
+        booking={confirmBooking}
+        nextQueuePosition={(queue?.waiting.length ?? 0) + 1}
+        siblingPets={confirmBooking ? siblingPetsFor(confirmBooking) : []}
+        busy={busyId === confirmBooking?.id}
+        error={confirmError}
+        onClose={() => {
+          if (busyId) return;
+          setConfirmBooking(null);
+          setConfirmError('');
+        }}
+        onConfirm={() => void handleConfirmCheckIn()}
+        onAddAnotherPet={
+          confirmBooking ? () => openWalkInForOwner(confirmBooking) : undefined
+        }
+      />
+
+      <CheckInSuccessModal
+        open={Boolean(successBooking)}
+        booking={successBooking}
+        queuePosition={successQueuePosition}
+        estimatedWithDoctor={estimatedReadyLabel(
+          successBooking?.checkedInAt,
+          avgWait || 20,
+        )}
+        onViewQueue={() => {
+          setSuccessBooking(null);
+          setBoardFilter('waiting');
+        }}
+        onDone={() => setSuccessBooking(null)}
+      />
     </div>
   );
 }
